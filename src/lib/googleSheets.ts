@@ -109,10 +109,11 @@ function matchByKeyword(keyword: string, prices: FabricPrice[]): FabricPrice | n
   )
   if (exact?.dealerPrice) return exact
 
-  // ② 부분일치: 키워드가 이름에 포함되거나, 이름이 키워드에 포함 (dealerPrice 있는 것 우선)
+  // ② 부분일치: 시트명/코드가 키워드를 포함하는 경우만 (dealerPrice 있는 것 우선)
+  // 역방향(키워드가 시트명 포함)은 제외 — "마블-2"가 "마블"을 포함해 오매칭되는 문제 방지
   const partials = prices.filter(p =>
-    p.name.toUpperCase().includes(up) || up.includes(p.name.toUpperCase()) ||
-    (p.altName && (p.altName.toUpperCase().includes(up) || up.includes(p.altName.toUpperCase())))
+    p.name.toUpperCase().includes(up) ||
+    (p.altName && p.altName.toUpperCase().includes(up))
   )
   const partial = partials.find(p => p.dealerPrice > 0) ?? partials[0]
   if (partial?.dealerPrice) return partial
