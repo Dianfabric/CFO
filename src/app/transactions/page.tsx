@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Search, Trash2, Receipt } from 'lucide-react'
+import { Plus, Search, Trash2, Receipt, Ship, Upload, CheckCircle, AlertCircle, X } from 'lucide-react'
 import {
   formatKRW, formatDate, getTransactionTypeName, getPaymentMethodName,
   getPaymentStatusName, getChannelName,
@@ -46,6 +46,14 @@ const CHANNELS = [
 
 const emptyItem: TransactionItem = { productId: '', productName: '', quantity: 1, unitPrice: 0, notes: '' }
 
+interface ShippingParsed {
+  docType: 'invoice' | 'customs'
+  amount: number
+  date: string
+  vendor: string
+  fileName: string
+}
+
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [total, setTotal] = useState(0)
@@ -56,6 +64,13 @@ export default function TransactionsPage() {
   const [filterType, setFilterType] = useState('')
   const [filterDate, setFilterDate] = useState('')
   const [searchClient, setSearchClient] = useState('')
+
+  // 해외운송비 PDF 자동 등록
+  const [shippingOpen, setShippingOpen] = useState(false)
+  const [shippingState, setShippingState] = useState<'idle' | 'parsing' | 'parsed' | 'saving' | 'done'>('idle')
+  const [shippingItems, setShippingItems] = useState<ShippingParsed[]>([])
+  const [shippingError, setShippingError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 거래 입력 폼
   const [form, setForm] = useState({
@@ -133,6 +148,42 @@ export default function TransactionsPage() {
     } catch (err) { console.error(err) }
   }
 
+  const handleShippingFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setShippingState('parsing')
+    setShippingError('')
+    setShippingItems([])
+    try {
+      const form = new FormData()
+      Array.from(files).forEach(f => form.append('files', f))
+      const res = await fetch('/api/shipping-import', { method: 'POST', body: form })
+      const json = await res.json()
+      if (!res.ok) { setShippingError(json.error ?? '파싱 오류'); setShippingState('idle'); return }
+      setShippingItems(json.results)
+      setShippingState('parsed')
+    } catch {
+      setShippingError('네트워크 오류')
+      setShippingState('idle')
+    }
+  }
+
+  const handleShippingSave = async () => {
+    setShippingState('saving')
+    try {
+      const res = await fetch('/api/shipping-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: shippingItems }),
+      })
+      if (!res.ok) { setShippingError('저장 오류'); setShippingState('parsed'); return }
+      setShippingState('done')
+      fetchData()
+    } catch {
+      setShippingError('네트워크 오류')
+      setShippingState('parsed')
+    }
+  }
+
   const openNew = (type: string = 'SALE') => {
     setForm(prev => ({ ...prev, type, date: new Date().toISOString().split('T')[0] }))
     setItems([{ ...emptyItem }])
@@ -159,6 +210,10 @@ export default function TransactionsPage() {
           <p className="text-sm text-slate-500">매출·비용·매입 거래를 기록하고 조회합니다</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+            onClick={() => { setShippingOpen(true); setShippingState('idle'); setShippingItems([]); setShippingError('') }}>
+            <Ship className="w-4 h-4" />해외운송비 PDF
+          </Button>
           {TYPES.map(t => (
             <Button key={t.value} variant={t.value === 'SALE' ? 'default' : 'outline'}
               size="sm" className="gap-1" onClick={() => openNew(t.value)}>
@@ -365,6 +420,108 @@ export default function TransactionsPage() {
               거래 저장
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* 해외운송비 PDF 자동 등록 다이얼로그 */}
+      <Dialog open={shippingOpen} onOpenChange={open => { setShippingOpen(open); if (!open) setShippingState('idle') }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Ship className="w-5 h-5 text-blue-600" />해외운송비 PDF 자동 등록
+            </DialogTitle>
+          </DialogHeader>
+
+          {shippingState === 'done' ? (
+            <div className="py-8 text-center">
+              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+              <p className="font-medium text-slate-800">등록 완료!</p>
+              <p className="text-sm text-slate-500 mt-1">{shippingItems.length}건이 매입으로 등록됐습니다</p>
+              <Button className="mt-4" onClick={() => setShippingOpen(false)}>닫기</Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* 업로드 영역 */}
+              {(shippingState === 'idle' || shippingState === 'parsing') && (
+                <div
+                  className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.preventDefault(); handleShippingFiles(e.dataTransfer.files) }}
+                >
+                  <input ref={fileInputRef} type="file" accept=".pdf" multiple className="hidden"
+                    onChange={e => handleShippingFiles(e.target.files)} />
+                  {shippingState === 'parsing' ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                      <p className="text-sm text-blue-600">AI 분석 중...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-slate-700">PDF 파일을 끌어다 놓거나 클릭해서 선택</p>
+                      <p className="text-xs text-slate-400 mt-1">글로지텍 인보이스 + 수입세금계산서 동시 업로드 가능</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* 오류 */}
+              {shippingError && (
+                <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 rounded p-3">
+                  <AlertCircle className="w-4 h-4 shrink-0" />{shippingError}
+                </div>
+              )}
+
+              {/* 파싱 결과 */}
+              {shippingState === 'parsed' && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-slate-700">추출 결과 — 확인 후 등록하세요</p>
+                  {shippingItems.map((item, idx) => (
+                    <div key={idx} className="border rounded-lg p-3 space-y-2 bg-slate-50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                          {item.docType === 'invoice' ? '운임 인보이스' : '수입세금계산서'}
+                        </span>
+                        <button onClick={() => setShippingItems(prev => prev.filter((_, i) => i !== idx))}>
+                          <X className="w-4 h-4 text-slate-400 hover:text-red-500" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">업체</Label>
+                          <Input className="h-8 text-sm" value={item.vendor}
+                            onChange={e => setShippingItems(prev => prev.map((it, i) => i === idx ? { ...it, vendor: e.target.value } : it))} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">날짜</Label>
+                          <Input type="date" className="h-8 text-sm" value={item.date}
+                            onChange={e => setShippingItems(prev => prev.map((it, i) => i === idx ? { ...it, date: e.target.value } : it))} />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs">금액 (원)</Label>
+                        <Input type="number" className="h-8 text-sm" value={item.amount}
+                          onChange={e => setShippingItems(prev => prev.map((it, i) => i === idx ? { ...it, amount: parseInt(e.target.value) || 0 } : it))} />
+                      </div>
+                      <p className="text-xs text-slate-400">파일: {item.fileName}</p>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-sm text-slate-600">
+                      합계: <strong>{formatKRW(shippingItems.reduce((s, it) => s + it.amount, 0))}</strong>
+                    </span>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm"
+                        onClick={() => { setShippingState('idle'); setShippingItems([]) }}>다시 업로드</Button>
+                      <Button size="sm" onClick={handleShippingSave} disabled={shippingItems.length === 0}>
+                        {`${shippingItems.length}건 매입 등록`}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
