@@ -14,18 +14,34 @@ export async function GET(request: NextRequest) {
       const mStart = startOfMonth(subMonths(now, i))
       const mEnd = endOfMonth(subMonths(now, i))
 
-      const [sales, expenses] = await Promise.all([
+      const [salesAgg, expensesAgg, salesTx] = await Promise.all([
         prisma.transaction.aggregate({ where: { type: 'SALE', date: { gte: mStart, lte: mEnd } }, _sum: { totalAmount: true }, _count: true }),
-        prisma.transaction.aggregate({ where: { type: { in: ['EXPENSE', 'PURCHASE'] }, date: { gte: mStart, lte: mEnd } }, _sum: { totalAmount: true } }),
+        prisma.transaction.aggregate({ where: { type: 'EXPENSE', date: { gte: mStart, lte: mEnd } }, _sum: { totalAmount: true } }),
+        prisma.transaction.findMany({
+          where: { type: 'SALE', date: { gte: mStart, lte: mEnd } },
+          include: { items: { include: { product: true } } },
+        }),
       ])
+
+      // COGS: 실제 판매된 제품의 매입가 기반 원가 (결산 페이지와 동일 방식)
+      let cogs = 0
+      salesTx.forEach(tx => {
+        tx.items.forEach(item => {
+          cogs += (item.product?.purchasePrice || 0) * item.quantity
+        })
+      })
+
+      const totalSalesAmt = salesAgg._sum.totalAmount || 0
+      const totalExpenses = expensesAgg._sum.totalAmount || 0
+      const totalCosts = cogs + totalExpenses
 
       results.push({
         month: `${mStart.getFullYear()}-${String(mStart.getMonth() + 1).padStart(2, '0')}`,
         label: `${mStart.getMonth() + 1}월`,
-        sales: sales._sum.totalAmount || 0,
-        expenses: expenses._sum.totalAmount || 0,
-        profit: (sales._sum.totalAmount || 0) - (expenses._sum.totalAmount || 0),
-        count: sales._count || 0,
+        sales: totalSalesAmt,
+        expenses: totalCosts,
+        profit: totalSalesAmt - totalCosts,
+        count: salesAgg._count || 0,
       })
     }
 
