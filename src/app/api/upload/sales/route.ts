@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
       expenseCount: number; totalExpenses: number
       purchaseCount: number; totalPurchases: number
     }[] = []
+    const unmatchedProducts: string[] = []
 
     for (const sheetName of workbook.SheetNames) {
       const txDate = parseSheetDate(sheetName)
@@ -171,17 +172,20 @@ export async function POST(request: NextRequest) {
 
         // 원단 원가 자동 계산
         if (fabricPrices.length > 0) {
-          const costItems = items
-            .filter(i => !SKIP_COST_ITEMS.some(s => i.productName.includes(s)) && i.qty > 0)
-            .map(i => {
-              const dealerPriceUSD = findFabricCost(i.productName, fabricPrices)
-              const dealerPriceKRW = Math.round(dealerPriceUSD * usdRate)
-              return { ...i, dealerPriceUSD, dealerPriceKRW, costAmount: Math.round(dealerPriceKRW * i.qty) }
-            })
-            .filter(i => i.dealerPriceUSD > 0)
+          const candidateItems = items.filter(i => !SKIP_COST_ITEMS.some(s => i.productName.includes(s)) && i.qty > 0)
+          const costItems = candidateItems.map(i => {
+            const fullName = i.productName + (i.spec ? ` [${i.spec}]` : '')
+            const dealerPriceUSD = findFabricCost(fullName, fabricPrices)
+            const dealerPriceKRW = Math.round(dealerPriceUSD * usdRate)
+            return { ...i, fullName, dealerPriceUSD, dealerPriceKRW, costAmount: Math.round(dealerPriceKRW * i.qty) }
+          })
 
-          if (costItems.length > 0) {
-            const totalCost = costItems.reduce((s, i) => s + i.costAmount, 0)
+          const matched = costItems.filter(i => i.dealerPriceUSD > 0)
+          const unmatched = costItems.filter(i => i.dealerPriceUSD === 0).map(i => i.fullName)
+          if (unmatched.length > 0) unmatchedProducts.push(...unmatched)
+
+          if (matched.length > 0) {
+            const totalCost = matched.reduce((s, i) => s + i.costAmount, 0)
             await prisma.transaction.create({
               data: {
                 date: txDate,
@@ -195,8 +199,8 @@ export async function POST(request: NextRequest) {
                 channel: 'B2B',
                 notes: `일계표 원가 자동 계산 (환율: ${usdRate}원/USD)`,
                 items: {
-                  create: costItems.map(i => ({
-                    productName: i.productName + (i.spec ? ` [${i.spec}]` : ''),
+                  create: matched.map(i => ({
+                    productName: i.fullName,
                     quantity: i.qty,
                     unitPrice: i.dealerPriceKRW,
                     amount: i.costAmount,
@@ -287,6 +291,7 @@ export async function POST(request: NextRequest) {
       totalPurchases: processed.reduce((s, r) => s + r.totalPurchases, 0),
       sheetsError: sheetsError || undefined,
       details: results,
+      unmatchedProducts: [...new Set(unmatchedProducts)],
     })
   } catch (error) {
     console.error('Sales upload error:', error)
