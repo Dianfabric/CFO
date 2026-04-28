@@ -133,12 +133,31 @@ export async function GET(request: NextRequest) {
       clientName: tx.client?.name || null,
     }))
 
+    // === 2-1. 해외운송비 (기간 배분) — productCM 계산 전에 먼저 조회 ===
+    const yearMonth = format(refDate, 'yyyy-MM')
+    const shippingCategory = await prisma.costCategory.findFirst({
+      where: { name: { contains: '해외' } },
+    })
+    const monthlyCostRecord = shippingCategory
+      ? await prisma.monthlyCost.findUnique({
+          where: { costCategoryId_yearMonth: { costCategoryId: shippingCategory.id, yearMonth } },
+        })
+      : null
+    const monthlyShippingCost = monthlyCostRecord?.amount ?? 0
+    const periodShippingCost = Math.round(monthlyShippingCost * businessDayRatio)
+
+    // 제품별 해외운송비 배분 (매출 비율)
     const productCM = Object.values(productContributions)
-      .map(p => ({
-        ...p,
-        contributionMargin: p.revenue - p.variableCost,
-        contributionMarginRate: p.revenue > 0 ? ((p.revenue - p.variableCost) / p.revenue) * 100 : 0,
-      }))
+      .map(p => {
+        const shippingAllocation = totalSales > 0 ? Math.round((p.revenue / totalSales) * periodShippingCost) : 0
+        const totalVariableCostWithShipping = p.variableCost + shippingAllocation
+        return {
+          ...p,
+          shippingAllocation,
+          contributionMargin: p.revenue - totalVariableCostWithShipping,
+          contributionMarginRate: p.revenue > 0 ? ((p.revenue - totalVariableCostWithShipping) / p.revenue) * 100 : 0,
+        }
+      })
       .sort((a, b) => b.revenue - a.revenue)
 
     // === 3. 고정비 (기간 배분) ===
@@ -152,18 +171,7 @@ export async function GET(request: NextRequest) {
 
     const periodFixedCost = Math.round(monthlyFixedCost * businessDayRatio)
 
-    // === 3-1. 해외운송비 (기간 배분) ===
-    const yearMonth = format(refDate, 'yyyy-MM')
-    const shippingCategory = await prisma.costCategory.findFirst({
-      where: { name: { contains: '해외' } },
-    })
-    const monthlyCostRecord = shippingCategory
-      ? await prisma.monthlyCost.findUnique({
-          where: { costCategoryId_yearMonth: { costCategoryId: shippingCategory.id, yearMonth } },
-        })
-      : null
-    const monthlyShippingCost = monthlyCostRecord?.amount ?? 0
-    const periodShippingCost = Math.round(monthlyShippingCost * businessDayRatio)
+    // periodShippingCost / monthlyShippingCost — 위 2-1에서 이미 계산됨
 
     const adjustedContributionMargin = totalContributionMargin - periodShippingCost
     const adjustedContributionMarginRate = totalSales > 0 ? (adjustedContributionMargin / totalSales) * 100 : 0

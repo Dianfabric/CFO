@@ -31,7 +31,7 @@ interface SettlementData {
   }
   productCM: {
     productId: string; productName: string; category: string; unit: string
-    revenue: number; variableCost: number; quantity: number
+    revenue: number; variableCost: number; quantity: number; shippingAllocation: number
     contributionMargin: number; contributionMarginRate: number
     brand: string
   }[]
@@ -436,6 +436,7 @@ export default function SettlementPage() {
                     <th className="p-2 font-medium text-right">수량</th>
                     <th className="p-2 font-medium text-right">매출</th>
                     <th className="p-2 font-medium text-right">원가(변동비)</th>
+                    <th className="p-2 font-medium text-right">해외운송비(변동비)</th>
                     <th className="p-2 font-medium text-right">공헌이익</th>
                     <th className="p-2 font-medium text-right">공헌이익률</th>
                   </tr>
@@ -454,6 +455,9 @@ export default function SettlementPage() {
                       <td className="p-2 text-right text-red-600">
                         {p.variableCost > 0 ? formatKRW(p.variableCost) : <span className="text-slate-300">-</span>}
                       </td>
+                      <td className="p-2 text-right text-orange-500 text-xs">
+                        {p.shippingAllocation > 0 ? formatKRW(p.shippingAllocation) : <span className="text-slate-300">-</span>}
+                      </td>
                       <td className="p-2 text-right font-bold text-green-700">{formatKRW(p.contributionMargin)}</td>
                       <td className="p-2 text-right">
                         <span className={p.contributionMarginRate >= 40 ? 'text-green-600 font-bold' : p.contributionMarginRate >= 20 ? 'text-yellow-600' : 'text-red-600'}>
@@ -466,6 +470,7 @@ export default function SettlementPage() {
                     <td className="p-2" colSpan={3}>합계</td>
                     <td className="p-2 text-right">{formatKRW(data.totalSales)}</td>
                     <td className="p-2 text-right text-red-600">{formatKRW(data.totalVariableCost)}</td>
+                    <td className="p-2 text-right text-orange-500">{formatKRW(data.dailyShippingCost)}</td>
                     <td className="p-2 text-right text-green-700">{formatKRW(data.totalContributionMargin)}</td>
                     <td className="p-2 text-right">{formatPercent(data.contributionMarginRate)}</td>
                   </tr>
