@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint"
   },
@@ -43,6 +43,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "better-sqlite3": "^12.9.0",
     "eslint": "^9",
     "eslint-config-next": "^15.5.15",
     "tailwindcss": "^4",
