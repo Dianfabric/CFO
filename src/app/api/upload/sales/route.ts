@@ -172,7 +172,8 @@ export async function POST(request: NextRequest) {
 
         // 원단 원가 자동 계산
         if (fabricPrices.length > 0) {
-          const candidateItems = items.filter(i => !SKIP_COST_ITEMS.some(s => i.productName.includes(s)) && i.qty > 0)
+          // 반품(음수 수량)도 포함해 원가 차감 처리
+          const candidateItems = items.filter(i => !SKIP_COST_ITEMS.some(s => i.productName.includes(s)) && i.qty !== 0)
           const costItems = candidateItems.map(i => {
             const fullName = i.productName + (i.spec ? ` [${i.spec}]` : '')
             const dealerPriceUSD = findFabricCost(fullName, fabricPrices)

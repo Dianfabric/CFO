@@ -65,8 +65,9 @@ export async function POST(request: NextRequest) {
     const results: { date: string; client: string; items: number; totalCost: number }[] = []
 
     for (const saleTx of saleTxs) {
+      // 반품(음수 수량)도 포함해 원가 차감 처리
       const costItems = saleTx.items
-        .filter(i => !SKIP_COST_ITEMS.some(s => (i.productName ?? '').includes(s)) && i.quantity > 0)
+        .filter(i => !SKIP_COST_ITEMS.some(s => (i.productName ?? '').includes(s)) && i.quantity !== 0)
         .map(i => {
           const dealerPriceUSD = findFabricCost(i.productName ?? '', fabricPrices)
           const dealerPriceKRW = Math.round(dealerPriceUSD * usdRate)
