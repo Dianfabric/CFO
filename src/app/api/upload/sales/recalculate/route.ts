@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getFabricPrices, findFabricCost, getUSDtoKRW } from '@/lib/googleSheets'
+import { getFabricPrices, findFabricCost, getUSDtoKRW, clearFabricCache } from '@/lib/googleSheets'
 import { startOfDay, endOfDay } from 'date-fns'
 
 export const runtime = 'nodejs'
@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
     const rangeStart = startOfDay(new Date(start + 'T12:00:00'))
     const rangeEnd = endOfDay(new Date(end + 'T12:00:00'))
 
-    // Google Sheets 현재 원가 + 환율 조회
+    // Google Sheets 현재 원가 + 환율 조회 (캐시 초기화 후 최신 데이터 사용)
+    clearFabricCache()
     const [fabricPrices, usdRate] = await Promise.all([
       getFabricPrices(),
       getUSDtoKRW(),

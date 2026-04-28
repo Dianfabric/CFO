@@ -26,23 +26,7 @@ let rateCacheTime = 0
 const RATE_TTL = 60 * 60 * 1000 // 1시간 캐시
 
 export async function getUSDtoKRW(): Promise<number> {
-  const now = Date.now()
-  if (cachedRate && now - rateCacheTime < RATE_TTL) return cachedRate
-
-  try {
-    const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW')
-    const data = await res.json()
-    const rate = data?.rates?.KRW
-    if (rate && typeof rate === 'number') {
-      cachedRate = rate
-      rateCacheTime = now
-      return rate
-    }
-  } catch {
-    // 조회 실패 시 기본값 사용
-  }
-
-  return cachedRate ?? 1380 // fallback
+  return 1500
 }
 
 export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPrice[]> {
