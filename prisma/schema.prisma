@@ -1,0 +1,313 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 사용자 (Users)
+// ============================================
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         String   @default("STAFF") // ADMIN, STAFF
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  transactions    Transaction[]
+  aiConversations AiConversation[]
+  excelImports    ExcelImport[]
+
+  @@map("users")
+}
+
+// ============================================
+// 거래처 (Clients) - B2B 고객 및 공급업체
+// ============================================
+model Client {
+  id             String   @id @default(cuid())
+  name           String
+  businessNumber String?  @map("business_number") // 사업자번호
+  contactName    String?  @map("contact_name")
+  phone          String?
+  email          String?
+  address        String?
+  type           String   @default("CUSTOMER") // CUSTOMER, SUPPLIER, BOTH
+  notes          String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  transactions       Transaction[]
+  accountsReceivable AccountsReceivable[]
+
+  @@map("clients")
+}
+
+// ============================================
+// 제품 (Products) - 원단 및 완제품
+// ============================================
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  category      String   // SOFA_FABRIC, CURTAIN_FABRIC, WALL_FABRIC, CURTAIN, SOFA, OTHER
+  unit          String   // METER, YARD, PIECE, ROLL
+  purchasePrice Int      @default(0) @map("purchase_price")  // 매입가 (원)
+  sellingPrice  Int      @default(0) @map("selling_price")   // 판매가 (원)
+  spec          String?                                       // 규격(폭)
+  alias         String?                                       // 별칭
+  source        String   @default("LOCAL")                   // SHEETS | LOCAL
+  description   String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  transactionItems TransactionItem[]
+
+  @@map("products")
+}
+
+// ============================================
+// 거래 (Transactions) - 핵심 테이블
+// ============================================
+model Transaction {
+  id            String   @id @default(cuid())
+  date          DateTime
+  type          String   // SALE, EXPENSE, PURCHASE
+  clientId      String?  @map("client_id")
+  description   String?
+  totalAmount   Int      @default(0) @map("total_amount")    // 총액 (원)
+  taxAmount     Int      @default(0) @map("tax_amount")      // 세금
+  paymentMethod String   @default("CASH") @map("payment_method") // CASH, CARD, TRANSFER, CREDIT
+  paymentStatus String   @default("PAID") @map("payment_status") // PAID, PARTIAL, UNPAID
+  channel       String   @default("B2B") // B2B, B2C_OFFLINE, B2C_ONLINE
+  notes         String?
+  createdById   String?  @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  client    Client? @relation(fields: [clientId], references: [id])
+  createdBy User?   @relation(fields: [createdById], references: [id])
+
+  items              TransactionItem[]
+  accountsReceivable AccountsReceivable[]
+
+  @@index([date])
+  @@index([type, date])
+  @@index([clientId])
+  @@index([paymentStatus])
+  @@map("transactions")
+}
+
+// ============================================
+// 거래 상세 항목 (Transaction Items)
+// ============================================
+model TransactionItem {
+  id            String  @id @default(cuid())
+  transactionId String  @map("transaction_id")
+  productId     String? @map("product_id")
+  productName   String  @default("") @map("product_name") // 제품명 스냅샷
+  quantity      Float   @default(1)
+  unitPrice     Int     @default(0) @map("unit_price")
+  amount        Int     @default(0)
+  notes         String?
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  product     Product?    @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@map("transaction_items")
+}
+
+// ============================================
+// 외상/미수금 (Accounts Receivable)
+// ============================================
+model AccountsReceivable {
+  id              String   @id @default(cuid())
+  clientId        String   @map("client_id")
+  transactionId   String   @map("transaction_id")
+  originalAmount  Int      @map("original_amount")
+  remainingAmount Int      @map("remaining_amount")
+  dueDate         DateTime? @map("due_date")
+  status          String   @default("OUTSTANDING") // OUTSTANDING, PARTIAL, PAID, OVERDUE
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  client      Client      @relation(fields: [clientId], references: [id])
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+  payments    ArPayment[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("accounts_receivable")
+}
+
+// ============================================
+// 미수금 회수 (AR Payments)
+// ============================================
+model ArPayment {
+  id            String   @id @default(cuid())
+  receivableId  String   @map("receivable_id")
+  amount        Int
+  paymentDate   DateTime @map("payment_date")
+  paymentMethod String   @default("TRANSFER") @map("payment_method")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  receivable AccountsReceivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+
+  @@map("ar_payments")
+}
+
+// ============================================
+// 비용 카테고리 (Cost Categories)
+// ============================================
+model CostCategory {
+  id       String  @id @default(cuid())
+  name     String
+  type     String  // RAW_MATERIAL, LABOR, RENT, LOGISTICS, UTILITIES, MARKETING, OTHER
+  isActive Boolean @default(true) @map("is_active")
+
+  recurringCosts RecurringCost[]
+  monthlyCosts   MonthlyCost[]
+
+  @@map("cost_categories")
+}
+
+// ============================================
+// 고정/반복 비용 (Recurring Costs)
+// ============================================
+model RecurringCost {
+  id             String  @id @default(cuid())
+  costCategoryId String  @map("cost_category_id")
+  description    String
+  amount         Int
+  frequency      String  @default("MONTHLY") // MONTHLY, QUARTERLY, YEARLY
+  notes          String?
+
+  costCategory CostCategory @relation(fields: [costCategoryId], references: [id])
+
+  @@map("recurring_costs")
+}
+
+// ============================================
+// 월별 실적 비용 (Monthly Actual Costs)
+// ============================================
+model MonthlyCost {
+  id             String   @id @default(cuid())
+  costCategoryId String   @map("cost_category_id")
+  yearMonth      String   @map("year_month") // "2026-04"
+  amount         Int      @default(0)
+  source         String   @default("MANUAL") // MANUAL, PDF_UPLOAD
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  costCategory CostCategory @relation(fields: [costCategoryId], references: [id])
+
+  @@unique([costCategoryId, yearMonth])
+  @@index([yearMonth])
+  @@map("monthly_costs")
+}
+
+// ============================================
+// AI 대화 (AI Conversations)
+// ============================================
+model AiConversation {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String   @default("새 대화")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id])
+  messages AiMessage[]
+
+  @@map("ai_conversations")
+}
+
+// ============================================
+// AI 메시지 (AI Messages)
+// ============================================
+model AiMessage {
+  id               String   @id @default(cuid())
+  conversationId   String   @map("conversation_id")
+  role             String   // USER, ASSISTANT
+  content          String
+  financialContext String?  @map("financial_context") // JSON 스냅샷
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("ai_messages")
+}
+
+// ============================================
+// 엑셀 업로드 이력 (Excel Imports)
+// ============================================
+model ExcelImport {
+  id         String   @id @default(cuid())
+  filename   String
+  rowCount   Int      @default(0) @map("row_count")
+  status     String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, ERROR
+  errorLog   String?  @map("error_log")
+  uploadedBy String   @map("uploaded_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  uploader User @relation(fields: [uploadedBy], references: [id])
+
+  @@map("excel_imports")
+}
+
+// ============================================
+// 회사 프로필 (Company Profile) - 공문/견적서 발신 정보
+// 단일 레코드. id = 'singleton'으로 고정 사용.
+// ============================================
+model CompanyProfile {
+  id              String   @id @default("singleton")
+  name            String   @default("")
+  businessNumber  String?  @map("business_number")
+  representative  String?
+  phone           String?
+  fax             String?
+  address         String?
+  email           String?
+  website         String?
+  bankInfo        String?  @map("bank_info")
+  logoPath        String?  @map("logo_path")
+  sealPath        String?  @map("seal_path")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("company_profile")
+}
+
+// ============================================
+// 공문 (Official Documents)
+// ============================================
+model OfficialDocument {
+  id                String   @id @default(cuid())
+  documentNumber    String   @unique @map("document_number")
+  type              String   // PRICE_CHANGE, HOLIDAY, PAYMENT_REQUEST, PRICE_INFO
+  title             String
+  recipientClientId String?  @map("recipient_client_id")
+  recipientName     String   @map("recipient_name")
+  ccLine            String?  @map("cc_line")
+  senderLine        String   @map("sender_line")
+  bodyText          String   @map("body_text")
+  tableJson         String?  @map("table_json")
+  metaJson          String?  @map("meta_json")
+  driveFileId       String?  @map("drive_file_id")
+  driveJpgId        String?  @map("drive_jpg_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([type, createdAt])
+  @@index([documentNumber])
+  @@map("official_documents")
+}

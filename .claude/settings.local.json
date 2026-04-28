@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --no-turbopack)",
+      "Read(//c/Users/freeh/OneDrive/Desktop/클로드 바이브코딩/**)",
+      "Bash(npx create-next-app@latest cfo-app --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --no-turbopack)",
+      "Bash(xcopy \"C:\\\\Users\\\\freeh\\\\OneDrive\\\\Desktop\\\\클로드 바이브코딩\\\\cfo-app\\\\*\" \"C:\\\\Users\\\\freeh\\\\OneDrive\\\\Desktop\\\\클로드 바이브코딩\\\\CFO\\\\\" /E /Y /Q 2>&1 && rmdir /S /Q \"C:\\\\Users\\\\freeh\\\\OneDrive\\\\Desktop\\\\클로드 바이브코딩\\\\cfo-app\" 2>&1)",
+      "Bash(cp -r 'C:/Users/freeh/OneDrive/Desktop/클로드 바이브코딩/cfo-app/.' 'C:/Users/freeh/OneDrive/Desktop/클로드 바이브코딩/CFO/')",
+      "Bash(rm -rf 'C:/Users/freeh/OneDrive/Desktop/클로드 바이브코딩/cfo-app')",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init -d)",
+      "Bash(npx shadcn@latest add card input label select table tabs dialog sheet badge separator dropdown-menu textarea sonner avatar popover command calendar -y)",
+      "Bash(npx prisma:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(rm -rf 'C:/Users/freeh/OneDrive/Desktop/클로드 바이브코딩/CFO/.next')",
+      "Bash(rm -f 'C:/Users/freeh/OneDrive/Desktop/클로드 바이브코딩/CFO/prisma/dev.db')",
+      "Bash(npx tsx:*)"
+    ]
+  }
+}
