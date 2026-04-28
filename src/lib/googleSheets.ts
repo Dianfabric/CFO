@@ -1,6 +1,6 @@
 // Google Sheets 2025 TMS 시트 구조:
 // A열: 코드, B열: 브랜드, C열: 제품명, D열: 원단단가, E열: 소재, F열: 폭
-// G열: 무게, H열: 원가(USD), I~M열: 가격정보, N열: 브랜드
+// G열: 무게, H열: 원가(USD), I~M열: 가격정보, N열: 브랜드, O열: 보조검색(영문명 등)
 export interface FabricPrice {
   name: string        // C열: 제품명
   price: number       // D열: 원단단가
@@ -9,6 +9,7 @@ export interface FabricPrice {
   altName: string     // A열: 코드 (보조 검색용)
   brand: string       // N열: 브랜드
   dealerPrice: number // H열: 원가(USD)
+  altName2: string    // O열: 보조검색 (영문명 등)
 }
 
 let cachedPrices: FabricPrice[] | null = null
@@ -52,7 +53,7 @@ export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPri
   const sheetId = process.env.SHEET_ID
   if (!apiKey || !sheetId) throw new Error('Google Sheets 환경변수가 설정되지 않았습니다')
 
-  const range = encodeURIComponent(`${sheetName}!A:N`)
+  const range = encodeURIComponent(`${sheetName}!A:O`)
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`
 
   const res = await fetch(url)
@@ -71,6 +72,7 @@ export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPri
       altName: r[0]?.trim() ?? '',    // A열: 코드 (보조 검색용)
       brand: r[13]?.trim() ?? '',     // N열: 브랜드
       dealerPrice: parseSheetNum(r[7]), // H열: 원가(USD)
+      altName2: r[14]?.trim() ?? '',  // O열: 보조검색 (영문명 등)
     }))
 
   cacheTime = now
@@ -109,25 +111,30 @@ function matchByKeyword(keyword: string, prices: FabricPrice[]): FabricPrice | n
   const up = keyword.toUpperCase()
   const n = norm(keyword)
 
-  // ① 완전일치
+  // ① 완전일치 — 시트에 있으면 dealerPrice 없어도 반환
   const exact = prices.find(p =>
-    p.name.toUpperCase() === up || p.altName.toUpperCase() === up
+    p.name.toUpperCase() === up ||
+    p.altName.toUpperCase() === up ||
+    (p.altName2 && p.altName2.toUpperCase() === up)
   )
-  if (exact?.dealerPrice) return exact
+  if (exact) return exact
 
   // ② 정규화 완전일치: 하이픈·공백 차이 허용 ("마블-2" ↔ "마블2")
   const normExact = prices.find(p =>
-    norm(p.name) === n || (p.altName && norm(p.altName) === n)
+    norm(p.name) === n ||
+    (p.altName && norm(p.altName) === n) ||
+    (p.altName2 && norm(p.altName2) === n)
   )
-  if (normExact?.dealerPrice) return normExact
+  if (normExact) return normExact
 
-  // ③ 부분일치 (양방향, dealerPrice 있는 것 우선)
+  // ③ 부분일치 (양방향, dealerPrice 있는 것 우선 / 없어도 반환)
   const partials = prices.filter(p =>
     p.name.toUpperCase().includes(up) || up.includes(p.name.toUpperCase()) ||
-    (p.altName && (p.altName.toUpperCase().includes(up) || up.includes(p.altName.toUpperCase())))
+    (p.altName && (p.altName.toUpperCase().includes(up) || up.includes(p.altName.toUpperCase()))) ||
+    (p.altName2 && (p.altName2.toUpperCase().includes(up) || up.includes(p.altName2.toUpperCase())))
   )
   const partial = partials.find(p => p.dealerPrice > 0) ?? partials[0]
-  if (partial?.dealerPrice) return partial
+  if (partial) return partial
 
   return null
 }

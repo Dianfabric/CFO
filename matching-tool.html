@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>원단 매칭 확인 툴</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 20px; font-size: 14px; }
+h1 { font-size: 18px; margin-bottom: 4px; color: #222; }
+.sub { font-size: 12px; color: #888; margin-bottom: 16px; }
+
+.top-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-end; flex-wrap: wrap; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+label { font-size: 11px; color: #666; }
+input[type=text] { border: 1px solid #ddd; border-radius: 6px; padding: 6px 10px; font-size: 13px; background: #fff; }
+.api-input { width: 280px; }
+.sheet-input { width: 110px; }
+button { background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 8px 20px; font-size: 13px; cursor: pointer; font-weight: 500; }
+button:hover { background: #1d4ed8; }
+button:disabled { background: #94a3b8; cursor: default; }
+.btn-g { background: #16a34a; } .btn-g:hover { background: #15803d; }
+#status { font-size: 12px; color: #666; margin-top: 6px; }
+
+.bar { display: flex; gap: 8px; margin: 12px 0 8px; align-items: center; flex-wrap: wrap; }
+.cnt { font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 600; cursor: default; }
+.c-total { background:#e2e8f0; color:#475569; }
+.c-ok    { background:#dcfce7; color:#166534; }
+.c-no    { background:#fee2e2; color:#991b1b; }
+.c-fix   { background:#fef9c3; color:#854d0e; }
+
+.filter-bar { display: flex; gap: 14px; margin-bottom: 14px; font-size: 12px; color: #555; align-items: center; flex-wrap: wrap; }
+.filter-bar label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+/* 카드 그리드 */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.07);
+  border: 1.5px solid transparent;
+  transition: border-color .15s;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.card:hover { border-color: #e2e8f0; }
+.card.ok   { border-color: #bbf7d0; }
+.card.no   { border-color: #fecaca; }
+.card.fix  { border-color: #fde68a; }
+.card.skip { opacity: .4; }
+
+.card-top { display: flex; justify-content: space-between; align-items: center; }
+.card-num { font-size: 11px; color: #94a3b8; font-weight: 500; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+.t-ok   { background: #dcfce7; color: #166534; }
+.t-no   { background: #fee2e2; color: #991b1b; }
+.t-fix  { background: #fef9c3; color: #854d0e; }
+.t-skip { background: #f1f5f9; color: #94a3b8; }
+
+.card-name { font-size: 13px; font-weight: 600; color: #1e293b; line-height: 1.4; word-break: break-all; }
+
+.card-kw { font-size: 11px; color: #94a3b8; }
+.kw-label { color: #cbd5e1; margin-right: 3px; }
+
+.match-box {
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.match-box.hit   { background: #f0fdf4; }
+.match-box.miss  { background: #fff5f5; }
+.match-name  { font-weight: 600; color: #1e293b; }
+.match-meta  { color: #64748b; font-size: 11px; margin-top: 2px; }
+.match-price { color: #2563eb; font-weight: 600; font-size: 12px; float: right; }
+.miss-txt    { color: #fca5a5; font-size: 12px; }
+
+.fix-input {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: #fafafa;
+  color: #334155;
+  outline: none;
+}
+.fix-input:focus { border-color: #93c5fd; background: #fff; }
+.fix-label { font-size: 10px; color: #94a3b8; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<h1>경영박사 → 구글시트 원단 매칭 확인 툴</h1>
+<p class="sub">3월 실제 판매 데이터 기준 · 틀린 카드는 아래 입력란에 올바른 원단명/코드 입력</p>
+
+<div class="top-row">
+  <div class="field">
+    <label>Google API Key</label>
+    <input type="text" id="apiKey" class="api-input" value="AIzaSyCgdspPJQTJzeaJwoxhFo8VYv0heXegrXE">
+  </div>
+  <div class="field">
+    <label>Sheet ID</label>
+    <input type="text" id="sheetId" class="api-input" value="1PKx-ycLsyS1wYrvRSCJ2IceMKMoeczb2Fr2VcfNzJWc">
+  </div>
+  <div class="field">
+    <label>시트명</label>
+    <input type="text" id="sheetName" class="sheet-input" value="2025 TMS">
+  </div>
+  <button id="btnLoad" onclick="loadAndMatch()">매칭 실행</button>
+</div>
+<div id="status"></div>
+
+<datalist id="sheetList"></datalist>
+
+<div class="bar" id="summaryBar" style="display:none">
+  <span class="cnt c-total" id="cTotal"></span>
+  <span class="cnt c-ok"    id="cOk"></span>
+  <span class="cnt c-no"    id="cNo"></span>
+  <span class="cnt c-fix"   id="cFix"></span>
+  <button class="btn-g" onclick="exportResult()">결과 복사 (엑셀)</button>
+</div>
+
+<div class="filter-bar" id="filterBar" style="display:none">
+  <label><input type="checkbox" id="chkSkip" onchange="render()" checked> 비원단 숨기기</label>
+  <label><input type="checkbox" id="chkOk"   onchange="render()"> 매칭된 항목 숨기기</label>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const MARCH_NAMES = ["2061 [10]","2088 [03]","2121 [1]","2124-5-289 [파인텍스]","2132 [08]","215106 [02]","228301 [#03]","2582 [03]","70057 [11]","702530 [02]","9153 [02]","9345 [01]","9346 [15]","AD 91001 [02]","AD-8839 [02]","AD-91009 [03]","AGATE [08]","ALCANTA [133]","ARTE [96B]","Alcanta [116]","Alcanta [131]","Alcanta [136]","Alcanta [162]","Alcanta [186]","Alcanta [187]","Alcanta [190]","Alcanta [198]","BOHO [500]","BOHO [501]","Beam [01]","Beeline [02]","CH25A02 [04]","CL8215350 [01]","CL9016 [01]","COLLINS [#193014]","COPPER [16]","Cario [06]","Cleantex [593767]","Courtyard [07]","Crossgrain [10]","DC2356 [WHISPER]","DH2116 [28]","ECOTONE [21]","Ebony [05]","Ebony [21]","Ecotone [02]","Ecotone [18]","Everest [200]","Everest [301]","Everest [302]","Everest [500]","Everest [503]","Everest [504]","Everest [800]","Everest [801]","Everest [901]","Everest [902]","Everest [903]","FACET [01]","FACET [04]","FLAX [플렉스] [FA007]","FLAX [플렉스] [FA012]","G1752 [#08]","G1797 [#02]","G8101 [#05]","G8101 [01]","G8831 [06]","Glasgow [102]","Glasgow [702]","Glasgow [901]","H300111 [02]","HARVARD [12]","HL1506 [023]","HL1510","HL2130 [02]","JES136 [09]","JLS1051 [01]","JLW8228257 [01]","JLW8228257 [03]","JLW8228260 [01]","KINTORE [22]","KS1118 [10]","KS1236 [09]","LD2236B [39]","LD2238B [00]","LD2240B [33]","LD2273P [15]","LD2298B [77]","LD2304B [17]","LD2306B [#08]","LD2306B [21]","LD2309B [01]","LD2309B [24]","LD2310P [23]","LD2316B [15]","LD2331B [12]","LD2342P [02]","LD2342P [15]","LD2373B [01]","LD2376B [26]","LD2400P [07]","LUCAS [21116]","Load 1900 [04]","Load 1900 [13]","Loden [52]","Loreal [025]","MJ11 [17]","MJ11 [55]","MJG82305 [01]","MJG83301 [80]","MJG83301 [81]","MJG83301 [86]","MOOSE [무스] [MS025]","MX158 [01]","MX158 [07]","MZ22384 [01]","MZ22384 [03]","MZ22384 [04]","MZ23419B [#02]","Maze [#04]","Moly [03]","Moly [70]","NB1043 [02]","NB1043 [05]","NB1045 [02]","NB1045 [05]","Niagara [904]","Noil [06]","OMELET [016]","Only [2633]","Oxford [202]","P12 [1-11]","P57 [#01]","PROTON [07]","PS3114 [02]","PS3114 [03]","PS3114 [05]","PS3114 [10]","PS3114 [11]","PS3114 [12]","PS5016 [01]","PS5026 [05]","PS5072 [01]","RW1123 [15]","RW1549 [02]","RW1550 [02]","RW1703 [01]","Raum [IN142]","Rocco [03]","Rumba [02]","S023 [02]","SAMUI [09]","SOLEA [02]","SOLEA [09]","Sapphire [401]","Sundew [17]","TP2323G [03]","TP2323G [34]","TP2425F [011]","TP2526F [06]","Topaz [#02]","Topaz [04]","Tundra [08]","Tweed [08]","VR-21929 [03]","VR22938 [02]","Vacuum [25]","Versace [3916]","W1089B","W1148","W1150","WALES [31]","XlnepL [06]","alpine [503]","copper [19]","fanatic [09]","loden [36]","mystic [23]","나디아[NADIA] [034]","나디아[NADIA] [12]","나디아[NADIA] [22]","나디아[NADIA] [47]","넬리 [NELLY] [NE005]","넬리 [NELLY] [NE006]","단수정리","달리 [베이지]","달리 [연보라]","뒷지원단","디어스[The earth] [022]","디어스[The earth] [20]","디오네 방염 [베이지]","라미아 [비치]","라벤더 [블랙]","라벤더 방염 [블랙]","로지 방염[ROSIE] [RS002]","로투스 [그린]","로투스 [블랙]","로투스 [아이보리]","로투스 방염 [그린]","루나 [LUNA] [LN001]","루나 [LUNA] [LN003]","루나 [LUNA] [LN007]","루나 [LUNA] [LN012]","루나 [LUNA] [LN013]","루나 [LUNA] [LN016]","루나 [LUNA] [LN024]","루나 [LUNA] [LN026]","루나 [LUNA] [LN033]","루나 [LUNA] [LN034]","루루벨벳 [110]","루루벨벳 [130]","루비 [브라운]","루비 방염 [그린]","루크 [LUKE] [LK002]","루크 [LUKE] [LK008]","린넨커튼(나비2배주름)","마블 방염[MARVEL] [DA417]","마블-2 [MARBLE-2] [103]","마블-2 [MARBLE-2] [200]","마블-2 [MARBLE-2] [201]","마블-2 [MARBLE-2] [502]","마블-2 [MARBLE-2] [603]","마블-2 [MARBLE-2] [903]","마블2 [104]","마블2 [800]","마블2 [900]","말로카 [MALLORCA] [MA001]","모노 [레드]","모노 방염 [베이지]","바론[BARON] [BN01]","바론[BARON] [BN02]","바론[BARON] [BN05]","바론[BARON] [BN06]","바론[BARON] [BN09]","바론[BARON] [BN23]","바론[BARON] [BN24]","바론[BARON] [BN26]","발수비","발수코팅비","방염비용","방염코팅","방염필증","배송비","버겐[Bergen] [100]","베르니 [레드]","베이직 [BASIC] [BS002]","베이직 [BASIC] [BS003]","베이직 [BASIC] [BS017]","비비안 [블랙]","샘플","샘플 스와치","쉘비 무지[SHELBY] [SH06-06]","쉘비 무지[SHELBY] [SH06-24]","스웨이드 [5019]","스웨이드 [5031]","스퀘어 [SQUARE] [SQ004]","아레스 [아이보리]","아이비 [그린]","아이비 [레드]","아이비 [멜론]","아이비 [베이지]","아이비 [브라운]","아이비 [블랙]","아이비 [블루]","아이비 [오렌지]","아이비 방염 [그린]","아이비 방염 [브라운]","아이비 방염 [블루]","아이비 방염 [오렌지]","안젤라 [ANJELA] [AJ012]","안젤라 [ANJELA] [AJ015]","안젤라 [ANJELA] [AJ021]","안젤라 [ANJELA] [AJ025]","안젤라 [ANJELA] [AJ035]","안젤라 [ANJELA] [AJ039]","알파인[ALPINE] [502]","알파인[ALPINE] [503]","알파인[ALPINE] [902]","알파인[ALPINE] [905]","엘레나 [ELENA] [EN001-베이지]","엘린 [ELIN] [EI002]","엠마 방염[EMMA] [EA012]","엠버 [레드]","엠버 [블랙]","엠버 [블루]","엠버 방염 [블랙]","엠버 방염 [블루]","주피터 [레드]","주피터 [비치]","첼시[chelsea] [105]","첼시[chelsea] [608]","첼시[chelsea] [901]","추가 할인","카레나 방염[KARENA] [KA022]","카반 [CAVAN] [CV020]","카사블랑카[Casablanca] [127]","카사블랑카[Casablanca] [519]","카사블랑카[Casablanca] [611]","카사블랑카[Casablanca] [613]","코르시카 [101]","코르시카 [200]","코르시카 [301]","코르시카 [400]","코르시카 [508]","코르시카 [601]","코르시카 [700]","코르시카 [800]","코르시카 [801]","코르시카 [803]","코르시카 [901]","퀵비","크라운 [블루]","클로이 [브라운]","팬톤칩 set","페트라 [2006]","페트라 [2008]","페트라 [2015]","플레인 [PLANE] [PN001]","피닉스[PHOENIX] [PX001]","피닉스[PHOENIX] [PX002]","피닉스[PHOENIX] [PX004]","피닉스[PHOENIX] [PX009]","피닉스[PHOENIX] [PX013]","피닉스[PHOENIX] [PX015]","피닉스[PHOENIX] [PX024]","피닉스[PHOENIX] [PX026]","할인","해외운임","헤나 [HANNAH] [HN04]","헤르메스 [608]","화물 \"퀵서비스\"","화물 \"현불택배\"","화물비"];
+
+const SKIP_KW = ['할인','화물','택배','발수','배송','운송','해외운임','퀵비','샘플','방염코팅','방염필증','방염비','뒷지원단','단수정리','린넨커튼','팬톤칩'];
+const isSkip = n => SKIP_KW.some(k => n.includes(k));
+
+let sheetData = [], rows = [];
+const norm = s => s.replace(/[-\s]/g,'').toUpperCase();
+
+function extractKw(name) {
+  const base = name.replace(/\[.*/,'').trim();
+  const br = []; const re=/\[([^\]]+)\]/g; let m;
+  while ((m=re.exec(name))!==null) {
+    const c=m[1].trim();
+    if (!/^\d+$/.test(c) && !/^#\d+$/.test(c)) br.push(c);
+  }
+  return [...new Set([base,...br])].filter(Boolean);
+}
+
+function matchKw(kw, prices) {
+  const up=kw.toUpperCase(), n=norm(kw);
+  const ex=prices.find(p=>p.name.toUpperCase()===up||p.altName.toUpperCase()===up||(p.altName2&&p.altName2.toUpperCase()===up));
+  if (ex) return ex;
+  const nex=prices.find(p=>norm(p.name)===n||(p.altName&&norm(p.altName)===n)||(p.altName2&&norm(p.altName2)===n));
+  if (nex) return nex;
+  const pts=prices.filter(p=>
+    p.name.toUpperCase().includes(up)||up.includes(p.name.toUpperCase())||
+    (p.altName&&(p.altName.toUpperCase().includes(up)||up.includes(p.altName.toUpperCase())))||
+    (p.altName2&&(p.altName2.toUpperCase().includes(up)||up.includes(p.altName2.toUpperCase())))
+  );
+  const pt=pts.find(p=>p.dealerPrice>0)??pts[0];
+  if (pt) return pt;
+  return null;
+}
+
+function findFabric(name, prices) {
+  for (const kw of extractKw(name)) { const r=matchKw(kw,prices); if(r) return r; }
+  return null;
+}
+
+async function loadAndMatch() {
+  const apiKey=document.getElementById('apiKey').value.trim();
+  const sheetId=document.getElementById('sheetId').value.trim();
+  const sheetName=document.getElementById('sheetName').value.trim();
+  document.getElementById('btnLoad').disabled=true;
+  document.getElementById('status').textContent='구글시트 로딩 중...';
+  try {
+    const range=encodeURIComponent(`${sheetName}!A:O`);
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`;
+    const res=await fetch(url); const data=await res.json();
+    if (data.error) throw new Error(data.error.message);
+    sheetData=(data.values??[]).slice(1).filter(r=>r[2]?.trim()).map(r=>({
+      name:r[2]?.trim()??'', altName:r[0]?.trim()??'',
+      brand:r[13]?.trim()??'', dealerPrice:parseFloat((r[7]??'').replace(/,/g,''))||0,
+      altName2:r[14]?.trim()??'',
+    }));
+    document.getElementById('sheetList').innerHTML=
+      sheetData.filter(p=>p.dealerPrice>0)
+        .map(p=>`<option value="${p.name} [${p.altName}] ${p.brand}">`)
+        .join('');
+    document.getElementById('status').textContent=`시트 로드 완료 (${sheetData.length}건)`;
+    buildRows(); render();
+  } catch(e) {
+    document.getElementById('status').textContent=`오류: ${e.message}`;
+  } finally { document.getElementById('btnLoad').disabled=false; }
+}
+
+function buildRows() {
+  rows=MARCH_NAMES.map((name,i)=>({
+    i:i+1, name, skip:isSkip(name),
+    keywords:extractKw(name),
+    matched:isSkip(name)?null:findFabric(name,sheetData),
+    override:null,
+  }));
+}
+
+function render() {
+  const hideSkip=document.getElementById('chkSkip')?.checked??true;
+  const hideOk  =document.getElementById('chkOk')?.checked??false;
+  const grid=document.getElementById('grid');
+  const frag=document.createDocumentFragment();
+
+  rows.forEach((row,idx)=>{
+    if (hideSkip && row.skip) return;
+    const m=row.matched;
+    const hasMatch=m||row.override;
+    if (hideOk && hasMatch && row.override!=='NONE') return;
+
+    let tagCls,tagTxt,cardCls;
+    if (row.skip)                   {tagCls='t-skip';tagTxt='비원단'; cardCls='skip';}
+    else if (row.override==='NONE') {tagCls='t-no';  tagTxt='미매칭'; cardCls='no';}
+    else if (row.override)          {tagCls='t-fix'; tagTxt='수정됨'; cardCls='fix';}
+    else if (m)                     {tagCls='t-ok';  tagTxt='매칭됨'; cardCls='ok';}
+    else                            {tagCls='t-no';  tagTxt='미매칭'; cardCls='no';}
+
+    const card=document.createElement('div');
+    card.className=`card ${cardCls}`;
+
+    // 매칭박스 내용
+    let matchHTML;
+    if (row.skip) {
+      matchHTML='';
+    } else if (m) {
+      matchHTML=`<div class="match-box hit">
+        <span class="match-price">$${m.dealerPrice}</span>
+        <div class="match-name">${m.name}</div>
+        <div class="match-meta">[${m.altName}] · ${m.brand}</div>
+      </div>`;
+    } else {
+      matchHTML=`<div class="match-box miss"><span class="miss-txt">매칭된 원단 없음</span></div>`;
+    }
+
+    const kwHTML=row.skip?'':`<div class="card-kw"><span class="kw-label">검색어</span>${row.keywords.join(' · ')}</div>`;
+    const fixHTML=row.skip?'':`
+      <div>
+        <div class="fix-label">올바른 원단으로 수정</div>
+        <input class="fix-input" list="sheetList" placeholder="이름 또는 코드 입력..." data-idx="${idx}" oninput="onFix(this)">
+      </div>`;
+
+    card.innerHTML=`
+      <div class="card-top">
+        <span class="card-num">#${row.i}</span>
+        <span class="tag ${tagCls}" id="tag-${idx}">${tagTxt}</span>
+      </div>
+      <div class="card-name">${row.name}</div>
+      ${kwHTML}
+      ${matchHTML}
+      ${fixHTML}`;
+
+    frag.appendChild(card);
+  });
+
+  grid.innerHTML='';
+  grid.appendChild(frag);
+  updateCounts();
+  document.getElementById('summaryBar').style.display='flex';
+  document.getElementById('filterBar').style.display='flex';
+}
+
+function onFix(input) {
+  const idx=parseInt(input.dataset.idx);
+  const val=input.value.trim();
+  if (!val) { rows[idx].override=null; updateTag(idx); return; }
+  const found=sheetData.find(p=>{
+    const label=`${p.name} [${p.altName}] ${p.brand}`;
+    return label===val||p.name.toUpperCase()===val.toUpperCase()||p.altName.toUpperCase()===val.toUpperCase();
+  });
+  rows[idx].override=found?`${found.altName}||${found.name}`:val;
+  updateTag(idx);
+}
+
+function updateTag(idx) {
+  const el=document.getElementById(`tag-${idx}`); if(!el) return;
+  const row=rows[idx];
+  const card=el.closest('.card');
+  if (row.override==='NONE')  {el.className='tag t-no'; el.textContent='미매칭'; card.className='card no';}
+  else if (row.override)      {el.className='tag t-fix';el.textContent='수정됨'; card.className='card fix';}
+  else if (row.matched)       {el.className='tag t-ok'; el.textContent='매칭됨'; card.className='card ok';}
+  else                        {el.className='tag t-no'; el.textContent='미매칭'; card.className='card no';}
+  updateCounts();
+}
+
+function updateCounts() {
+  const fab=rows.filter(r=>!r.skip);
+  document.getElementById('cTotal').textContent=`전체 ${rows.length}건`;
+  document.getElementById('cOk').textContent   =`매칭 ${fab.filter(r=>r.matched&&!r.override).length}건`;
+  document.getElementById('cNo').textContent   =`미매칭 ${fab.filter(r=>!r.matched&&!r.override).length}건`;
+  document.getElementById('cFix').textContent  =`수정 ${rows.filter(r=>r.override).length}건`;
+}
+
+function exportResult() {
+  const lines=['경영박사 원단명\t최종 altName\t최종 name\t브랜드\t원가USD\t상태'];
+  rows.forEach(row=>{
+    if (row.skip) return;
+    let altName='',name='',brand='',price='',status='';
+    if (row.override==='NONE') { status='미매칭(수동)'; }
+    else if (row.override&&row.override.includes('||')) {
+      [altName,name]=row.override.split('||');
+      const p=sheetData.find(x=>x.altName===altName&&x.name===name);
+      brand=p?.brand??''; price=p?.dealerPrice??''; status='수정됨';
+    } else if (row.override) { name=row.override; status='수정됨(미확인)'; }
+    else if (row.matched) {
+      altName=row.matched.altName; name=row.matched.name;
+      brand=row.matched.brand; price=row.matched.dealerPrice; status='자동매칭';
+    } else { status='미매칭'; }
+    lines.push(`${row.name}\t${altName}\t${name}\t${brand}\t${price}\t${status}`);
+  });
+  const txt=lines.join('\n');
+  navigator.clipboard.writeText(txt)
+    .then(()=>alert('클립보드에 복사됐습니다!\n엑셀에 붙여넣기(Ctrl+V) 하세요.'))
+    .catch(()=>{ const w=window.open('','_blank'); w.document.write('<pre>'+txt+'</pre>'); });
+}
+</script>
+</body>
+</html>
