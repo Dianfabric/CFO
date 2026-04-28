@@ -133,18 +133,51 @@ export async function GET(request: NextRequest) {
       clientName: tx.client?.name || null,
     }))
 
-    // === 2-1. 해외운송비 (기간 배분) — productCM 계산 전에 먼저 조회 ===
-    const yearMonth = format(refDate, 'yyyy-MM')
+    // === 2-1. 해외운송비 — 크로스먼스 정확 배분 ===
+    // 범위 내 각 월별로 (해당월 내 영업일 / 해당월 총 영업일) 비율만큼 운송비 합산
     const shippingCategory = await prisma.costCategory.findFirst({
       where: { name: { contains: '해외' } },
     })
-    const monthlyCostRecord = shippingCategory
-      ? await prisma.monthlyCost.findUnique({
-          where: { costCategoryId_yearMonth: { costCategoryId: shippingCategory.id, yearMonth } },
+
+    let periodShippingCost = 0
+    let monthlyShippingCost = 0 // 표시용 (시작월 기준)
+
+    if (shippingCategory) {
+      // 범위에 걸친 모든 월 목록 생성
+      const months: string[] = []
+      const cur = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1)
+      const endMonth = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), 1)
+      while (cur <= endMonth) {
+        months.push(format(cur, 'yyyy-MM'))
+        cur.setMonth(cur.getMonth() + 1)
+      }
+
+      // 각 월의 운송비 조회 후 범위 내 영업일 비율로 배분
+      for (const ym of months) {
+        const record = await prisma.monthlyCost.findUnique({
+          where: { costCategoryId_yearMonth: { costCategoryId: shippingCategory.id, yearMonth: ym } },
         })
-      : null
-    const monthlyShippingCost = monthlyCostRecord?.amount ?? 0
-    const periodShippingCost = Math.round(monthlyShippingCost * businessDayRatio)
+        if (!record || record.amount === 0) continue
+
+        const [y, m] = ym.split('-').map(Number)
+        const monthStart = new Date(y, m - 1, 1)
+        const monthEnd = new Date(y, m, 0, 23, 59, 59) // 해당월 말일
+
+        // 범위와 해당 월의 교집합
+        const overlapStart = rangeStart > monthStart ? rangeStart : monthStart
+        const overlapEnd = rangeEnd < monthEnd ? rangeEnd : monthEnd
+
+        const daysInOverlap = getBusinessDaysInRange(overlapStart, overlapEnd)
+        const daysInMonth = getBusinessDaysInMonth(monthStart)
+
+        const ratio = daysInMonth > 0 ? daysInOverlap / daysInMonth : 0
+        periodShippingCost += Math.round(record.amount * ratio)
+
+        if (ym === format(rangeStart, 'yyyy-MM')) {
+          monthlyShippingCost = record.amount
+        }
+      }
+    }
 
     // 제품별 해외운송비 배분 (매출 비율)
     const productCM = Object.values(productContributions)
@@ -171,7 +204,6 @@ export async function GET(request: NextRequest) {
 
     const periodFixedCost = Math.round(monthlyFixedCost * businessDayRatio)
 
-    // periodShippingCost / monthlyShippingCost — 위 2-1에서 이미 계산됨
 
     const adjustedContributionMargin = totalContributionMargin - periodShippingCost
     const adjustedContributionMarginRate = totalSales > 0 ? (adjustedContributionMargin / totalSales) * 100 : 0
