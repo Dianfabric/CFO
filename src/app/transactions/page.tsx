@@ -104,7 +104,7 @@ export default function TransactionsPage() {
         unitPrice: form.type === 'PURCHASE' ? (product?.purchasePrice || 0) : (product?.sellingPrice || 0),
       }
     } else {
-      (updated[idx] as Record<string, unknown>)[field] = value
+      (updated[idx] as unknown as Record<string, unknown>)[field] = value
     }
     setItems(updated)
   }

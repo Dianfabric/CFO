@@ -248,10 +248,10 @@ export default function CostsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} dataKey="value" nameKey="name"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                       {pieData.map((entry, i) => <Cell key={i} fill={TYPE_COLORS[entry.type] || '#94a3b8'} />)}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatKRW(value)} />
+                    <Tooltip formatter={(v: unknown) => formatKRW(v as number)} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>

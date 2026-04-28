@@ -79,7 +79,7 @@ export default function ProductChart({ data }: { data: ProductData[] }) {
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
                 <Tooltip
-                  formatter={(value: number) => formatKRW(value)}
+                  formatter={(v: unknown) => formatKRW(v as number)}
                   labelFormatter={(label) => `${label}`}
                 />
                 <Bar dataKey="revenue" name="매출" radius={[0, 4, 4, 0]}>
@@ -97,13 +97,13 @@ export default function ProductChart({ data }: { data: ProductData[] }) {
                   outerRadius={100}
                   dataKey="revenue"
                   nameKey="name"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 >
                   {data.map((entry, index) => (
                     <Cell key={index} fill={GRADE_COLORS[entry.grade] || '#94a3b8'} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => formatKRW(value)} />
+                <Tooltip formatter={(v: unknown) => formatKRW(v as number)} />
                 <Legend />
               </PieChart>
             )}

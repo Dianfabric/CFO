@@ -340,7 +340,7 @@ export default function SettlementPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={v => `${(Math.abs(v) / 10000).toFixed(0)}만`} />
-                  <Tooltip formatter={(v: number) => formatKRW(Math.abs(v))} />
+                  <Tooltip formatter={(v: unknown) => formatKRW(Math.abs(v as number))} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                     {waterfallData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                   </Bar>
@@ -350,8 +350,8 @@ export default function SettlementPage() {
             <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm space-y-1">
               <div className="flex justify-between"><span>매출</span><span className="font-medium">{formatKRW(data.totalSales)}</span></div>
               <div className="flex justify-between text-red-600"><span>(-) 변동비 (원단 매입원가)</span><span>{formatKRW(data.totalVariableCost)}</span></div>
-              {data.variableCostBreakdown?.expenses.amount > 0 && (
-                <div className="flex justify-between text-orange-600 text-xs pl-2"><span>  ㄴ 당일 비용</span><span>{formatKRW(data.variableCostBreakdown.expenses.amount)}</span></div>
+              {(data.variableCostBreakdown?.expenses.amount ?? 0) > 0 && (
+                <div className="flex justify-between text-orange-600 text-xs pl-2"><span>  ㄴ 당일 비용</span><span>{formatKRW(data.variableCostBreakdown?.expenses.amount ?? 0)}</span></div>
               )}
               <div className="flex justify-between text-red-500"><span>(-) 해외운송비 배분</span><span>{formatKRW(data.dailyShippingCost)}</span></div>
               <div className="flex justify-between font-bold text-green-700 border-t pt-1"><span>= 공헌이익</span><span>{formatKRW(data.totalContributionMargin)}</span></div>
@@ -465,7 +465,7 @@ export default function SettlementPage() {
                   <tr className="bg-slate-50 font-bold">
                     <td className="p-2" colSpan={3}>합계</td>
                     <td className="p-2 text-right">{formatKRW(data.totalSales)}</td>
-                    <td className="p-2 text-right text-red-600">{formatKRW(data.totalCOGS)}</td>
+                    <td className="p-2 text-right text-red-600">{formatKRW(data.totalVariableCost)}</td>
                     <td className="p-2 text-right text-green-700">{formatKRW(data.totalContributionMargin)}</td>
                     <td className="p-2 text-right">{formatPercent(data.contributionMarginRate)}</td>
                   </tr>

@@ -246,7 +246,8 @@ export default function PriceInfoForm() {
             showDiscount: form.showDiscount,
             showDealer: form.showDealer,
             showRoll: form.showRoll,
-            showBulk: form.showBulk,
+            showBulk1: form.showBulk1,
+            showBulk2: form.showBulk2,
             issueDate: form.issueDate,
             effectiveDate: form.effectiveDate,
           },
@@ -580,7 +581,7 @@ export default function PriceInfoForm() {
                           </button>
                         </div>
                         <div className={`grid gap-2 ${
-                          [form.showDiscount, form.showDealer, form.showRoll, form.showBulk, form.displayUnit === 'HEBE'].filter(Boolean).length >= 3
+                          [form.showDiscount, form.showDealer, form.showRoll, form.showBulk1 || form.showBulk2, form.displayUnit === 'HEBE'].filter(Boolean).length >= 3
                             ? 'grid-cols-3'
                             : 'grid-cols-2'
                         }`}>
@@ -687,7 +688,7 @@ export default function PriceInfoForm() {
                           )}
                         </div>
                         {/* 행 미리보기: 단위 변환 + 옵션 최종가 */}
-                        {(form.displayUnit !== 'YARD' || form.showDealer || form.showRoll || form.showBulk) && (
+                        {(form.displayUnit !== 'YARD' || form.showDealer || form.showRoll || form.showBulk1 || form.showBulk2) && (
                           <div className="mt-1.5 text-[11px] text-slate-500 bg-slate-50 rounded px-2 py-1 space-y-0.5">
                             {form.displayUnit !== 'YARD' && (
                               <div>표시 단가 ({form.displayUnit === 'METER' ? '미터' : '헤베'}) : <strong>{krw(cPrice)}</strong></div>
