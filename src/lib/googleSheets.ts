@@ -78,15 +78,10 @@ export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPri
 }
 
 /**
- * 경영박사 품명에서 검색 키워드 우선순위 목록 추출
- * 앞 단어부터 순서대로 시도:
- *
- * "피닉스[PHOENIX] [PX026]" → ["피닉스", "PHOENIX", "PX026"]
- * "넬리 [NELLY] [NE005]"   → ["넬리", "NELLY", "NE005"]
- * "Rumba [02]"              → ["Rumba"]       (숫자 괄호는 색상코드 → 스킵)
- * "LD2342P [15]"            → ["LD2342P"]
- * "마블2 [104]"             → ["마블2"]
- * "Load 1900 [04]"          → ["Load 1900"]
+ * 경영박사 품명에서 검색 키워드 추출
+ * 순수 숫자 괄호([02], [903])는 색상코드로 간주해 제외
+ * 예) "넬리 [NELLY] [NE005]" → ["넬리", "NELLY", "NE005"]
+ *     "마블-2 [MARBLE-2] [903]" → ["마블-2", "MARBLE-2"]
  */
 function extractSearchKeywords(fabricName: string): string[] {
   // 1. 괄호 앞 텍스트 (가장 먼저 시도)
@@ -107,9 +102,6 @@ function extractSearchKeywords(fabricName: string): string[] {
 
 function matchByKeyword(keyword: string, prices: FabricPrice[]): FabricPrice | null {
   const up = keyword.toUpperCase()
-  // 컬러코드 제거 버전 ("BOHO-28" → "BOHO", "NE005" → "NE")
-  const base = keyword.replace(/-[\w]+$/, '').replace(/\d+$/, '').trim()
-  const baseUp = base.toUpperCase()
 
   // ① 완전일치
   const exact = prices.find(p =>
@@ -117,31 +109,13 @@ function matchByKeyword(keyword: string, prices: FabricPrice[]): FabricPrice | n
   )
   if (exact?.dealerPrice) return exact
 
-  // ② 컬러코드 제거 후 완전일치
-  if (base && base !== keyword) {
-    const baseExact = prices.find(p =>
-      p.name.toUpperCase() === baseUp || p.altName.toUpperCase() === baseUp
-    )
-    if (baseExact?.dealerPrice) return baseExact
-  }
-
-  // ③ 부분일치 (dealerPrice 있는 것 우선)
+  // ② 부분일치: 키워드가 이름에 포함되거나, 이름이 키워드에 포함 (dealerPrice 있는 것 우선)
   const partials = prices.filter(p =>
     p.name.toUpperCase().includes(up) || up.includes(p.name.toUpperCase()) ||
     (p.altName && (p.altName.toUpperCase().includes(up) || up.includes(p.altName.toUpperCase())))
   )
   const partial = partials.find(p => p.dealerPrice > 0) ?? partials[0]
   if (partial?.dealerPrice) return partial
-
-  // ④ 베이스 부분일치
-  if (base && base !== keyword) {
-    const basePartials = prices.filter(p =>
-      p.name.toUpperCase().includes(baseUp) ||
-      (p.altName && p.altName.toUpperCase().includes(baseUp))
-    )
-    const basePartial = basePartials.find(p => p.dealerPrice > 0) ?? basePartials[0]
-    if (basePartial?.dealerPrice) return basePartial
-  }
 
   return null
 }
