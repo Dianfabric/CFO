@@ -18,7 +18,7 @@ import DocumentLayout from '@/components/documents/DocumentLayout'
 import PriceInfoTable, { PriceInfoRow, DisplayUnit, OptionMode } from '@/components/documents/PriceInfoTable'
 import ClientCombobox, { ClientOption } from '@/components/documents/ClientCombobox'
 import DocumentHistoryDialog from '@/components/documents/DocumentHistoryDialog'
-import { downloadPDF, downloadJPG, getCanvasBlob, getPDFBlob } from '@/lib/document-export'
+import { downloadPDF, downloadJPG, getCanvasBlob, getPDFBlob, copyImageToClipboard } from '@/lib/document-export'
 import { buildMessengerText, copyToClipboard } from '@/lib/document-text'
 import { useGoogleDrive } from '@/hooks/useGoogleDrive'
 import { getOrCreateFolder, uploadToDrive } from '@/lib/google-drive'
@@ -286,6 +286,22 @@ export default function PriceInfoForm() {
     }
     setDownloading('')
   }
+  const [copyImgState, setCopyImgState] = useState<'idle' | 'copying' | 'done'>('idle')
+  const handleCopyImage = async () => {
+    setCopyImgState('copying')
+    const result = await copyImageToClipboard('document-print-area')
+    if (result.ok) {
+      setCopyImgState('done')
+      setTimeout(() => setCopyImgState('idle'), 1500)
+    } else {
+      setCopyImgState('idle')
+      const msg =
+        result.reason === 'unsupported' ? '이 브라우저는 이미지 클립보드 복사를 지원하지 않습니다.' :
+        result.reason === 'permission'  ? '복사 권한이 거부되었습니다. 페이지를 클릭한 후 다시 시도해주세요.' :
+        '이미지 복사 실패' + (result.error ? '\n' + result.error : '')
+      alert(msg)
+    }
+  }
 
   // ── 저장 (DB → 구글 드라이브) ────────────────────────────────
   const handleSave = async () => {
@@ -470,6 +486,11 @@ export default function PriceInfoForm() {
             disabled={!!downloading} className="gap-1">
             <FileDown className="w-3.5 h-3.5" />
             {downloading === 'pdf' ? '생성 중...' : 'PDF'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCopyImage}
+            disabled={copyImgState !== 'idle'} className="gap-1">
+            {copyImgState === 'done' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+            {copyImgState === 'copying' ? '복사 중...' : copyImgState === 'done' ? '복사됨!' : '복사'}
           </Button>
           <Button
             size="sm"
@@ -1079,6 +1100,10 @@ export default function PriceInfoForm() {
             <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={!!downloading} className="gap-1">
               <FileDown className="w-3.5 h-3.5" />
               {downloading === 'pdf' ? '생성 중...' : 'PDF'}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleCopyImage} disabled={copyImgState !== 'idle'} className="gap-1">
+              {copyImgState === 'done' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+              {copyImgState === 'copying' ? '복사 중...' : copyImgState === 'done' ? '복사됨!' : '복사'}
             </Button>
             <Button
               size="sm"
