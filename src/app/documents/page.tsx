@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { FileText, Plus, TrendingUp, TrendingDown, CalendarOff, Wallet, ListChecks, Search } from 'lucide-react'
+import { FileText, Plus, TrendingUp, TrendingDown, CalendarOff, Wallet, ListChecks, Search, Receipt, ExternalLink } from 'lucide-react'
 
 interface DocRow {
   id: string
@@ -64,7 +64,7 @@ export default function DocumentsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
             <Link href="/documents/new/price-change?direction=UP" className="group">
               <div className="border rounded-lg p-4 bg-white hover:border-rose-400 hover:shadow-sm transition">
                 <TrendingUp className="w-5 h-5 text-rose-600 mb-2" />
@@ -91,6 +91,16 @@ export default function DocumentsPage() {
               <div className="font-semibold text-sm">결제 요청</div>
               <div className="text-xs text-slate-500 mt-1">곧 추가 예정</div>
             </div>
+            <a href="https://dianfabric.github.io/dian-quote/" target="_blank" rel="noopener noreferrer">
+              <div className="border rounded-lg p-4 bg-white hover:border-indigo-400 hover:shadow-sm transition">
+                <div className="flex items-center justify-between mb-2">
+                  <Receipt className="w-5 h-5 text-indigo-600" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <div className="font-semibold text-sm">견적서 작성</div>
+                <div className="text-xs text-slate-500 mt-1">DiAN 견적서 생성기 (새 탭)</div>
+              </div>
+            </a>
           </div>
         </CardContent>
       </Card>
