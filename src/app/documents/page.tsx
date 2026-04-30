@@ -9,8 +9,7 @@ import { Input } from '@/components/ui/input'
 import { FileText, Plus, TrendingUp, TrendingDown, CalendarOff, Wallet, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon } from 'lucide-react'
 import DocumentPreviewDialog, { DocFull } from '@/components/documents/DocumentPreviewDialog'
 import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/SavedDocumentRender'
-import { buildMessengerText, copyToClipboard } from '@/lib/document-text'
-import { downloadJPG } from '@/lib/document-export'
+import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
 
 interface DocRow {
   id: string
@@ -42,6 +41,8 @@ export default function DocumentsPage() {
   const [profile, setProfile] = useState<CompanyProfileLite | null>(null)
   const [downloadingDoc, setDownloadingDoc] = useState<DocRow | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [copyingDoc, setCopyingDoc] = useState<DocRow | null>(null)
+  const [copyingId, setCopyingId] = useState<string | null>(null)
 
   // 회사 프로필 1회 로드 (다운로드 시 footer에 사용)
   useEffect(() => {
@@ -81,71 +82,51 @@ export default function DocumentsPage() {
   }, [downloadingDoc])
 
   const handleRowDownload = (d: DocRow) => {
-    if (downloadingId) return
+    if (downloadingId || copyingId) return
     setDownloadingId(d.id)
     setDownloadingDoc(d)
   }
 
-  const handleRowCopy = async (d: DocRow) => {
-    // 메타·표 JSON 파싱
-    let tableData: unknown[] | null = null
-    let metaData: Record<string, unknown> = {}
-    try {
-      if (d.tableJson) tableData = JSON.parse(d.tableJson)
-    } catch {}
-    try {
-      if (d.metaJson) metaData = JSON.parse(d.metaJson)
-    } catch {}
-
-    let rowsForText: Parameters<typeof buildMessengerText>[0]['rows']
-    if (d.type === 'PRICE_CHANGE' && Array.isArray(tableData)) {
-      rowsForText = tableData.map((r: any) => ({
-        productName: r.productName,
-        unit: r.unit,
-        oldPrice: r.oldPrice,
-        newPrice: r.newPrice,
-        discount: r.discount,
-      }))
-    } else if (d.type === 'PRICE_INFO' && Array.isArray(tableData)) {
-      const unit = (metaData.displayUnit as string) || 'YARD'
-      const unitLabel = unit === 'YARD' ? '야드' : unit === 'METER' ? '미터' : '헤베'
-      rowsForText = tableData.map((r: any) => {
-        const yardPrice = r.yardPrice
-        let unitPrice = yardPrice
-        if (unit === 'METER') unitPrice = Math.round(yardPrice / 0.9144)
-        else if (unit === 'HEBE')
-          unitPrice = Math.round(yardPrice / ((0.9144 * (r.width ?? 110)) / 100))
-        return { productName: r.productName, unit: unitLabel, unitPrice }
-      })
-    }
-
-    // 회사 연락처
-    let contact: { phone?: string; email?: string; website?: string } = {}
-    try {
-      const p = await fetch('/api/company-profile').then((r) => r.json())
-      contact = { phone: p?.phone, email: p?.email, website: p?.website }
-    } catch {}
-
-    const text = buildMessengerText({
-      documentNumber: d.documentNumber,
-      title: d.title,
-      recipientName: d.recipientName,
-      ccLine: d.ccLine || undefined,
-      senderLine: d.senderLine,
-      bodyText: d.bodyText,
-      issueDate: (metaData.issueDate as string) || undefined,
-      effectiveDate: (metaData.effectiveDate as string) || undefined,
-      rows: rowsForText,
-      contact,
-    })
-    const ok = await copyToClipboard(text)
-    if (ok) {
-      setCopiedId(d.id)
-      setTimeout(() => setCopiedId(null), 1800)
-    } else {
-      alert('복사에 실패했습니다.')
-    }
+  const handleRowCopy = (d: DocRow) => {
+    if (copyingId || downloadingId) return
+    setCopyingId(d.id)
+    setCopyingDoc(d)
   }
+
+  // copyingDoc set되면 hidden 영역에 렌더 → 다음 프레임에 캡처/클립보드 복사
+  useEffect(() => {
+    if (!copyingDoc) return
+    let cancelled = false
+    ;(async () => {
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+      await new Promise((r) => setTimeout(r, 50))
+      if (cancelled) return
+      try {
+        const result = await copyImageToClipboard('document-print-area')
+        if (!cancelled) {
+          if (result.ok) {
+            setCopiedId(copyingDoc.id)
+            setTimeout(() => setCopiedId(null), 1800)
+          } else {
+            const msg =
+              result.reason === 'unsupported' ? '이 브라우저는 이미지 클립보드 복사를 지원하지 않습니다.' :
+              result.reason === 'permission' ? '복사 권한이 거부되었습니다. 페이지를 클릭한 후 다시 시도해주세요.' :
+              '이미지 복사 실패' + (result.error ? '\n' + result.error : '')
+            alert(msg)
+          }
+        }
+      } catch (e) {
+        console.error('이미지 복사 실패:', e)
+        if (!cancelled) alert('이미지 복사 실패: ' + (e instanceof Error ? e.message : String(e)))
+      } finally {
+        if (!cancelled) {
+          setCopyingDoc(null)
+          setCopyingId(null)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [copyingDoc])
 
   const load = async (q?: string) => {
     setLoading(true)
@@ -303,17 +284,25 @@ export default function DocumentsPage() {
                             <button
                               type="button"
                               onClick={() => handleRowCopy(d)}
-                              title="이 공문 내용을 메신저용 텍스트로 복사"
+                              disabled={!!copyingId || !!downloadingId}
+                              title="이 공문을 이미지로 클립보드에 복사 (메신저 등에 붙여넣기 가능)"
                               className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border transition whitespace-nowrap ${
                                 isCopied
                                   ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                                  : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600'
+                                  : copyingId === d.id
+                                    ? 'border-blue-300 bg-blue-50 text-blue-700'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600 disabled:opacity-40 disabled:cursor-not-allowed'
                               }`}
                             >
                               {isCopied ? (
                                 <>
                                   <Check className="w-3 h-3" />
                                   복사됨
+                                </>
+                              ) : copyingId === d.id ? (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  복사 중...
                                 </>
                               ) : (
                                 <>
@@ -354,8 +343,8 @@ export default function DocumentsPage() {
         doc={previewDoc}
       />
 
-      {/* JPG 다운로드용 화면 밖 렌더 — downloadingDoc set되면 일시적으로 마운트 */}
-      {downloadingDoc && (
+      {/* 다운로드/복사용 화면 밖 렌더 — downloadingDoc 또는 copyingDoc set되면 일시적으로 마운트 */}
+      {(downloadingDoc || copyingDoc) && (
         <div
           aria-hidden="true"
           style={{
@@ -366,7 +355,7 @@ export default function DocumentsPage() {
             zIndex: -1,
           }}
         >
-          <SavedDocumentRender doc={downloadingDoc} profile={profile} />
+          <SavedDocumentRender doc={(downloadingDoc || copyingDoc)!} profile={profile} />
         </div>
       )}
     </div>
