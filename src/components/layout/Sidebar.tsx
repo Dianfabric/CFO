@@ -32,6 +32,7 @@ import {
   Briefcase,
   Megaphone,
   Package as PackageIcon,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -65,6 +66,7 @@ const v11MenuItems: MenuItem[] = [
   { href: '/finance/sales', label: '영업 (#2a)', icon: Briefcase },
   { href: '/finance/marketing', label: '마케팅 (#2b)', icon: Megaphone },
   { href: '/finance/operations', label: '운영·샘플 (#2c)', icon: PackageIcon },
+  { href: '/finance/alerts', label: '이상치 알림 (#3)', icon: Bell },
   { href: '/finance/positioning', label: '포지셔닝 매트릭스', icon: Layers3 },
   { href: '/finance/pricing', label: '4단계 가격 결정', icon: Workflow },
   { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
