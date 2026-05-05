@@ -19,6 +19,7 @@ import {
   FileText,
   PieChart,
   Sparkles,
+  Upload as UploadIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -44,6 +45,7 @@ const v10MenuItems: MenuItem[] = [
 // v1.1 신규 메뉴 (Phase 1부터 단계 추가)
 const v11MenuItems: MenuItem[] = [
   { href: '/finance', label: '재무 메인 (v1.1)', icon: PieChart },
+  { href: '/finance/upload', label: '일계표 업로드', icon: UploadIcon },
 ]
 
 export default function Sidebar() {
@@ -120,7 +122,11 @@ export default function Sidebar() {
         {/* v1.1 메뉴 */}
         <ul className="space-y-1 px-2">
           {v11MenuItems.map((item) => {
-            const isActive = pathname.startsWith(item.href)
+            // /finance 는 정확히 일치할 때만 활성 (하위 /finance/upload 는 별개 메뉴)
+            const isActive =
+              item.href === '/finance'
+                ? pathname === '/finance'
+                : pathname.startsWith(item.href)
             const Icon = item.icon
 
             return (
