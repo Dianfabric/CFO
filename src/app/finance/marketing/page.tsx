@@ -18,6 +18,10 @@ import {
   Image as ImageIcon,
   Heart,
   AlertCircle,
+  Trophy,
+  Layers,
+  Library,
+  Wand2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 
@@ -199,10 +203,43 @@ export default async function MarketingHubPage() {
               </CardContent>
             </Card>
           </Link>
+          <Link href="/finance/marketing/dream100">
+            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
+              <CardContent className="space-y-1 py-3">
+                <Trophy className="h-5 w-5 text-amber-500" />
+                <div className="text-sm font-semibold">⑤ 드림 100</div>
+                <div className="text-[11px] text-slate-500">인플루언서·잡지·디자이너</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/marketing/campaigns">
+            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
+              <CardContent className="space-y-1 py-3">
+                <Layers className="h-5 w-5 text-blue-500" />
+                <div className="text-sm font-semibold">⑥ 캠페인 트래커</div>
+                <div className="text-[11px] text-slate-500">시즌·이벤트·뉴스레터</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/marketing/library">
+            <Card className="cursor-pointer transition hover:border-emerald-300 hover:bg-emerald-50/30">
+              <CardContent className="space-y-1 py-3">
+                <Library className="h-5 w-5 text-emerald-500" />
+                <div className="text-sm font-semibold">⑦ 콘텐츠 라이브러리</div>
+                <div className="text-[11px] text-slate-500">발행된 자산 갤러리</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/marketing/ai">
+            <Card className="cursor-pointer transition hover:border-purple-300 hover:bg-purple-50/30">
+              <CardContent className="space-y-1 py-3">
+                <Wand2 className="h-5 w-5 text-purple-500" />
+                <div className="text-sm font-semibold">⑧ AI 어시스턴트</div>
+                <div className="text-[11px] text-slate-500">Hook·Story·Offer 자동 생성</div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
-        <p className="mt-3 text-[11px] text-slate-400">
-          준비 중: 드림 100 (마케팅), 캠페인 추적, 콘텐츠 라이브러리, AI 콘텐츠 어시스턴트 (Round 4+)
-        </p>
       </div>
 
       {/* 가이드 */}

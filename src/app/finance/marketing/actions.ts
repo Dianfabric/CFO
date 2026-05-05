@@ -251,6 +251,171 @@ export async function upsertScript(
   }
 }
 
+// ── Marketing Dream 100 ──
+export interface Dream100Input {
+  id?: number
+  name: string
+  prospect_type?: string | null
+  segment_hint?: string | null
+  current_status?: string
+  influence_score?: number | null
+  contact_handle?: string | null
+  contact_url?: string | null
+  follower_count?: number | null
+  last_contact_date?: string | null
+  next_action?: string | null
+  next_action_date?: string | null
+  notes?: string | null
+}
+
+export async function upsertDream100(
+  input: Dream100Input,
+): Promise<{ ok: boolean; error?: string; id?: number }> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+    const payload = {
+      name: input.name,
+      prospect_type: input.prospect_type ?? null,
+      segment_hint: input.segment_hint ?? null,
+      current_status: input.current_status ?? 'identified',
+      influence_score: input.influence_score ?? null,
+      contact_handle: input.contact_handle ?? null,
+      contact_url: input.contact_url ?? null,
+      follower_count: input.follower_count ?? null,
+      last_contact_date: input.last_contact_date ?? null,
+      next_action: input.next_action ?? null,
+      next_action_date: input.next_action_date ?? null,
+      notes: input.notes ?? null,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (input.id) {
+      const { error } = await supabase.from('marketing_dream100').update(payload).eq('id', input.id)
+      if (error) return { ok: false, error: error.message }
+      revalidatePath('/finance/marketing/dream100')
+      return { ok: true, id: input.id }
+    } else {
+      const { data, error } = await supabase
+        .from('marketing_dream100')
+        .insert({ ...payload, added_by: user.id })
+        .select('id')
+        .single()
+      if (error) return { ok: false, error: error.message }
+      revalidatePath('/finance/marketing/dream100')
+      return { ok: true, id: data.id }
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deleteDream100(
+  id: number,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const { error } = await supabase.from('marketing_dream100').delete().eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/finance/marketing/dream100')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// ── Marketing Campaigns ──
+export interface CampaignInput {
+  id?: number
+  name: string
+  campaign_type?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  status?: string
+  goal?: string | null
+  budget?: number | null
+  actual_spend?: number | null
+  metrics_views?: number | null
+  metrics_conversions?: number | null
+  metrics_revenue?: number | null
+  notes?: string | null
+}
+
+export async function upsertCampaign(
+  input: CampaignInput,
+): Promise<{ ok: boolean; error?: string; id?: number }> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+    const payload = {
+      name: input.name,
+      campaign_type: input.campaign_type ?? null,
+      start_date: input.start_date ?? null,
+      end_date: input.end_date ?? null,
+      status: input.status ?? 'planning',
+      goal: input.goal ?? null,
+      budget: input.budget ?? null,
+      actual_spend: input.actual_spend ?? 0,
+      metrics_views: input.metrics_views ?? 0,
+      metrics_conversions: input.metrics_conversions ?? 0,
+      metrics_revenue: input.metrics_revenue ?? 0,
+      notes: input.notes ?? null,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (input.id) {
+      const { error } = await supabase
+        .from('marketing_campaigns')
+        .update(payload)
+        .eq('id', input.id)
+      if (error) return { ok: false, error: error.message }
+      revalidatePath('/finance/marketing/campaigns')
+      return { ok: true, id: input.id }
+    } else {
+      const { data, error } = await supabase
+        .from('marketing_campaigns')
+        .insert({ ...payload, created_by: user.id })
+        .select('id')
+        .single()
+      if (error) return { ok: false, error: error.message }
+      revalidatePath('/finance/marketing/campaigns')
+      return { ok: true, id: data.id }
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deleteCampaign(
+  id: number,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const { error } = await supabase.from('marketing_campaigns').delete().eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/finance/marketing/campaigns')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function deleteScript(
   id: number,
 ): Promise<{ ok: boolean; error?: string }> {
