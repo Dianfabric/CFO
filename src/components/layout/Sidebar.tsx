@@ -26,6 +26,7 @@ import {
   Layers3,
   Workflow,
   Sun,
+  CalendarDays,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -57,6 +58,7 @@ const v11MenuItems: MenuItem[] = [
   { href: '/finance/positioning', label: '포지셔닝 매트릭스', icon: Layers3 },
   { href: '/finance/pricing', label: '4단계 가격 결정', icon: Workflow },
   { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
+  { href: '/finance/wam', label: 'WAM (주간 회의)', icon: CalendarDays },
   { href: '/finance/upload', label: '일계표 업로드', icon: UploadIcon },
   { href: '/finance/clients', label: '거래처 관리 (v1.1)', icon: Users },
 ]
