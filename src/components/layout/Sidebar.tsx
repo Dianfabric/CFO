@@ -23,6 +23,7 @@ import {
   Layers,
   Target as TargetIcon,
   Coins,
+  Layers3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -50,6 +51,7 @@ const v11MenuItems: MenuItem[] = [
   { href: '/finance', label: '재무 메인 (v1.1)', icon: PieChart },
   { href: '/finance/decomposition', label: '매출 인수분해', icon: Layers },
   { href: '/finance/expenses', label: '자원 인수분해', icon: Coins },
+  { href: '/finance/positioning', label: '포지셔닝 매트릭스', icon: Layers3 },
   { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
   { href: '/finance/upload', label: '일계표 업로드', icon: UploadIcon },
   { href: '/finance/clients', label: '거래처 관리 (v1.1)', icon: Users },
