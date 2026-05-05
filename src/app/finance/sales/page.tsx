@@ -361,16 +361,25 @@ export default async function SalesHubPage() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions — 7개 페이지 모두 */}
       <div>
         <h2 className="mb-3 text-sm font-semibold text-slate-700">⚡ 영업 페이지</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           <Link href="/finance/sales/activities">
             <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
               <CardContent className="space-y-1 py-3">
                 <Phone className="h-5 w-5 text-blue-500" />
-                <div className="text-sm font-semibold">활동 다이어리</div>
+                <div className="text-sm font-semibold">① 활동 다이어리</div>
                 <div className="text-[11px] text-slate-500">통화·미팅·샘플 기록</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/sales/funnel">
+            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
+              <CardContent className="space-y-1 py-3">
+                <Trophy className="h-5 w-5 text-amber-500" />
+                <div className="text-sm font-semibold">⑤ 7단계 트래커</div>
+                <div className="text-[11px] text-slate-500">Kanban + 단계 이동</div>
               </CardContent>
             </Card>
           </Link>
@@ -378,8 +387,17 @@ export default async function SalesHubPage() {
             <Card className="cursor-pointer transition hover:border-purple-300 hover:bg-purple-50/30">
               <CardContent className="space-y-1 py-3">
                 <Target className="h-5 w-5 text-purple-500" />
-                <div className="text-sm font-semibold">24셀 영업 매트릭스</div>
+                <div className="text-sm font-semibold">③ 24셀 매트릭스</div>
                 <div className="text-[11px] text-slate-500">셀별 메시지·시퀀스</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/sales/needs">
+            <Card className="cursor-pointer transition hover:border-purple-300 hover:bg-purple-50/30">
+              <CardContent className="space-y-1 py-3">
+                <Send className="h-5 w-5 text-purple-500" />
+                <div className="text-sm font-semibold">④ 니즈 카드</div>
+                <div className="text-[11px] text-slate-500">디자이너 인사이트 보드</div>
               </CardContent>
             </Card>
           </Link>
@@ -387,17 +405,30 @@ export default async function SalesHubPage() {
             <Card className="cursor-pointer transition hover:border-emerald-300 hover:bg-emerald-50/30">
               <CardContent className="space-y-1 py-3">
                 <TrendingUp className="h-5 w-5 text-emerald-500" />
-                <div className="text-sm font-semibold">영업 KPI</div>
+                <div className="text-sm font-semibold">⑥ 영업 KPI</div>
                 <div className="text-[11px] text-slate-500">선행·후행 지표</div>
               </CardContent>
             </Card>
           </Link>
+          <Link href="/finance/sales/self">
+            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
+              <CardContent className="space-y-1 py-3">
+                <Users className="h-5 w-5 text-amber-500" />
+                <div className="text-sm font-semibold">⑦ 자기경영</div>
+                <div className="text-[11px] text-slate-500">트레이시 시간 관리</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/clients">
+            <Card className="cursor-pointer transition hover:border-slate-300 hover:bg-slate-50/30">
+              <CardContent className="space-y-1 py-3">
+                <Users className="h-5 w-5 text-slate-500" />
+                <div className="text-sm font-semibold">② 거래처 360도</div>
+                <div className="text-[11px] text-slate-500">거래처 클릭 시 진입</div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
-
-        <p className="mt-3 text-[11px] text-slate-400">
-          준비 중인 페이지: 거래처 360도 뷰 (②), 니즈 카드 (④), 7단계 트래커 (⑤),
-          영업 자기경영 (⑦)
-        </p>
       </div>
     </div>
   )

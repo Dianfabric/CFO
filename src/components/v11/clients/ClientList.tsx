@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import Link from 'next/link'
 import { Search, Pencil, Filter, X } from 'lucide-react'
 import {
   OCCUPATION_LABEL,
@@ -199,15 +200,23 @@ export default function ClientList({ clients }: { clients: ClientWithStats[] }) 
                           {c.payment_terms_days ?? '—'}
                         </td>
                         <td className="px-4 py-2 text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 px-2 text-xs"
-                            onClick={() => setEditing(c)}
-                          >
-                            <Pencil className="mr-1 h-3 w-3" />
-                            편집
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Link
+                              href={`/finance/sales/clients/${c.id}`}
+                              className="rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                            >
+                              360°
+                            </Link>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setEditing(c)}
+                            >
+                              <Pencil className="mr-1 h-3 w-3" />
+                              편집
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )
