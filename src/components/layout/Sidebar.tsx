@@ -17,11 +17,17 @@ import {
   ChevronRight,
   CalendarCheck,
   FileText,
+  PieChart,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
+import AuthPill from '@/components/v11/AuthPill'
 
-const menuItems = [
+type MenuItem = { href: string; label: string; icon: typeof LayoutDashboard }
+
+// v1.0 기존 11개 메뉴 (절대 보존)
+const v10MenuItems: MenuItem[] = [
   { href: '/', label: '대시보드', icon: LayoutDashboard },
   { href: '/settlement', label: '일일 결산', icon: CalendarCheck },
   { href: '/transactions', label: '거래 관리', icon: Receipt },
@@ -33,6 +39,11 @@ const menuItems = [
   { href: '/advisor', label: 'AI CFO 자문', icon: Bot },
   { href: '/documents', label: '공문 작성', icon: FileText },
   { href: '/settings', label: '설정', icon: Settings },
+]
+
+// v1.1 신규 메뉴 (Phase 1부터 단계 추가)
+const v11MenuItems: MenuItem[] = [
+  { href: '/finance', label: '재무 메인 (v1.1)', icon: PieChart },
 ]
 
 export default function Sidebar() {
@@ -63,9 +74,10 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4">
+      <nav className="flex-1 py-4 overflow-y-auto">
+        {/* v1.0 메뉴 */}
         <ul className="space-y-1 px-2">
-          {menuItems.map((item) => {
+          {v10MenuItems.map((item) => {
             const isActive =
               item.href === '/'
                 ? pathname === '/'
@@ -91,13 +103,59 @@ export default function Sidebar() {
             )
           })}
         </ul>
+
+        {/* v1.1 섹션 구분선 + 헤더 */}
+        <div className="my-4 px-2">
+          <div className="border-t border-slate-700" />
+          {!collapsed && (
+            <div className="flex items-center gap-1.5 px-3 pt-3 pb-1">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-400/90">
+                v1.1 신규
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* v1.1 메뉴 */}
+        <ul className="space-y-1 px-2">
+          {v11MenuItems.map((item) => {
+            const isActive = pathname.startsWith(item.href)
+            const Icon = item.icon
+
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
+                    isActive
+                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  )}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <Icon className="w-5 h-5 shrink-0" />
+                  {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+
+        {/* v1.1 인증 영역 */}
+        <div className="mt-3 px-2">
+          <div className="border-t border-slate-700/50 pt-2">
+            <AuthPill collapsed={collapsed} />
+          </div>
+        </div>
       </nav>
 
       {/* Footer */}
       {!collapsed && (
         <div className="p-4 border-t border-slate-700">
           <p className="text-xs text-slate-400 text-center">
-            인테리어 원단 CFO v1.0
+            디안 CFO · v1.0 + v1.1
           </p>
         </div>
       )}
