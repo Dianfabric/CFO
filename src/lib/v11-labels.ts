@@ -55,6 +55,44 @@ export const TRANSACTION_STAGE_LABEL: Record<string, string> = {
   cancelled: '취소',
 }
 
+// ── 비용 분류 (PRD #3 ③) ──
+export const EXPENSE_VARIABILITY_LABEL: Record<string, string> = {
+  variable: '변동',
+  fixed: '고정',
+}
+export const EXPENSE_VARIABILITY_VALUES = Object.keys(EXPENSE_VARIABILITY_LABEL) as Array<
+  keyof typeof EXPENSE_VARIABILITY_LABEL
+>
+
+export const EXPENSE_DISCRETION_LABEL: Record<string, string> = {
+  discretionary: '재량',
+  non_discretionary: '비재량',
+}
+export const EXPENSE_DISCRETION_VALUES = Object.keys(EXPENSE_DISCRETION_LABEL) as Array<
+  keyof typeof EXPENSE_DISCRETION_LABEL
+>
+
+/** 4사분면 라벨 (변동/고정 × 재량/비재량) */
+export function quadrantLabel(
+  variability: string,
+  discretion: string,
+): { short: string; full: string; description: string } {
+  const v = EXPENSE_VARIABILITY_LABEL[variability] ?? variability
+  const d = EXPENSE_DISCRETION_LABEL[discretion] ?? discretion
+  const key = `${variability}_${discretion}`
+  const desc: Record<string, string> = {
+    variable_discretionary: '투자성 — 광고·이벤트·교육 등 재량적 변동비',
+    variable_non_discretionary: '연동성 — 원단매입·운송·수수료 등 매출 비례 비용',
+    fixed_discretionary: '재량 고정 — 회식·렌트·구독 등 줄일 수 있는 고정비',
+    fixed_non_discretionary: '구조 고정 — 임대료·인건비·세금 등 줄이기 어려운 비용',
+  }
+  return {
+    short: `${v}·${d}`,
+    full: `${v} × ${d}`,
+    description: desc[key] ?? '',
+  }
+}
+
 /** 24셀 라벨 생성 — "{직업군} × {제품군}" */
 export function segmentLabel(
   occupation: string | null | undefined,
