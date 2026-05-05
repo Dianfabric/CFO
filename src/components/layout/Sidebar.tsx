@@ -46,6 +46,7 @@ const v10MenuItems: MenuItem[] = [
 const v11MenuItems: MenuItem[] = [
   { href: '/finance', label: '재무 메인 (v1.1)', icon: PieChart },
   { href: '/finance/upload', label: '일계표 업로드', icon: UploadIcon },
+  { href: '/finance/clients', label: '거래처 관리 (v1.1)', icon: Users },
 ]
 
 export default function Sidebar() {
