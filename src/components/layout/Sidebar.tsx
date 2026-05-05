@@ -30,6 +30,7 @@ import {
   Brain,
   MessageSquare,
   Briefcase,
+  Megaphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -61,6 +62,7 @@ const v11MenuItems: MenuItem[] = [
   { href: '/finance/decomposition', label: '매출 인수분해', icon: Layers },
   { href: '/finance/expenses', label: '자원 인수분해', icon: Coins },
   { href: '/finance/sales', label: '영업 (#2a)', icon: Briefcase },
+  { href: '/finance/marketing', label: '마케팅 (#2b)', icon: Megaphone },
   { href: '/finance/positioning', label: '포지셔닝 매트릭스', icon: Layers3 },
   { href: '/finance/pricing', label: '4단계 가격 결정', icon: Workflow },
   { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
