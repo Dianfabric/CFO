@@ -6,6 +6,7 @@
  * - 12주 목표 카드들 (선행/후행 분리)
  * - 자동 후행지표 (현재 사이클 동안의 매출/이익/거래처)
  */
+import Link from 'next/link'
 import {
   Card,
   CardContent,
@@ -343,6 +344,37 @@ VALUES (1, CURRENT_DATE, CURRENT_DATE + 83, 'active');`}
 
       {/* 12주 목표 */}
       <GoalsList goals={goals} cycleId={cycle.id} />
+
+      {/* 추가 페이지 */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-slate-700">⚡ 12주 사이클 도구</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <Link href="/finance/cycle/indicators">
+            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">선·후행 지표</div>
+                <div className="text-[11px] text-slate-500">활동 → 결과 흐름 + 페이스</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/cycle/vision">
+            <Card className="cursor-pointer transition hover:border-purple-300 hover:bg-purple-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">비전·목표 워크북</div>
+                <div className="text-[11px] text-slate-500">5년 → 3년 → 12주 정합성</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/cycle/retro">
+            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">12주 회고</div>
+                <div className="text-[11px] text-slate-500">잘된/안된/학습/다음 집중</div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
 
       {/* 안내 */}
       <Card className="border-slate-200 bg-slate-50">
