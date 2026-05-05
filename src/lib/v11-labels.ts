@@ -55,6 +55,75 @@ export const TRANSACTION_STAGE_LABEL: Record<string, string> = {
   cancelled: '취소',
 }
 
+// ── 영업 활동 (PRD #2a) ──
+export const SALES_ACTIVITY_LABEL: Record<string, string> = {
+  call: '전화',
+  meeting: '미팅',
+  email: '이메일/카톡',
+  sample_send: '샘플 발송',
+  sample_return: '샘플 반환',
+  catalog_send: '카탈로그',
+  proposal_send: '제안서',
+  consultation: '큐레이션 컨설팅',
+  follow_up: '후속 연락',
+  visit: '방문',
+  event: '전시·박람회',
+  other: '기타',
+}
+export const SALES_ACTIVITY_VALUES = Object.keys(SALES_ACTIVITY_LABEL) as Array<
+  keyof typeof SALES_ACTIVITY_LABEL
+>
+
+export const SALES_STAGE_LABEL: Record<string, string> = {
+  prospecting: '1. 탐색',
+  rapport: '2. 관계 형성',
+  needs: '3. 니즈 파악',
+  presentation: '4. 제안',
+  objection: '5. 이의 처리',
+  closing: '6. 성사',
+  follow_up: '7. 사후 관리',
+}
+export const SALES_STAGE_VALUES = Object.keys(SALES_STAGE_LABEL) as Array<
+  keyof typeof SALES_STAGE_LABEL
+>
+
+export const SALES_STAGE_COLOR: Record<string, string> = {
+  prospecting: 'bg-slate-100 text-slate-700',
+  rapport: 'bg-blue-100 text-blue-700',
+  needs: 'bg-cyan-100 text-cyan-700',
+  presentation: 'bg-amber-100 text-amber-800',
+  objection: 'bg-orange-100 text-orange-800',
+  closing: 'bg-emerald-100 text-emerald-700',
+  follow_up: 'bg-purple-100 text-purple-700',
+}
+
+export const OBJECTION_LABEL: Record<string, string> = {
+  price: '가격 부담',
+  quality: '품질 의문',
+  lead_time: '납기 우려',
+  competitor: '경쟁사 사용',
+  budget: '예산 이슈',
+  authority: '결정권자 부재',
+  urgency: '시급성 부족',
+  fit: '디자인/소재 미스매치',
+  other: '기타',
+}
+
+export const LIFECYCLE_LABEL: Record<string, string> = {
+  new: '신규',
+  growing: '성장 중',
+  mature: '안정 거래',
+  at_risk: '이탈 위험',
+  churned: '이탈',
+}
+export const LIFECYCLE_COLOR: Record<string, string> = {
+  new: 'bg-blue-100 text-blue-700',
+  growing: 'bg-emerald-100 text-emerald-700',
+  mature: 'bg-slate-100 text-slate-700',
+  at_risk: 'bg-amber-100 text-amber-800',
+  churned: 'bg-rose-100 text-rose-700',
+}
+
 // ── 비용 분류 (PRD #3 ③) ──
 export const EXPENSE_VARIABILITY_LABEL: Record<string, string> = {
   variable: '변동',
