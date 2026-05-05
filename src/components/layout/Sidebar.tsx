@@ -27,6 +27,8 @@ import {
   Workflow,
   Sun,
   CalendarDays,
+  Brain,
+  MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -52,6 +54,8 @@ const v10MenuItems: MenuItem[] = [
 // v1.1 신규 메뉴 (Phase 1부터 단계 추가)
 const v11MenuItems: MenuItem[] = [
   { href: '/finance/daily', label: '일일 운영', icon: Sun },
+  { href: '/finance/briefing', label: '모닝 브리핑 (AI)', icon: Brain },
+  { href: '/finance/consult', label: '라이브 컨설팅 (AI)', icon: MessageSquare },
   { href: '/finance', label: '재무 메인 (v1.1)', icon: PieChart },
   { href: '/finance/decomposition', label: '매출 인수분해', icon: Layers },
   { href: '/finance/expenses', label: '자원 인수분해', icon: Coins },
