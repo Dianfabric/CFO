@@ -174,6 +174,154 @@ export async function validateDecision(
   }
 }
 
+// ── Client Pricing Policies (#4 ⑤) ──
+export interface PolicyInput {
+  id?: number
+  client_id: number
+  line_id: number
+  discount_rate?: number
+  notes?: string | null
+  effective_from?: string
+}
+
+export async function upsertPricingPolicy(
+  input: PolicyInput,
+): Promise<{ ok: boolean; error?: string; id?: number }> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+    const payload = {
+      client_id: input.client_id,
+      line_id: input.line_id,
+      discount_rate: input.discount_rate ?? 0,
+      notes: input.notes ?? null,
+      effective_from: input.effective_from ?? new Date().toISOString().split('T')[0],
+    }
+
+    if (input.id) {
+      const { error } = await supabase
+        .from('client_pricing_policies')
+        .update(payload)
+        .eq('id', input.id)
+      if (error) return { ok: false, error: error.message }
+      revalidatePath('/finance/pricing/policies')
+      return { ok: true, id: input.id }
+    } else {
+      const { data, error } = await supabase
+        .from('client_pricing_policies')
+        .upsert(payload, { onConflict: 'client_id,line_id' })
+        .select('id')
+        .single()
+      if (error) return { ok: false, error: error.message }
+      revalidatePath('/finance/pricing/policies')
+      return { ok: true, id: data.id }
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deletePricingPolicy(
+  id: number,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.from('client_pricing_policies').delete().eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/finance/pricing/policies')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// ── Price Promotions (#4 ⑥) ──
+export interface PromotionInput {
+  id?: number
+  name: string
+  promo_type?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  status?: string
+  target_tier?: string | null
+  target_line_id?: number | null
+  target_segment_id?: number | null
+  target_client_tier?: string | null
+  discount_rate?: number | null
+  discount_amount?: number | null
+  min_quantity?: number | null
+  bundle_note?: string | null
+  exclude_luxury?: boolean
+  notes?: string | null
+}
+
+export async function upsertPromotion(
+  input: PromotionInput,
+): Promise<{ ok: boolean; error?: string; id?: number }> {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+
+    const payload = {
+      name: input.name,
+      promo_type: input.promo_type ?? null,
+      start_date: input.start_date ?? null,
+      end_date: input.end_date ?? null,
+      status: input.status ?? 'planning',
+      target_tier: input.target_tier ?? null,
+      target_line_id: input.target_line_id ?? null,
+      target_segment_id: input.target_segment_id ?? null,
+      target_client_tier: input.target_client_tier ?? null,
+      discount_rate: input.discount_rate ?? null,
+      discount_amount: input.discount_amount ?? null,
+      min_quantity: input.min_quantity ?? null,
+      bundle_note: input.bundle_note ?? null,
+      exclude_luxury: input.exclude_luxury ?? true,
+      notes: input.notes ?? null,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (input.id) {
+      const { error } = await supabase.from('price_promotions').update(payload).eq('id', input.id)
+      if (error) return { ok: false, error: error.message }
+      revalidatePath('/finance/pricing/promotions')
+      return { ok: true, id: input.id }
+    } else {
+      const { data, error } = await supabase
+        .from('price_promotions')
+        .insert({ ...payload, created_by: user.id })
+        .select('id')
+        .single()
+      if (error) return { ok: false, error: error.message }
+      revalidatePath('/finance/pricing/promotions')
+      return { ok: true, id: data.id }
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deletePromotion(
+  id: number,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.from('price_promotions').delete().eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/finance/pricing/promotions')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function deleteDecision(
   id: number,
 ): Promise<{ ok: boolean; error?: string }> {

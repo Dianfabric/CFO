@@ -318,6 +318,45 @@ export default async function PricingListPage() {
         </CardContent>
       </Card>
 
+      {/* 추가 페이지 */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-slate-700">⚡ 가격 결정 페이지</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Link href="/finance/pricing/workbook">
+            <Card className="cursor-pointer transition hover:border-purple-300 hover:bg-purple-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">② 가치 정의 워크북</div>
+                <div className="text-[11px] text-slate-500">라인별 가치 3요소</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/pricing/policies">
+            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">⑤ 거래처 차별화</div>
+                <div className="text-[11px] text-slate-500">VIP·대량 할인율</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/pricing/promotions">
+            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">⑥ 프로모션 정책</div>
+                <div className="text-[11px] text-slate-500">시즌·번들·티어</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/pricing/simulator">
+            <Card className="cursor-pointer transition hover:border-emerald-300 hover:bg-emerald-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">⑦ 가격 시뮬레이터</div>
+                <div className="text-[11px] text-slate-500">탄력성 시뮬레이션</div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
       {/* 가이드 */}
       <Card className="border-amber-100 bg-amber-50/50">
         <CardHeader>
