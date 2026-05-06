@@ -240,6 +240,45 @@ export default async function FinanceDashboardPage() {
         </CardContent>
       </Card>
 
+      {/* 추가 분석 페이지 */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-slate-700">⚡ 추가 재무 분석</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Link href="/finance/accounting">
+            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">회계법인 연동</div>
+                <div className="text-[11px] text-slate-500">월결산 export</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/equity">
+            <Card className="cursor-pointer transition hover:border-emerald-300 hover:bg-emerald-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">자기자본 분석</div>
+                <div className="text-[11px] text-slate-500">YTD 손익 + 비교</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/bsc">
+            <Card className="cursor-pointer transition hover:border-purple-300 hover:bg-purple-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">BSC 4관점</div>
+                <div className="text-[11px] text-slate-500">통합 점검</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/ltv">
+            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">LTV·CAC</div>
+                <div className="text-[11px] text-slate-500">거래처 수익성</div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
       {/* 다음 단계 안내 (개발 가이드) */}
       <Card className="border-slate-200 bg-slate-50">
         <CardContent>

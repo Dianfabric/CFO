@@ -355,6 +355,30 @@ export default async function OperationsHubPage() {
               </CardContent>
             </Card>
           </Link>
+          <Link href="/finance/operations/seasons">
+            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">시즌 사이클</div>
+                <div className="text-[11px] text-slate-500">SS·FW 운영 캘린더</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/operations/inventory">
+            <Card className="cursor-pointer transition hover:border-slate-300 hover:bg-slate-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">인벤토리</div>
+                <div className="text-[11px] text-slate-500">재고 + 부족 경고</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/operations/logistics">
+            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">배송·물류</div>
+                <div className="text-[11px] text-slate-500">납기 추적</div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 

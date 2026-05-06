@@ -239,6 +239,22 @@ export default async function MarketingHubPage() {
               </CardContent>
             </Card>
           </Link>
+          <Link href="/finance/marketing/newsletter">
+            <Card className="cursor-pointer transition hover:border-emerald-300 hover:bg-emerald-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">⑨ 뉴스레터</div>
+                <div className="text-[11px] text-slate-500">정기 발송 캠페인</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/marketing/brand-pdf">
+            <Card className="cursor-pointer transition hover:border-slate-300 hover:bg-slate-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">⑩ 브랜드 가이드 PDF</div>
+                <div className="text-[11px] text-slate-500">시각 정체성 인쇄용</div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 

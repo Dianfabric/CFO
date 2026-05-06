@@ -373,6 +373,22 @@ VALUES (1, CURRENT_DATE, CURRENT_DATE + 83, 'active');`}
               </CardContent>
             </Card>
           </Link>
+          <Link href="/finance/cycle/wam-scorecard">
+            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">WAM 자동 점수표</div>
+                <div className="text-[11px] text-slate-500">이번 주 자동 집계</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/cycle/history">
+            <Card className="cursor-pointer transition hover:border-slate-300 hover:bg-slate-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">사이클 이력</div>
+                <div className="text-[11px] text-slate-500">과거 사이클 비교</div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 
