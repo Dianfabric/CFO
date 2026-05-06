@@ -25,22 +25,33 @@ export default function AuthPill({ collapsed = false }: { collapsed?: boolean })
 
   useEffect(() => {
     const supabase = createClient()
+    if (!supabase) {
+      // 환경변수 미설정 — v1.1 인증 비활성. 조용히 종료.
+      return
+    }
 
     let cancelled = false
     async function load() {
-      const { data: userRes } = await supabase.auth.getUser()
-      if (cancelled) return
-      if (!userRes.user) {
-        setState({ email: null, role: null })
-        return
+      try {
+        const { data: userRes } = await supabase!.auth.getUser()
+        if (cancelled) return
+        if (!userRes.user) {
+          setState({ email: null, role: null })
+          return
+        }
+        const { data: profile } = await supabase!
+          .from('profiles')
+          .select('role')
+          .eq('id', userRes.user.id)
+          .maybeSingle()
+        if (cancelled) return
+        setState({ email: userRes.user.email ?? null, role: profile?.role ?? null })
+      } catch (e) {
+        // 인증 호출 실패 시 무시 (사이드바는 계속 표시)
+        if (typeof window !== 'undefined') {
+          console.warn('[Dian] Auth load 실패:', e)
+        }
       }
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userRes.user.id)
-        .maybeSingle()
-      if (cancelled) return
-      setState({ email: userRes.user.email ?? null, role: profile?.role ?? null })
     }
     load()
 
@@ -59,6 +70,10 @@ export default function AuthPill({ collapsed = false }: { collapsed?: boolean })
   function handleSignOut() {
     startTransition(async () => {
       const supabase = createClient()
+      if (!supabase) {
+        router.push('/login')
+        return
+      }
       await supabase.auth.signOut()
       router.push('/login')
       router.refresh()

@@ -32,6 +32,13 @@ function LoginForm() {
 
     try {
       const supabase = createClient()
+      if (!supabase) {
+        setError(
+          'v1.1 인증 환경변수 (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY) 가 Vercel 에 설정되어 있지 않습니다. 관리자에게 문의하세요.',
+        )
+        setLoading(false)
+        return
+      }
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
