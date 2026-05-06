@@ -34,6 +34,9 @@ import {
   Package as PackageIcon,
   Bell,
   Compass,
+  Send,
+  Wand2,
+  PackageOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -65,10 +68,13 @@ const v11MenuItems: MenuItem[] = [
   { href: '/finance/decomposition', label: '매출 인수분해', icon: Layers },
   { href: '/finance/expenses', label: '자원 인수분해', icon: Coins },
   { href: '/finance/sales', label: '영업 (#2a)', icon: Briefcase },
+  { href: '/finance/sales/materials', label: '영업자료 자동생성 (#9)', icon: Wand2 },
   { href: '/finance/marketing', label: '마케팅 (#2b)', icon: Megaphone },
   { href: '/finance/operations', label: '운영·샘플 (#2c)', icon: PackageIcon },
+  { href: '/finance/operations/intake', label: '입고 워크플로우 (#10)', icon: PackageOpen },
   { href: '/finance/alerts', label: '이상치 알림 (#3)', icon: Bell },
   { href: '/finance/cockpit', label: 'CEO 코크핏 (#7)', icon: Compass },
+  { href: '/finance/team', label: '팀 공유·슬랙 (#8)', icon: Send },
   { href: '/finance/positioning', label: '포지셔닝 매트릭스', icon: Layers3 },
   { href: '/finance/pricing', label: '4단계 가격 결정', icon: Workflow },
   { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
