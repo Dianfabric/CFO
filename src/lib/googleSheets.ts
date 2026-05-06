@@ -1,6 +1,6 @@
 // Google Sheets 2025 TMS 시트 구조:
 // A열: 코드, B열: 브랜드, C열: 제품명, D열: 원단단가, E열: 소재, F열: 폭
-// G열: 무게, H열: 원가(USD), I~M열: 가격정보, N열: 브랜드
+// G열: 무게, H열: 원가(USD), I~M열: 가격정보, N열: 브랜드, O열: 보조검색(영문명 등)
 export interface FabricPrice {
   name: string        // C열: 제품명
   price: number       // D열: 원단단가
@@ -9,6 +9,7 @@ export interface FabricPrice {
   altName: string     // A열: 코드 (보조 검색용)
   brand: string       // N열: 브랜드
   dealerPrice: number // H열: 원가(USD)
+  altName2: string    // O열: 보조검색 (영문명 등)
 }
 
 let cachedPrices: FabricPrice[] | null = null
@@ -25,23 +26,7 @@ let rateCacheTime = 0
 const RATE_TTL = 60 * 60 * 1000 // 1시간 캐시
 
 export async function getUSDtoKRW(): Promise<number> {
-  const now = Date.now()
-  if (cachedRate && now - rateCacheTime < RATE_TTL) return cachedRate
-
-  try {
-    const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW')
-    const data = await res.json()
-    const rate = data?.rates?.KRW
-    if (rate && typeof rate === 'number') {
-      cachedRate = rate
-      rateCacheTime = now
-      return rate
-    }
-  } catch {
-    // 조회 실패 시 기본값 사용
-  }
-
-  return cachedRate ?? 1380 // fallback
+  return 1500
 }
 
 export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPrice[]> {
@@ -52,7 +37,7 @@ export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPri
   const sheetId = process.env.SHEET_ID
   if (!apiKey || !sheetId) throw new Error('Google Sheets 환경변수가 설정되지 않았습니다')
 
-  const range = encodeURIComponent(`${sheetName}!A:N`)
+  const range = encodeURIComponent(`${sheetName}!A:O`)
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`
 
   const res = await fetch(url)
@@ -71,21 +56,77 @@ export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPri
       altName: r[0]?.trim() ?? '',    // A열: 코드 (보조 검색용)
       brand: r[13]?.trim() ?? '',     // N열: 브랜드
       dealerPrice: parseSheetNum(r[7]), // H열: 원가(USD)
+      altName2: r[14]?.trim() ?? '',  // O열: 보조검색 (영문명 등)
     }))
 
   cacheTime = now
   return cachedPrices
 }
 
-// 경영박사 품명으로 딜러가격(원가) 찾기
-// Dian-fabric-search와 동일한 매칭 로직:
-// 1) 완전일치 (name 또는 altName)
-// 2) 컬러번호 제거 후 재시도 ("BOHO-28" → "BOHO")
-// 3) 부분일치 (includes)
+/**
+ * 경영박사 품명에서 검색 키워드 추출
+ * 순수 숫자 괄호([02], [903])는 색상코드로 간주해 제외
+ * 예) "넬리 [NELLY] [NE005]" → ["넬리", "NELLY", "NE005"]
+ *     "마블-2 [MARBLE-2] [903]" → ["마블-2", "MARBLE-2"]
+ */
+function extractSearchKeywords(fabricName: string): string[] {
+  // 1. 괄호 앞 텍스트 (가장 먼저 시도)
+  const baseName = fabricName.replace(/\[.*/, '').trim()
+
+  // 2. 괄호 내 텍스트 (순수 숫자 색상코드는 제외)
+  const bracketKeywords: string[] = []
+  const bracketRe = /\[([^\]]+)\]/g
+  let m: RegExpExecArray | null
+  while ((m = bracketRe.exec(fabricName)) !== null) {
+    const content = m[1].trim()
+    if (/^\d+$/.test(content)) continue  // "02", "104" 같은 순수 숫자는 색상코드
+    bracketKeywords.push(content)
+  }
+
+  return [...new Set([baseName, ...bracketKeywords])].filter(Boolean)
+}
+
+// 하이픈·공백 제거 정규화 ("마블-2" → "마블2", "Load 1900" → "Load1900")
+function norm(s: string): string {
+  return s.replace(/[-\s]/g, '').toUpperCase()
+}
+
+function matchByKeyword(keyword: string, prices: FabricPrice[]): FabricPrice | null {
+  const up = keyword.toUpperCase()
+  const n = norm(keyword)
+
+  // ① 완전일치 — 시트에 있으면 dealerPrice 없어도 반환
+  const exact = prices.find(p =>
+    p.name.toUpperCase() === up ||
+    p.altName.toUpperCase() === up ||
+    (p.altName2 && p.altName2.toUpperCase() === up)
+  )
+  if (exact) return exact
+
+  // ② 정규화 완전일치: 하이픈·공백 차이 허용 ("마블-2" ↔ "마블2")
+  const normExact = prices.find(p =>
+    norm(p.name) === n ||
+    (p.altName && norm(p.altName) === n) ||
+    (p.altName2 && norm(p.altName2) === n)
+  )
+  if (normExact) return normExact
+
+  // ③ 부분일치 (양방향, dealerPrice 있는 것 우선 / 없어도 반환)
+  const partials = prices.filter(p =>
+    p.name.toUpperCase().includes(up) || up.includes(p.name.toUpperCase()) ||
+    (p.altName && (p.altName.toUpperCase().includes(up) || up.includes(p.altName.toUpperCase()))) ||
+    (p.altName2 && (p.altName2.toUpperCase().includes(up) || up.includes(p.altName2.toUpperCase())))
+  )
+  const partial = partials.find(p => p.dealerPrice > 0) ?? partials[0]
+  if (partial) return partial
+
+  return null
+}
+
 export function findFabric(fabricName: string, prices: FabricPrice[]): FabricPrice | null {
   if (!fabricName || prices.length === 0) return null
 
-  // ⓪ [BN##] 패턴 범위 매칭
+  // BN 범위 매칭 유지
   const bnMatch = fabricName.match(/\[BN(\d+)\]/i)
   if (bnMatch) {
     const bnNum = parseInt(bnMatch[1], 10)
@@ -97,119 +138,17 @@ export function findFabric(fabricName: string, prices: FabricPrice[]): FabricPri
     if (rangeEntry) return rangeEntry
   }
 
-  const bracketMatch = fabricName.match(/\[([A-Z0-9\s\-]+)\]/i)
-  const keywords = bracketMatch
-    ? [bracketMatch[1].trim(), fabricName.replace(/\[.*?\]/g, '').trim()]
-    : [fabricName.trim()]
-
-  for (const keyword of keywords) {
-    if (!keyword) continue
-    const baseKeyword = keyword.replace(/-\w+$/, '').trim()
-
-    const exact = prices.find(p =>
-      p.name.toUpperCase() === keyword.toUpperCase() ||
-      p.altName.toUpperCase() === keyword.toUpperCase()
-    )
-    if (exact?.dealerPrice) return exact
-
-    if (baseKeyword !== keyword) {
-      const baseExact = prices.find(p =>
-        p.name.toUpperCase() === baseKeyword.toUpperCase() ||
-        p.altName.toUpperCase() === baseKeyword.toUpperCase()
-      )
-      if (baseExact?.dealerPrice) return baseExact
-    }
-
-    // 부분일치 — dealerPrice 있는 항목 우선
-    const partials = prices.filter(p =>
-      p.name.toUpperCase().includes(keyword.toUpperCase()) ||
-      keyword.toUpperCase().includes(p.name.toUpperCase()) ||
-      (p.altName && (
-        p.altName.toUpperCase().includes(keyword.toUpperCase()) ||
-        keyword.toUpperCase().includes(p.altName.toUpperCase())
-      ))
-    )
-    const partial = partials.find(p => p.dealerPrice > 0) ?? partials[0]
-    if (partial?.dealerPrice) return partial
-
-    if (baseKeyword !== keyword) {
-      const basePartials = prices.filter(p =>
-        p.name.toUpperCase().includes(baseKeyword.toUpperCase()) ||
-        (p.altName && p.altName.toUpperCase().includes(baseKeyword.toUpperCase()))
-      )
-      const basePartial = basePartials.find(p => p.dealerPrice > 0) ?? basePartials[0]
-      if (basePartial?.dealerPrice) return basePartial
-    }
+  for (const keyword of extractSearchKeywords(fabricName)) {
+    const result = matchByKeyword(keyword, prices)
+    if (result) return result
   }
 
   return null
 }
 
 export function findFabricCost(fabricName: string, prices: FabricPrice[]): number {
-  if (!fabricName || prices.length === 0) return 0
-
-  // ⓪ [BN##] 패턴: "바론[BARON] [BN01]" → 01 → "BARON 01~04" 범위 매칭
-  const bnMatch = fabricName.match(/\[BN(\d+)\]/i)
-  if (bnMatch) {
-    const bnNum = parseInt(bnMatch[1], 10)
-    const rangeEntry = prices.find(p => {
-      const m = p.name.match(/(\d+)~(\d+)/)
-      if (!m) return false
-      return bnNum >= parseInt(m[1], 10) && bnNum <= parseInt(m[2], 10) && p.dealerPrice > 0
-    })
-    if (rangeEntry) return rangeEntry.dealerPrice
-  }
-
-  // 경영박사 품명 전처리: "날리 [NELLY]" → keyword 추출
-  const bracketMatch = fabricName.match(/\[([A-Z0-9\s\-]+)\]/i)
-  const keywords = bracketMatch
-    ? [bracketMatch[1].trim(), fabricName.replace(/\[.*?\]/g, '').trim()]
-    : [fabricName.trim()]
-
-  for (const keyword of keywords) {
-    if (!keyword) continue
-
-    // ① 완전일치
-    const exact = prices.find(p =>
-      p.name.toUpperCase() === keyword.toUpperCase() ||
-      p.altName.toUpperCase() === keyword.toUpperCase()
-    )
-    if (exact?.dealerPrice) return exact.dealerPrice
-
-    // ② 컬러번호 제거 후 완전일치 ("BOHO-28" → "BOHO")
-    const baseKeyword = keyword.replace(/-\w+$/, '').trim()
-    if (baseKeyword !== keyword) {
-      const baseExact = prices.find(p =>
-        p.name.toUpperCase() === baseKeyword.toUpperCase() ||
-        p.altName.toUpperCase() === baseKeyword.toUpperCase()
-      )
-      if (baseExact?.dealerPrice) return baseExact.dealerPrice
-    }
-
-    // ③ 부분일치 — dealerPrice 있는 항목 우선 (첫 번째 매칭이 가격 없을 때 놓치는 버그 수정)
-    const partials = prices.filter(p =>
-      p.name.toUpperCase().includes(keyword.toUpperCase()) ||
-      keyword.toUpperCase().includes(p.name.toUpperCase()) ||
-      (p.altName && (
-        p.altName.toUpperCase().includes(keyword.toUpperCase()) ||
-        keyword.toUpperCase().includes(p.altName.toUpperCase())
-      ))
-    )
-    const partial = partials.find(p => p.dealerPrice > 0) ?? partials[0]
-    if (partial?.dealerPrice) return partial.dealerPrice
-
-    // ④ 베이스 키워드 부분일치
-    if (baseKeyword !== keyword) {
-      const basePartials = prices.filter(p =>
-        p.name.toUpperCase().includes(baseKeyword.toUpperCase()) ||
-        (p.altName && p.altName.toUpperCase().includes(baseKeyword.toUpperCase()))
-      )
-      const basePartial = basePartials.find(p => p.dealerPrice > 0) ?? basePartials[0]
-      if (basePartial?.dealerPrice) return basePartial.dealerPrice
-    }
-  }
-
-  return 0
+  const result = findFabric(fabricName, prices)
+  return result?.dealerPrice ?? 0
 }
 
 function parseSheetNum(val: string | undefined): number {

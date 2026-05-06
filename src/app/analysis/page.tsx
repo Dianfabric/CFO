@@ -85,7 +85,7 @@ export default function AnalysisPage() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="label" />
                     <YAxis tickFormatter={v => `${(v / 10000).toFixed(0)}만`} />
-                    <Tooltip formatter={(v: number) => formatKRW(v)} />
+                    <Tooltip formatter={(v: unknown) => formatKRW(v as number)} />
                     <Legend />
                     <Bar dataKey="sales" name="매출" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="expenses" name="비용" fill="#ef4444" radius={[4, 4, 0, 0]} />
@@ -131,10 +131,10 @@ export default function AnalysisPage() {
                     <PieChart>
                       <Pie data={data?.channelSales.map(cs => ({ name: channelLabel(cs.channel), value: cs.amount })) || []}
                         cx="50%" cy="50%" outerRadius={80} dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                        label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                         {(data?.channelSales || []).map((_, i) => <Cell key={i} fill={CHANNEL_COLORS[i]} />)}
                       </Pie>
-                      <Tooltip formatter={(v: number) => formatKRW(v)} />
+                      <Tooltip formatter={(v: unknown) => formatKRW(v as number)} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

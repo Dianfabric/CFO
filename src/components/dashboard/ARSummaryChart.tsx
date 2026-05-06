@@ -41,7 +41,7 @@ export default function ARSummaryChart({ data, totalAR }: { data: ARAgingData[];
               <XAxis dataKey="period" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`} />
               <Tooltip
-                formatter={(value: number) => formatKRW(value)}
+                formatter={(v: unknown) => formatKRW(v as number)}
                 labelFormatter={(label) => `경과: ${label}`}
               />
               <Bar dataKey="amount" name="미수금" radius={[4, 4, 0, 0]}>

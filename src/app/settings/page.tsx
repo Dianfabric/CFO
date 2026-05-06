@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Settings, Building, Key, Database, Download, Upload, Image as ImageIcon, X } from 'lucide-react'
+import { Settings, Building, Key, Database, Download, Upload, Image as ImageIcon, X, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react'
 
 interface CompanyProfile {
   name: string
@@ -34,6 +34,23 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const sealInputRef = useRef<HTMLInputElement>(null)
+  const [syncState, setSyncState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [syncMsg, setSyncMsg] = useState('')
+
+  const handleProductSync = async () => {
+    setSyncState('loading')
+    setSyncMsg('')
+    try {
+      const res = await fetch('/api/products/sync', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) { setSyncState('error'); setSyncMsg(json.error ?? '오류 발생'); return }
+      setSyncState('success')
+      setSyncMsg(`동기화 완료 — 신규 ${json.created}개, 업데이트 ${json.updated}개 (총 ${json.synced}개)`)
+    } catch {
+      setSyncState('error')
+      setSyncMsg('네트워크 오류')
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -238,12 +255,37 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Database className="w-4 h-4" />데이터 관리</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-slate-500">데이터를 JSON 형식으로 내보낼 수 있습니다.</p>
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => handleExport('transactions')} className="gap-1"><Download className="w-3.5 h-3.5" />거래 내역</Button>
-            <Button variant="outline" size="sm" onClick={() => handleExport('products')} className="gap-1"><Download className="w-3.5 h-3.5" />제품 목록</Button>
-            <Button variant="outline" size="sm" onClick={() => handleExport('clients')} className="gap-1"><Download className="w-3.5 h-3.5" />거래처 목록</Button>
+        <CardContent className="space-y-4">
+          <div>
+            <p className="text-sm font-medium text-slate-700 mb-1">구글 시트 제품 동기화</p>
+            <p className="text-xs text-slate-500 mb-2">쇼룸단가표 → DB 동기화 (공문 작성 시 제품 단가 자동 조회)</p>
+            <Button
+              variant="outline" size="sm"
+              onClick={handleProductSync}
+              disabled={syncState === 'loading'}
+              className="gap-1"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncState === 'loading' ? 'animate-spin' : ''}`} />
+              {syncState === 'loading' ? '동기화 중...' : '제품 시트 동기화'}
+            </Button>
+            {syncState === 'success' && (
+              <div className="mt-2 flex items-center gap-1 text-xs text-green-700 bg-green-50 rounded px-2 py-1">
+                <CheckCircle className="w-3 h-3 shrink-0" />{syncMsg}
+              </div>
+            )}
+            {syncState === 'error' && (
+              <div className="mt-2 flex items-center gap-1 text-xs text-red-700 bg-red-50 rounded px-2 py-1">
+                <AlertCircle className="w-3 h-3 shrink-0" />{syncMsg}
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium text-slate-700 mb-2">데이터 내보내기</p>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => handleExport('transactions')} className="gap-1"><Download className="w-3.5 h-3.5" />거래 내역</Button>
+              <Button variant="outline" size="sm" onClick={() => handleExport('products')} className="gap-1"><Download className="w-3.5 h-3.5" />제품 목록</Button>
+              <Button variant="outline" size="sm" onClick={() => handleExport('clients')} className="gap-1"><Download className="w-3.5 h-3.5" />거래처 목록</Button>
+            </div>
           </div>
         </CardContent>
       </Card>

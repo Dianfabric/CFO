@@ -19,7 +19,7 @@ import PriceChangeTable, { PriceRow } from '@/components/documents/PriceChangeTa
 import PriceChangeRangeTable from '@/components/documents/PriceChangeRangeTable'
 import ClientCombobox, { ClientOption } from '@/components/documents/ClientCombobox'
 import DocumentHistoryDialog from '@/components/documents/DocumentHistoryDialog'
-import { downloadPDF, downloadJPG, getCanvasBlob, getPDFBlob } from '@/lib/document-export'
+import { downloadPDF, downloadJPG, getCanvasBlob, getPDFBlob, copyImageToClipboard } from '@/lib/document-export'
 import { buildMessengerText, copyToClipboard } from '@/lib/document-text'
 import { useGoogleDrive } from '@/hooks/useGoogleDrive'
 import { getOrCreateFolder, uploadToDrive } from '@/lib/google-drive'
@@ -343,9 +343,26 @@ export default function PriceChangeForm() {
     }
     setDownloading('')
   }
+  const [copyImgState, setCopyImgState] = useState<'idle' | 'copying' | 'done'>('idle')
+  const handleCopyImage = async () => {
+    setCopyImgState('copying')
+    const result = await copyImageToClipboard('document-print-area')
+    if (result.ok) {
+      setCopyImgState('done')
+      setTimeout(() => setCopyImgState('idle'), 1500)
+    } else {
+      setCopyImgState('idle')
+      const msg =
+        result.reason === 'unsupported' ? '이 브라우저는 이미지 클립보드 복사를 지원하지 않습니다.' :
+        result.reason === 'permission'  ? '복사 권한이 거부되었습니다. 페이지를 클릭한 후 다시 시도해주세요.' :
+        '이미지 복사 실패' + (result.error ? '\n' + result.error : '')
+      alert(msg)
+    }
+  }
 
   // ── 저장 (DB → 구글 드라이브) ────────────────────────────────
   const handleSave = async () => {
+    if (!form.recipientName) { alert('수신 정보를 입력해주세요.'); return }
     setSaving(true)
     setSavePhase('db')
     let savedId: string | null = null
@@ -357,7 +374,7 @@ export default function PriceChangeForm() {
           type: 'PRICE_CHANGE',
           title: form.title,
           recipientClientId: form.recipientClientId || null,
-          recipientName: form.recipientName || '(수신자 미입력)',
+          recipientName: form.recipientName,
           ccLine: form.ccLine,
           senderLine,
           bodyText: form.bodyText,
@@ -387,47 +404,45 @@ export default function PriceChangeForm() {
       }
       const saved = await res.json()
       savedId = saved.id
-    } catch (e) {
-      console.error('DB 저장 실패:', e)
-      alert('저장 실패: ' + (e instanceof Error ? e.message : String(e)))
+    } catch {
+      alert('저장 실패')
       setSaving(false); setSavePhase('')
       return
     }
 
-    // ── 구글 드라이브 업로드 (팝업 차단 대비 15초 타임아웃) ────
+    // ── 구글 드라이브 업로드 ────────────────────────────────────
     if (ROOT_FOLDER_ID && savedId) {
       setSavePhase('drive')
       try {
-        const driveToken = await Promise.race([
-          getToken(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('DRIVE_TIMEOUT')), 15000)
-          ),
-        ])
+        const token = await getToken()
 
-        const folderId = await getOrCreateFolder('공문 모음', ROOT_FOLDER_ID, driveToken)
+        // 폴더 확보: 공문 모음
+        const folderId = await getOrCreateFolder('공문 모음', ROOT_FOLDER_ID, token)
+
+        // PDF + JPG 병렬 생성
         const [pdfBlob, jpgBlob] = await Promise.all([
           getPDFBlob('document-print-area'),
           getCanvasBlob('document-print-area', 'image/jpeg', 0.95),
         ])
+
+        // 병렬 업로드
         const [driveFileId, driveJpgId] = await Promise.all([
-          uploadToDrive(pdfBlob, `${filenameBase}.pdf`, 'application/pdf', folderId, driveToken),
-          uploadToDrive(jpgBlob, `${filenameBase}.jpg`, 'image/jpeg', folderId, driveToken),
+          uploadToDrive(pdfBlob, `${filenameBase}.pdf`, 'application/pdf', folderId, token),
+          uploadToDrive(jpgBlob, `${filenameBase}.jpg`, 'image/jpeg', folderId, token),
         ])
+
+        // DB 업데이트
         await fetch(`/api/documents/${savedId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ driveFileId, driveJpgId }),
         })
+
+
       } catch (driveErr) {
-        const msg = driveErr instanceof Error ? driveErr.message : ''
-        if (msg === 'DRIVE_TIMEOUT') {
-          // 팝업 차단 또는 미인증 — DB 저장은 완료됐으므로 조용히 넘어감
-          console.warn('Drive upload skipped (no auth / popup blocked)')
-        } else {
-          console.error('Drive upload failed:', driveErr)
-          alert(`구글 드라이브 저장 실패: ${msg || '알 수 없는 오류'}\n\n공문은 DB에 저장되었습니다.`)
-        }
+        console.error('Drive upload failed:', driveErr)
+        // 드라이브 실패는 경고만 — DB 저장은 성공했으므로 이동 계속
+        alert(`구글 드라이브 저장 실패: ${driveErr instanceof Error ? driveErr.message : '알 수 없는 오류'}\n\n공문은 DB에 저장되었습니다.`)
       }
     }
 
@@ -543,6 +558,11 @@ export default function PriceChangeForm() {
             <FileDown className="w-3.5 h-3.5" />
             {downloading === 'pdf' ? '생성 중...' : 'PDF'}
           </Button>
+          <Button variant="outline" size="sm" onClick={handleCopyImage}
+            disabled={copyImgState !== 'idle'} className="gap-1">
+            {copyImgState === 'done' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+            {copyImgState === 'copying' ? '복사 중...' : copyImgState === 'done' ? '복사됨!' : '복사'}
+          </Button>
           <Button
             size="sm"
             onClick={handleSave}
@@ -556,7 +576,7 @@ export default function PriceChangeForm() {
             {savePhase === 'db' ? 'DB 저장 중...'
               : savePhase === 'drive' ? '드라이브 저장 중...'
               : savedFlash ? '저장됨 ✓'
-              : '저장'}
+              : '발행 및 저장'}
           </Button>
           <Button
             size="sm"
@@ -1121,6 +1141,10 @@ export default function PriceChangeForm() {
               <FileDown className="w-3.5 h-3.5" />
               {downloading === 'pdf' ? '생성 중...' : 'PDF'}
             </Button>
+            <Button variant="outline" size="sm" onClick={handleCopyImage} disabled={copyImgState !== 'idle'} className="gap-1">
+              {copyImgState === 'done' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+              {copyImgState === 'copying' ? '복사 중...' : copyImgState === 'done' ? '복사됨!' : '복사'}
+            </Button>
             <Button
               size="sm"
               onClick={handleSave}
@@ -1134,7 +1158,7 @@ export default function PriceChangeForm() {
               {savePhase === 'db' ? 'DB 저장 중...'
                 : savePhase === 'drive' ? '드라이브 저장 중...'
                 : savedFlash ? '저장됨 ✓'
-                : '저장'}
+                : '발행 및 저장'}
             </Button>
             <Button
               size="sm"
