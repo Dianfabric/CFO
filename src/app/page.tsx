@@ -75,6 +75,32 @@ export default function Dashboard() {
     )
   }
 
+  // API 가 에러 응답을 준 경우 ({ error: '...' } 등 — kpi 누락) 안전하게 처리
+  if (!data.kpi) {
+    const apiError = (data as unknown as { error?: string }).error
+    return (
+      <div className="space-y-4 py-12 text-center">
+        <h2 className="text-lg font-semibold text-slate-700">
+          대시보드 데이터를 불러오지 못했습니다
+        </h2>
+        <p className="text-sm text-slate-500">
+          데이터베이스 연결 또는 환경변수 설정을 확인해주세요.
+        </p>
+        {apiError && (
+          <pre className="mx-auto inline-block rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            {apiError}
+          </pre>
+        )}
+        <div>
+          <Button variant="outline" size="sm" onClick={fetchData} className="gap-1">
+            <RefreshCw className="w-4 h-4" />
+            다시 시도
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   const paymentStatusVariant = (status: string) => {
     if (status === 'PAID') return 'secondary' as const
     if (status === 'PARTIAL') return 'outline' as const
