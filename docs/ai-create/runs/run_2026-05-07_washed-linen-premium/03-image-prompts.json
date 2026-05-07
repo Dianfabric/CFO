@@ -1,0 +1,148 @@
+{
+  "global_style": {
+    "photographer_reference": "in the spirit of Hiroshi Sugimoto (minimal) and Wabi-Sabi editorial photography",
+    "color_temperature": "warm-neutral",
+    "grain": "subtle",
+    "tier_modifier": "premium — refined, balanced light, intentional composition, restrained color"
+  },
+
+  "prompts": [
+    {
+      "section_id": "cover",
+      "placement": "hero",
+      "aspect": "16:9",
+      "prompt": "Editorial photograph of washed Belgian linen fabric draped on a warm neutral surface, natural soft daylight from a north-facing window casting gentle shadows across the weave. The fabric appears in graceful folds, showing a muted ivory tone with subtle wrinkles. Atmosphere is quiet, museum-like, refined. Color palette: warm cream, soft greige, muted moss accent. Shallow depth of field highlighting the texture. Premium fashion editorial style, balanced light, intentional negative space. Shot at human eye level.",
+      "negative_prompt": "harsh shadows, oversaturation, plastic texture, digital artifacts, watermarks, text overlays, oversharpening, glossy surfaces, neon colors, cluttered composition, busy backgrounds",
+      "style_modifiers": [
+        "editorial photography",
+        "natural light",
+        "shallow depth of field",
+        "Wabi-Sabi minimalism",
+        "warm-neutral palette"
+      ],
+      "fallback_brief": "워시드 리넨이 자연광 아래 펼쳐진 풀폭 사진. 모서리에 자연스러운 결의 그림자. 톤은 따뜻한 크림·그레이지. 인스타 16:9 비율. 너무 화려하지 않게."
+    },
+    {
+      "section_id": "material",
+      "placement": "macro",
+      "aspect": "4:3",
+      "prompt": "Extreme macro photograph of washed Belgian linen fabric weave, showing every thread and the natural irregularities of the texture. A graceful Korean female hand gently touching the surface from the right side, fingertips just barely making contact. Natural soft light from a north-facing window. Ultra-shallow depth of field with focus on the fabric weave near the fingers. Editorial fashion macro photography. Color: warm ivory with subtle moss undertone. Quiet, sensual, contemplative atmosphere.",
+      "negative_prompt": "hand model rings, jewelry, polished nails, harsh light, oversharpening, plastic look, oversaturation, watermarks, text",
+      "style_modifiers": [
+        "macro photography",
+        "natural light",
+        "single hand minimal",
+        "shallow DoF",
+        "tactile editorial"
+      ],
+      "fallback_brief": "원단의 결이 보이는 클로즈업 마크로샷 + 손이 결을 만지는 모습. 손은 한국 여성의 자연스러운 손, 액세서리 없음. 4:3 비율. 자연광."
+    },
+    {
+      "section_id": "color",
+      "placement": "swatch",
+      "aspect": "1:1",
+      "prompt": "Flat lay photograph of four square washed linen fabric swatches arranged in a 2x2 grid on a neutral cream surface. Each swatch shows the fabric in one of these natural colors: ivory (warm cream), greige (soft warm gray), moss (muted forest green), indigo (deep navy with slight desaturation). Even soft daylight, no shadows on the fabrics. Each swatch shows visible weave texture. Premium catalog photography style. Color accuracy is critical.",
+      "negative_prompt": "harsh shadows, oversaturation, color shifts, watermarks, text labels, edges of fabric not square, plastic appearance, oversharpening",
+      "style_modifiers": [
+        "flat lay",
+        "even lighting",
+        "color accuracy",
+        "catalog photography",
+        "neutral background"
+      ],
+      "fallback_brief": "4가지 컬러의 fabric 칩을 위에서 본 모습. 각 칩은 정사각, 결이 보임. 평탄한 자연광. 컬러 정확성이 가장 중요."
+    },
+    {
+      "section_id": "use-case",
+      "placement": "lifestyle",
+      "aspect": "4:3",
+      "prompt": "Korean designer's curated living room interior featuring washed linen curtains in soft greige color filtering morning light from a window. The curtains drape elegantly to the floor, creating soft shadows on a warm oak wood floor. Minimalist Korean aesthetic with restrained color palette: warm cream, oak wood, soft greige curtain, single olive green accent plant. The hand of the designer subtly visible adjusting the curtain edge. Editorial interior photography, natural light, balanced exposure. Camera at human eye level.",
+      "negative_prompt": "cluttered, oversaturated colors, artificial lighting, harsh shadows, modern plastic furniture, neon, busy patterns, watermarks, oversharpening",
+      "style_modifiers": [
+        "interior editorial",
+        "Korean minimal aesthetic",
+        "morning natural light",
+        "warm-neutral palette",
+        "single human element"
+      ],
+      "fallback_brief": "한국 디자이너의 스튜디오 거실 — 워시드 리넨 커튼이 아침 빛을 거름. 톤: 크림·오크·그레이지. 디자이너의 손이 살짝 보임."
+    },
+    {
+      "section_id": "compare-before",
+      "placement": "comparison",
+      "aspect": "1:1",
+      "prompt": "Studio photograph of a regular unwashed linen fabric square, 30cm x 30cm, showing slightly stiff appearance with mild sheen. Hung on a neutral cream wall. Even soft daylight, no harsh shadows. Same composition and lighting as its comparison pair. The fabric should appear new but slightly rigid, with subtle reflective highlights. Catalog photography precision.",
+      "negative_prompt": "harsh shadows, asymmetric lighting (must match pair), oversaturation, watermarks, perfect symmetry of fabric, glossy plastic look",
+      "style_modifiers": [
+        "catalog precision",
+        "studio softbox",
+        "controlled comparison",
+        "neutral background"
+      ],
+      "fallback_brief": "일반 리넨 샘플 — 빳빳하고 광택 있는 모습. 30×30 정사각 천. 동일한 조명 (After 와 매칭). 1:1."
+    },
+    {
+      "section_id": "compare-after",
+      "placement": "comparison",
+      "aspect": "1:1",
+      "prompt": "Studio photograph of washed Belgian linen fabric square, 30cm x 30cm, showing soft draping appearance with completely matte natural finish. Hung on the same neutral cream wall as its before pair. Identical even soft daylight, no harsh shadows. Same composition and lighting as its comparison pair. The fabric drapes naturally with subtle wrinkles, showing its softened state. Same catalog photography precision.",
+      "negative_prompt": "harsh shadows, asymmetric lighting (must match pair), sheen, oversaturation, watermarks, glossy plastic look, identical wrinkle pattern to before",
+      "style_modifiers": [
+        "catalog precision",
+        "studio softbox",
+        "controlled comparison",
+        "neutral background",
+        "matte natural finish"
+      ],
+      "fallback_brief": "디안 워시드 리넨 샘플 — 부드럽게 드레이프, 무광 자연 톤. 30×30. Before 와 동일한 조명·구도. 1:1."
+    },
+    {
+      "section_id": "lifestyle",
+      "placement": "hero",
+      "aspect": "21:9",
+      "prompt": "Atmospheric wide-angle photograph of an interior space at golden hour morning. Washed linen curtains in warm cream color span the right side of the frame, filtering soft golden light into the room. The light creates gentle gradients across a polished concrete floor. A single subtle element of life — perhaps a small ceramic vase on a windowsill — but mostly empty space. The mood is contemplative, quiet, sensorial. Color palette: warm cream curtain, gentle golden light, cool concrete, single matte black accent. Premium architectural editorial photography. Aspect 21:9, very wide cinematic frame.",
+      "negative_prompt": "people prominent, busy composition, oversaturated, harsh shadows, modern furniture clutter, neon, plastic, watermarks, oversharpening",
+      "style_modifiers": [
+        "cinematic wide",
+        "golden hour",
+        "architectural editorial",
+        "atmospheric minimal",
+        "21:9 aspect"
+      ],
+      "fallback_brief": "황금빛 아침 시간의 인테리어 풀-블리드 — 워시드 리넨 커튼이 빛을 거른다. 21:9 와이드. 사람 없음, 분위기만."
+    },
+    {
+      "section_id": "craftsmanship",
+      "placement": "craft",
+      "aspect": "16:9",
+      "prompt": "Behind-the-scenes archival-quality photograph of an elderly Belgian artisan's hands operating a traditional wooden Jacquard loom. Soft warm tungsten light from above illuminates the hands and the linen threads being woven. The loom shows wear from decades of use, mechanical wooden parts visible. The artisan's hands are weathered, capable, focused. Color palette: warm wood tones, soft yellow tungsten, natural linen white. Documentary editorial photography. Slight grain, archival film quality. Composition emphasizes both the hands and the texture of the emerging linen.",
+      "negative_prompt": "modern industrial machinery, fluorescent lighting, harsh shadows, color cast, watermarks, oversharpening, plastic feeling",
+      "style_modifiers": [
+        "documentary editorial",
+        "archival film quality",
+        "warm tungsten",
+        "behind-the-scenes",
+        "weathered hands focus"
+      ],
+      "fallback_brief": "벨기에 장인의 손이 전통 자카드 직기를 다루는 모습 — 16:9. 따뜻한 텅스텐 빛, 사람의 손이 가장 중요. archival 톤."
+    },
+    {
+      "section_id": "cta-closing",
+      "placement": "hero",
+      "aspect": "21:9",
+      "prompt": "The single most powerful photograph of the page — washed linen curtain caught mid-motion as a soft morning breeze passes through. The fabric is captured with slight motion blur showing graceful drapery, while the still parts maintain crystal clarity. Soft morning light from outside creates a luminous backlight, transforming the linen into a glowing translucent material. The atmosphere is sublime, almost spiritual. Color palette: warm cream, golden backlight, soft shadows. Premium fashion editorial cinematography style. The viewer should feel the fabric is alive. Aspect 21:9 wide cinematic.",
+      "negative_prompt": "static composition, harsh shadows, oversaturation, neon, modern plastic, busy patterns, multiple subjects, watermarks, distracting elements",
+      "style_modifiers": [
+        "cinematic still",
+        "subtle motion blur",
+        "backlit translucency",
+        "sublime atmosphere",
+        "premium editorial",
+        "21:9 widescreen"
+      ],
+      "fallback_brief": "최강의 마지막 비주얼 — 바람에 흐르는 워시드 리넨 커튼. 약간의 모션 블러. 역광으로 빛이 통과. 사용자에게 가장 강한 인상. 21:9."
+    }
+  ],
+
+  "notes": "premium 티어 + 인테리어/커튼 스타일링 직업군 보정. 모든 prompt 에 'natural light' + 'editorial' + 'warm-neutral palette' modifier 적용. 한국 인테리어 미감 (06 use-case) 강조. Imagen 3 또는 Midjourney v6+ 권장. negative_prompt 강제 포함."
+}

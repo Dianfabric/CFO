@@ -5,9 +5,7 @@
  * - 미인증 상태: RLS가 transactions 차단 → 빈 차트 + 빈 KPI (페이지 자체는 정상 렌더)
  * - CEO 인증 후: 본인 회사 전체 데이터 표시
  */
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Sparkles, TrendingUp, Wallet, AlertCircle, Receipt } from 'lucide-react'
-import KPICard from '@/components/v11/finance/KPICard'
+import { Button } from '@/components/ui/button'
 import SegmentMatrix from '@/components/v11/finance/SegmentMatrix'
 import TierBreakdown from '@/components/v11/finance/TierBreakdown'
 import MonthlyPLChart from '@/components/v11/finance/MonthlyPLChart'
@@ -91,214 +89,335 @@ export default async function FinanceDashboardPage() {
     !todayClose
 
   return (
-    <div className="space-y-6">
-      {/* 페이지 헤더 */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="mb-1 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
-              v1.1 신규 · Phase 1 ①
-            </span>
+    /* Apple tile pattern — main padding escape (viewport 적응) */
+    <div className="-mx-4 sm:-mx-6 lg:-mx-8 -my-8 sm:-my-10 lg:-my-12">
+      {/* ================================================================
+          TILE 1 — Hero (light/canvas)
+          극도로 큰 헤드라인 + 짧은 lead + 2개 pill CTA + 200px+ vertical air
+         ================================================================ */}
+      <section className="bg-[var(--color-canvas)] section-pad px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1100px] mx-auto text-center">
+          <div className="eyebrow mb-6 inline-flex items-center gap-2">
+            <span className="inline-block h-1 w-1 rounded-full bg-current opacity-70" />
+            <span>재무 메인</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">재무 메인 대시보드</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            매일 보는 화면 — 오늘 / 이번 달 / 트렌드 / 24셀 매트릭스 / 4티어 분포
+          <h1 className="text-hero text-foreground">
+            오늘이 어떤<br />하루였나요.
+          </h1>
+          <p className="text-lead mt-8 text-[var(--color-ink-muted-48)] max-w-2xl mx-auto">
+            매일 한 번 펼치면 끝. 오늘, 이번 달, 추이, 24셀, 그리고 4티어.
           </p>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <Link href="/finance/cycle">
+              <Button>이번 사이클 보기</Button>
+            </Link>
+            <Link href="/finance/decomposition">
+              <Button variant="outline">매출 인수분해</Button>
+            </Link>
+          </div>
         </div>
+      </section>
 
-        <div className="text-right text-xs text-slate-400">
-          <div>데이터 출처: Supabase (v1.1 DB)</div>
-          <div>v1.0 데이터와 별도 · 동기화 후 합산 가능</div>
-        </div>
-      </div>
-
-      {/* 비어있을 때 안내 배너 */}
-      {isEmpty && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent>
-            <div className="flex items-start gap-3">
-              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-              <div className="text-sm text-amber-900">
-                <p className="font-semibold">아직 데이터가 비어 있습니다.</p>
-                <p className="mt-1 text-amber-800">
-                  Phase 1 ②(거래 입력 페이지)가 만들어지면 직접 입력하실 수 있고, 또는
-                  Phase 0.5 마스터 데이터 동기화 시점에 한 번에 채워집니다. 그 때까지는
-                  구조와 빈 차트만 보입니다.
-                </p>
-                <p className="mt-2 text-[11px] text-amber-700">
-                  💡 24셀 매트릭스와 4티어 분포는 데이터가 없어도 셀 구조가 보입니다 ―
-                  비즈니스 모델을 한눈에 확인할 수 있도록.
-                </p>
+      {/* 비어있을 때 / 에러 안내 (slim hairline strip) */}
+      {(isEmpty || errors.length > 0) && (
+        <section className="bg-[var(--color-canvas)] px-4 sm:px-6 lg:px-8 pb-4 -mt-12">
+          <div className="max-w-[1100px] mx-auto space-y-2">
+            {isEmpty && (
+              <div className="flex items-center gap-2.5 text-[13px] tracking-[-0.01em] text-[var(--color-ink-muted-80)] py-3 border-t border-[var(--color-hairline)]">
+                <span className="inline-block h-1 w-1 rounded-full bg-[var(--color-action)] shrink-0" />
+                <strong className="text-foreground font-semibold">데이터가 비어 있습니다.</strong>
+                <span className="text-[var(--color-ink-muted-48)]">거래 입력 시 자동으로 채워집니다.</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            )}
+            {errors.length > 0 && (
+              <div className="flex items-center gap-2.5 text-[13px] tracking-[-0.01em] text-[var(--color-ink-muted-80)] py-3 border-t border-[var(--color-hairline)]">
+                <span className="inline-block h-1 w-1 rounded-full bg-[var(--color-alert-red)] shrink-0" />
+                <strong className="text-foreground font-semibold">일부 데이터 로드 오류</strong>
+                <span className="text-[var(--color-ink-muted-48)]">{errors[0]?.message}</span>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
-      {/* 에러 배너 (인증 누락 등) */}
-      {errors.length > 0 && (
-        <Card className="border-rose-200 bg-rose-50">
-          <CardContent>
-            <div className="flex items-start gap-3">
-              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
-              <div className="text-sm text-rose-900">
-                <p className="font-semibold">데이터 가져오는 중 일부 오류가 있습니다.</p>
-                <ul className="mt-1 list-disc pl-4 text-rose-800">
-                  {errors.slice(0, 3).map((e, i) => (
-                    <li key={i} className="text-[11px]">{e.message}</li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-[11px] text-rose-700">
-                  대부분 인증 미연결 또는 RLS 차단입니다. v1.1 로그인 페이지 추가 후 정상 동작합니다.
-                </p>
-              </div>
+      {/* ================================================================
+          TILE 2 — DARK 이번 달 highlight (Apple alternating rhythm 핵심)
+          near-black surface + GIANT 흰 숫자
+         ================================================================ */}
+      <section className="bg-[var(--color-surface-tile-1)] text-white section-pad px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="text-center mb-20">
+            <div className="eyebrow mb-5 inline-flex items-center gap-2" style={{ color: 'var(--color-action-on-dark)' }}>
+              <span className="inline-block h-1 w-1 rounded-full bg-current opacity-70" />
+              <span>이번 달</span>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <h2 className="text-display-lg text-white">
+              지금까지의 흐름.
+            </h2>
+          </div>
 
-      {/* KPI 카드 4개 */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KPICard
-          label="오늘 매출"
-          value={formatKRW(todayRevenue)}
-          hint={todayClose ? `${todayTxCount}건 거래` : '거래 없음'}
-          icon={TrendingUp}
-          tone={todayRevenue > 0 ? 'positive' : 'neutral'}
-        />
-        <KPICard
-          label="이번 달 매출"
-          value={formatKRW(monthRevenue)}
-          hint={thisMonth ? `${thisMonth.transaction_count}건 · ${thisMonth.active_clients}고객` : '데이터 없음'}
-          icon={Receipt}
-          tone={monthRevenue > 0 ? 'positive' : 'neutral'}
-        />
-        <KPICard
-          label="이번 달 공헌이익"
-          value={formatKRW(monthMargin)}
-          hint={monthRevenue > 0 ? `이익률 ${monthMarginRate.toFixed(1)}%` : '데이터 없음'}
-          icon={Wallet}
-          tone={monthMargin > 0 ? 'positive' : 'neutral'}
-        />
-        <KPICard
-          label="미수금 잔액"
-          value={formatKRW(totalOutstanding)}
-          hint={receivables.length > 0 ? `${receivables.length}건` : '미수 없음'}
-          icon={AlertCircle}
-          tone={totalOutstanding > 0 ? 'negative' : 'neutral'}
-        />
-      </div>
+          {/* GIANT 숫자 — 카드 chrome 없이 숫자만이 주연 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-16 gap-x-8 max-w-[1100px] mx-auto">
+            <BigStat
+              label="오늘 매출"
+              value={formatKRW(todayRevenue)}
+              hint={todayClose ? `${todayTxCount}건` : '없음'}
+              accent={todayRevenue > 0 ? 'action' : 'muted'}
+            />
+            <BigStat
+              label="이번 달 매출"
+              value={formatKRW(monthRevenue)}
+              hint={thisMonth ? `${thisMonth.transaction_count}건 · ${thisMonth.active_clients}고객` : '없음'}
+              accent={monthRevenue > 0 ? 'action' : 'muted'}
+            />
+            <BigStat
+              label="공헌이익"
+              value={formatKRW(monthMargin)}
+              hint={monthRevenue > 0 ? `이익률 ${monthMarginRate.toFixed(1)}%` : '없음'}
+              accent={monthMargin > 0 ? 'action' : 'muted'}
+            />
+            <BigStat
+              label="미수금"
+              value={formatKRW(totalOutstanding)}
+              hint={receivables.length > 0 ? `${receivables.length}건` : '없음'}
+              accent={totalOutstanding > 0 ? 'alert' : 'muted'}
+            />
+          </div>
 
-      {/* 메인 차트 그리드 */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* 월별 P&L (2/3 폭) */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>월별 매출 · 변동비 · 공헌이익률</CardTitle>
-            <CardDescription>최근 12개월 추이</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <div className="mt-20 text-center">
+            <Link
+              href="/finance/decomposition"
+              className="inline-flex items-center gap-1.5 text-[15px] tracking-[-0.012em] text-[var(--color-action-on-dark)] hover:underline"
+            >
+              자세한 분해 보기
+              <span className="text-[12px]">›</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          TILE 3 — 12개월 곡선 (light/canvas, 차트가 "제품")
+         ================================================================ */}
+      <section className="bg-[var(--color-canvas)] section-pad px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-display-lg text-foreground">
+              12개월의 곡선.
+            </h2>
+            <p className="text-lead mt-5 text-[var(--color-ink-muted-48)] max-w-xl mx-auto">
+              매출과 변동비가 만든 공헌이익률.
+            </p>
+          </div>
+          {/* 차트 = 제품. pedestal + product-shadow 로 받쳐줌 */}
+          <div className="pedestal shadow-product-soft">
             <MonthlyPLChart data={monthly} />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </section>
 
-        {/* 4티어 분포 (1/3 폭) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>4티어 매출 비중</CardTitle>
-            <CardDescription>저가 → 럭셔리 분포</CardDescription>
-          </CardHeader>
-          <CardContent>
+      {/* ================================================================
+          TILE 4 — 24셀 매트릭스 (parchment, gallery 톤)
+         ================================================================ */}
+      <section className="bg-[var(--color-canvas-parchment)] section-pad px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-display-lg text-foreground">
+              24셀의 지도.
+            </h2>
+            <p className="text-lead mt-5 text-[var(--color-ink-muted-48)] max-w-xl mx-auto">
+              6직업군 × 4제품군. 어디에 매출이 모이는지 한눈에.
+            </p>
+          </div>
+          <div className="pedestal shadow-product-soft">
+            {segments.length > 0 ? (
+              <SegmentMatrix data={segments} />
+            ) : (
+              <p className="py-16 text-center text-[14px] text-[var(--color-ink-muted-48)] italic">
+                세그먼트 마스터 데이터 없음
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          TILE 5 — 4티어 분포 (light/canvas)
+         ================================================================ */}
+      <section className="bg-[var(--color-canvas)] section-pad px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[900px] mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-display-lg text-foreground">
+              4티어의 균형.
+            </h2>
+            <p className="text-lead mt-5 text-[var(--color-ink-muted-48)] max-w-xl mx-auto">
+              저가에서 럭셔리까지. 디안의 무게중심은 어디.
+            </p>
+          </div>
+          <div className="pedestal shadow-product-soft">
             {tiers.length > 0 ? (
               <TierBreakdown data={tiers} />
             ) : (
-              <p className="py-8 text-center text-sm text-slate-400">
-                티어 마스터 데이터를 불러오지 못했습니다
+              <p className="py-16 text-center text-[14px] text-[var(--color-ink-muted-48)] italic">
+                티어 마스터 데이터 없음
               </p>
             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 24셀 매트릭스 (full width) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>24셀 매출 매트릭스</CardTitle>
-          <CardDescription>
-            6직업군 × 4제품군 — 셀 색상 강도가 매출 비중을 나타냅니다
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {segments.length > 0 ? (
-            <SegmentMatrix data={segments} />
-          ) : (
-            <p className="py-8 text-center text-sm text-slate-400">
-              세그먼트 마스터 데이터를 불러오지 못했습니다
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 추가 분석 페이지 */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">⚡ 추가 재무 분석</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Link href="/finance/accounting">
-            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">회계법인 연동</div>
-                <div className="text-[11px] text-slate-500">월결산 export</div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/equity">
-            <Card className="cursor-pointer transition hover:border-emerald-300 hover:bg-emerald-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">자기자본 분석</div>
-                <div className="text-[11px] text-slate-500">YTD 손익 + 비교</div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/bsc">
-            <Card className="cursor-pointer transition hover:border-purple-300 hover:bg-purple-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">BSC 4관점</div>
-                <div className="text-[11px] text-slate-500">통합 점검</div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/ltv">
-            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">LTV·CAC</div>
-                <div className="text-[11px] text-slate-500">거래처 수익성</div>
-              </CardContent>
-            </Card>
-          </Link>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* 다음 단계 안내 (개발 가이드) */}
-      <Card className="border-slate-200 bg-slate-50">
-        <CardContent>
-          <div className="space-y-2 text-xs text-slate-600">
-            <p className="font-semibold text-slate-700">📌 Phase 1 다음 페이지 (예정)</p>
-            <ul className="ml-4 list-disc space-y-0.5">
-              <li>② 거래 입력 — 모든 데이터의 출발점 (PRD #2c ②)</li>
-              <li>③ 일일 운영 대시보드 — 매일 아침 진입 (PRD #2c ①)</li>
-              <li>④ 매출 인수분해 — 24셀 상세 분해 (PRD #3 ②)</li>
-              <li>⑤ 12주 대시보드 — 사이클 운영 (PRD #1 ①)</li>
-            </ul>
-            <p className="pt-1 text-[11px] text-slate-500">
-              v1.0 11개 메뉴는 그대로 운영 중입니다. 사이드바에서 그대로 접근하실 수 있습니다.
-              <Link href="/" className="ml-2 text-blue-600 hover:underline">
-                → v1.0 대시보드로
-              </Link>
+      {/* ================================================================
+          TILE 6 — 추가 분석 (parchment, gallery grid)
+         ================================================================ */}
+      <section className="bg-[var(--color-canvas-parchment)] section-pad px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-display-lg text-foreground">
+              더 깊게.
+            </h2>
+            <p className="text-lead mt-5 text-[var(--color-ink-muted-48)] max-w-xl mx-auto">
+              회계, 자본, BSC, LTV — 필요한 시점에 펼치세요.
             </p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 lg:grid-cols-4">
+            {[
+              { href: '/finance/accounting', title: '회계법인 연동', desc: '월결산 export' },
+              { href: '/finance/equity', title: '자기자본 분석', desc: 'YTD 손익' },
+              { href: '/finance/bsc', title: 'BSC 4관점', desc: '통합 점검' },
+              { href: '/finance/ltv', title: 'LTV·CAC', desc: '거래처 수익성' },
+            ].map((item) => (
+              <Link key={item.href} href={item.href} className="group block press-scale">
+                <div className="bg-card border border-[var(--color-hairline)] rounded-[18px] p-7 transition-all duration-200 group-hover:border-foreground/40 h-full flex flex-col">
+                  <div className="flex-1">
+                    <h3 className="text-[17px] font-semibold tracking-[-0.022em] text-foreground">
+                      {item.title}
+                    </h3>
+                    <p className="mt-1.5 text-[13px] tracking-[-0.012em] text-[var(--color-ink-muted-48)]">
+                      {item.desc}
+                    </p>
+                  </div>
+                  <div className="mt-6 text-[13px] tracking-[-0.012em] text-[var(--color-action)] inline-flex items-center gap-1">
+                    살펴보기 <span className="text-[11px]">›</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================
+          TILE 7 — Footer (Apple parchment footer 톤)
+         ================================================================ */}
+      <footer className="bg-[var(--color-canvas-parchment)] px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 pb-8 sm:pb-10 border-t border-[var(--color-hairline)]">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="grid gap-10 md:grid-cols-4 pb-10 border-b border-[var(--color-hairline)]">
+            <div>
+              <p className="text-[12px] font-semibold tracking-[-0.012em] text-foreground mb-3">
+                다음 페이지
+              </p>
+              <ul className="space-y-2.5 text-[12px] tracking-[-0.01em] text-[var(--color-ink-muted-48)]">
+                <li>② 거래 입력</li>
+                <li>③ 일일 운영</li>
+                <li>④ 매출 인수분해</li>
+                <li>⑤ 12주 대시보드</li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-[12px] font-semibold tracking-[-0.012em] text-foreground mb-3">
+                v1.0
+              </p>
+              <ul className="space-y-2.5 text-[12px] tracking-[-0.01em]">
+                <li>
+                  <Link href="/" className="text-[var(--color-ink-muted-48)] hover:text-foreground transition-colors">
+                    대시보드
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/transactions" className="text-[var(--color-ink-muted-48)] hover:text-foreground transition-colors">
+                    거래 관리
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/documents" className="text-[var(--color-ink-muted-48)] hover:text-foreground transition-colors">
+                    공문 작성
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-[12px] font-semibold tracking-[-0.012em] text-foreground mb-3">
+                v1.1
+              </p>
+              <ul className="space-y-2.5 text-[12px] tracking-[-0.01em]">
+                <li>
+                  <Link href="/finance/cycle" className="text-[var(--color-ink-muted-48)] hover:text-foreground transition-colors">
+                    12주 사이클
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/finance/team" className="text-[var(--color-ink-muted-48)] hover:text-foreground transition-colors">
+                    팀 공유
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/finance/sales/materials" className="text-[var(--color-ink-muted-48)] hover:text-foreground transition-colors">
+                    영업자료
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-[12px] font-semibold tracking-[-0.012em] text-foreground mb-3">
+                디안
+              </p>
+              <p className="text-[12px] tracking-[-0.008em] text-[var(--color-ink-muted-48)] leading-[1.6]">
+                인테리어 원단 큐레이터<br />
+                v1.0 + v1.1 통합
+              </p>
+            </div>
+          </div>
+          <div className="pt-6 flex items-center justify-between text-[11px] tracking-[-0.008em] text-[var(--color-ink-muted-48)]">
+            <span>© Dian Fabric. All rights reserved.</span>
+            <span>v1.0 + v1.1</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  )
+}
+
+/* ================================================================
+   GIANT KPI — Apple homepage 의 "product" 자리
+   숫자가 곧 제품. clamp 로 viewport 비례.
+   ================================================================ */
+function BigStat({
+  label,
+  value,
+  hint,
+  accent,
+}: {
+  label: string
+  value: string
+  hint: string
+  accent: 'action' | 'alert' | 'muted'
+}) {
+  const dotColor =
+    accent === 'action'
+      ? 'bg-[var(--color-action-on-dark)]'
+      : accent === 'alert'
+        ? 'bg-[var(--color-alert-red)]'
+        : 'bg-white/30'
+  return (
+    <div className="text-center">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">
+        {label}
+      </p>
+      <p className="giant-sm mt-4 text-white">{value}</p>
+      <p className="mt-4 text-[12px] tracking-[-0.012em] text-white/60 inline-flex items-center gap-1.5">
+        <span className={`inline-block h-1 w-1 rounded-full ${dotColor}`} />
+        {hint}
+      </p>
     </div>
   )
 }

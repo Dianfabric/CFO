@@ -300,6 +300,42 @@ SHEETS_ID, SHEETS_API_KEY
 - Tailwind CSS 변수 사용 (디안 브랜드 가이드 결정 후 토큰 정리 예정)
 - Supabase 클라이언트는 서버/클라이언트 분리 (`lib/supabase/server.ts`, `lib/supabase/client.ts`)
 
+### 11.3.5 모바일 반응형 필수 원칙 ★
+
+**모든 신규 페이지·컴포넌트는 모바일 반응형을 기본으로 작성한다.** 데스크탑 먼저 만들고 나중에 모바일 대응 X. 처음부터 모바일·태블릿·데스크탑 동시 고려.
+
+**브레이크포인트 (Tailwind 기본 + 디안 spec)**
+- `sm:` ≥ 640px (큰 폰)
+- `md:` ≥ 768px (태블릿 portrait)
+- `lg:` ≥ 1024px (태블릿 landscape / 작은 데스크탑)
+- `xl:` ≥ 1280px (데스크탑)
+- `2xl:` ≥ 1440px (와이드)
+
+**필수 체크리스트 (페이지·컴포넌트 작성 시)**
+
+1. **그리드는 1-column 부터 시작** — `grid-cols-1 sm:grid-cols-2 lg:grid-cols-N` 패턴
+2. **타이포는 `clamp()` 또는 `text-base sm:text-lg lg:text-xl`** — 절대 고정 px 헤드라인 금지
+3. **패딩은 viewport 적응** — `px-4 sm:px-6 lg:px-8`, `py-8 sm:py-12 lg:py-16`
+4. **테이블·매트릭스·차트는 `overflow-x-auto` 래퍼 필수** — 모바일에서 가로 스크롤 허용
+5. **버튼·터치 타겟 최소 44×44px** — 모바일 탭 가능
+6. **사이드바·드로어는 데스크탑 sticky / 모바일 Sheet 분리**
+7. **이미지는 `srcset` 또는 `next/image`** — 모바일에선 작게
+8. **폼은 1-column 모바일** — `flex-col sm:flex-row`
+9. **모달·다이얼로그 풀스크린 모바일** — shadcn Dialog 가 자동 처리
+10. **페이지 헤더 액션은 `flex-wrap`** — 좁은 화면에서 줄바꿈
+
+**테스트 viewport (개발 시 반드시 확인)**
+- 375px (iPhone SE / Pro 13)
+- 768px (iPad portrait)
+- 1024px (iPad landscape / 작은 노트북)
+- 1440px (외장 모니터)
+
+**참조 파일**
+- `src/app/globals.css` — `text-hero`, `section-pad` 등 clamp 유틸리티
+- `src/components/layout/Sidebar.tsx` — 데스크탑 sticky 패턴
+- `src/components/layout/MobileNav.tsx` — 모바일 Sheet 드로어 패턴
+- `docs/design-system/apple-spec.md` — Responsive Behavior 섹션
+
 ### 11.4 별도 PRD가 필요한 영역 (추후)
 
 - 미수금 관리 상세 PRD (#3 ⑨에서 자리만 잡음)

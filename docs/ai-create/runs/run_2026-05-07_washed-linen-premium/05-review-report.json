@@ -1,0 +1,66 @@
+{
+  "overall_status": "pass_with_warnings",
+  "total_issues": 3,
+  "checked_artifacts": [
+    "01-section-plan.json",
+    "02-copy-deck.json",
+    "03-image-prompts.json",
+    "src/app/finance/ai-create/product-detail/preview/page.tsx"
+  ],
+
+  "findings": [
+    {
+      "category": "responsive",
+      "severity": "warn",
+      "location": "section 09 Lifestyle (preview/page.tsx)",
+      "issue": "21:9 aspect ratio 가 모바일에서 너무 좁음 — 클립 옵션 권장",
+      "expected": "21:9 → 4:5 crop on mobile (CLAUDE.md 11.3.5 가이드)",
+      "found": "고정 21:9",
+      "fix_suggestion": "PlaceholderImage 에 mobileAspect prop 추가 + sm:aspect-* 변형. 또는 picture sources element 활용."
+    },
+    {
+      "category": "tier_policy",
+      "severity": "warn",
+      "location": "CopyDeck.cta-closing.subhead",
+      "issue": "premium 티어에 '한정 50롤 · 이번 주 입고' 희소성 톤이 약간 강함",
+      "expected": "premium 은 절제된 희소성, luxury 가 아니라 시한·수량 노출은 OK 하지만 강도 조절",
+      "found": "한정 50롤 · 이번 주 입고",
+      "fix_suggestion": "허용 범위 안. 다만 luxury 변환 시 '소량 한정' 같은 더 절제된 표현으로 변경 필요."
+    },
+    {
+      "category": "section_skeleton",
+      "severity": "warn",
+      "location": "전체 페이지",
+      "issue": "9개 이미지 자리 모두 PlaceholderImage 컴포넌트 사용 — Imagen 3 호출 전 임시 상태",
+      "expected": "실제 이미지 URL 또는 Imagen 3 생성 후 교체",
+      "found": "Placeholder dashed border + 라벨 텍스트",
+      "fix_suggestion": "Gemini API 키 등록 후 03-image-prompts.json 의 9개 prompt 를 Imagen 3 로 호출 → Supabase Storage 업로드 → URL 주입"
+    }
+  ],
+
+  "highlights": [
+    "tile_rhythm 완벽 — light → DARK → light → parchment alternating 4번 dark (02·07·10·13) Apple 시그니처",
+    "Peak-End 정확 — 01 Cover 와 13 CTA 가 가장 강한 비주얼 + 헤드라인 (text-hero clamp 96px)",
+    "8개 프레임워크 분산 OK — peak-end 2회, sensory-integration 2회, 나머지 1회씩 배치",
+    "premium 금기 어휘 0개 — '특가/세일/할인/이벤트/9.99' 어디에도 없음",
+    "타이포 위계 일관 — text-hero / display-lg / display-md / lead / body 정확히 분리",
+    "Apple-tight letter-spacing 적용 — -0.022em ~ -0.028em 헤드라인 전체",
+    "단일 액션 컬러 — Action Blue (#0066cc) primary CTA 만, 두 번째 액센트 없음",
+    "모바일 반응형 — px-4 sm:px-6 lg:px-8 + grid-cols-1 sm:grid-cols-2 lg:grid-cols-N 전 섹션",
+    "한국어 카피 품질 — Apple-tight 마침표 종결, 12-30자 헤드라인 일관",
+    "이미지 brief 9개 모두 자연광 + warm-neutral palette + 사람의 손 (거울뉴런) 포함"
+  ],
+
+  "next_steps": [
+    "1. /finance/ai-create/product-detail/preview 에서 미리보기 확인",
+    "2. (옵션) Gemini API 키 등록 → Imagen 3 로 9개 이미지 생성 → URL 주입",
+    "3. (옵션) Puppeteer 로 풀-페이지 PNG 캡처 → Supabase Storage 업로드",
+    "4. (옵션) 4티어 변형 — luxury / mid / value 버전 생성 (같은 ProductBrief, target_tier 만 변경)"
+  ],
+
+  "_meta": {
+    "reviewer": "dian-design-reviewer (Sonnet 4.5)",
+    "reviewed_at": "2026-05-07",
+    "skills_used": ["dian-design-system", "dian-13-sections", "dian-tier-tone"]
+  }
+}

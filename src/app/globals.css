@@ -2,13 +2,29 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* ============================================================
+   디안 CFO — Apple-style Design System v2
+   기준: docs/design-system/apple-spec.md
+   원칙: Photography-first → Data-first. UI recedes. Single accent (Action Blue).
+   ============================================================ */
+
+/* Pretendard (한글 + 영문 SF Pro 매칭) — variable */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css');
+
+/* Inter (영문 SF Pro 대체) — variable */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   디안 디자인 토큰 (Apple spec → Tailwind v4 @theme)
+   ============================================================ */
 @theme inline {
+  /* shadcn 호환 매핑 (기존 컴포넌트가 동작하도록) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -39,92 +55,305 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* 라디우스 — Apple spec: sm 8 / md 11 / lg 18 / pill 9999 */
+  --radius-sm: 0.5rem;       /* 8px — 다크 유틸리티 버튼 */
+  --radius-md: 0.6875rem;    /* 11px — Pearl Button */
+  --radius-lg: 1.125rem;     /* 18px — utility cards */
+  --radius-xl: 1.5rem;       /* 24px — 큰 카드 */
+  --radius-2xl: 2rem;
+  --radius-3xl: 2.5rem;
+  --radius-4xl: 3rem;
+
+  /* 디안 추가 토큰 (Apple spec 의 의미 보존) */
+  --color-canvas: #ffffff;
+  --color-canvas-parchment: #f5f5f7;
+  --color-surface-pearl: #fafafc;
+  --color-surface-tile-1: #272729;
+  --color-surface-tile-2: #2a2a2c;
+  --color-surface-tile-3: #252527;
+  --color-surface-black: #000000;
+  --color-surface-chip: #d2d2d7;
+  --color-ink: #1d1d1f;
+  --color-body-on-dark: #ffffff;
+  --color-body-muted: #cccccc;
+  --color-ink-muted-80: #333333;
+  --color-ink-muted-48: #7a7a7a;
+  --color-divider-soft: #f0f0f0;
+  --color-hairline: #e0e0e0;
+  --color-action: #0066cc;
+  --color-action-focus: #0071e3;
+  --color-action-on-dark: #2997ff;
+  --color-alert-red: #ff3b30;       /* iOS system red — 위험 신호 */
+  --color-status-green: #34c759;    /* iOS system green — 정상 */
 }
 
+/* ============================================================
+   루트 변수 — shadcn 토큰을 디안 톤으로 매핑
+   ============================================================ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Surface */
+  --background: #ffffff;            /* canvas */
+  --foreground: #1d1d1f;            /* ink */
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+
+  /* Primary = Action Blue (디안의 단일 액션 컬러) */
+  --primary: #0066cc;
+  --primary-foreground: #ffffff;
+
+  /* Secondary = parchment */
+  --secondary: #f5f5f7;
+  --secondary-foreground: #1d1d1f;
+
+  /* Muted = parchment + softer ink */
+  --muted: #f5f5f7;
+  --muted-foreground: #7a7a7a;
+
+  /* Accent = parchment (Apple은 두번째 accent 컬러 없음 — parchment surface 활용) */
+  --accent: #f5f5f7;
+  --accent-foreground: #1d1d1f;
+
+  /* Destructive = iOS system red */
+  --destructive: #ff3b30;
+
+  /* Border / Input / Ring — hairline grammar */
+  --border: #e0e0e0;
+  --input: #e0e0e0;
+  --ring: #0071e3;
+
+  /* Charts — 단일 액션 컬러 단계 (single-hue palette) */
+  --chart-1: #0066cc;       /* primary action */
+  --chart-2: #4d94db;       /* lighter step */
+  --chart-3: #8db8e8;       /* lighter step 2 */
+  --chart-4: #1d1d1f;       /* ink */
+  --chart-5: #7a7a7a;       /* ink-muted */
+
+  /* Radius base — Apple spec: sm 8 (utility) */
+  --radius: 0.5rem;
+
+  /* Sidebar — 화이트 + ultra-quiet (Apple 의 nav-recedes 원칙) */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #0066cc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f7;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e0e0e0;
+  --sidebar-ring: #0071e3;
+
+  /* Fonts */
+  --font-sans: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont,
+               system-ui, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 }
 
+/* ============================================================
+   다크모드 — Apple's tile dark surface 차용
+   ============================================================ */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #272729;
+  --foreground: #ffffff;
+  --card: #2a2a2c;
+  --card-foreground: #ffffff;
+  --popover: #2a2a2c;
+  --popover-foreground: #ffffff;
+  --primary: #2997ff;            /* on-dark sky link blue */
+  --primary-foreground: #ffffff;
+  --secondary: #2a2a2c;
+  --secondary-foreground: #ffffff;
+  --muted: #252527;
+  --muted-foreground: #cccccc;
+  --accent: #2a2a2c;
+  --accent-foreground: #ffffff;
+  --destructive: #ff3b30;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #0071e3;
+  --chart-1: #2997ff;
+  --chart-2: #5db3ff;
+  --chart-3: #8accff;
+  --chart-4: #ffffff;
+  --chart-5: #cccccc;
+  --sidebar: #272729;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #2997ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2a2c;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #0071e3;
 }
 
+/* ============================================================
+   Base layer — 타이포그래피 & body 기본
+   ============================================================ */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    /* Apple tight — 디스플레이 사이즈 음수 letter-spacing 기본 살짝 적용 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 17px;             /* Apple body 기본 — 16 아님 */
+    line-height: 1.47;
+    letter-spacing: -0.01em;     /* 한글 Pretendard 에서 SF Pro tight 톤 매칭 */
+  }
+
+  /* Apple-tight 헤드라인 */
+  h1, h2, h3, h4 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  h1 { font-size: 2.5rem; }      /* 40px — display-lg */
+  h2 { font-size: 2.125rem; }    /* 34px — display-md */
+  h3 { font-size: 1.5rem; }      /* 24px */
+  h4 { font-size: 1.3125rem; line-height: 1.19; letter-spacing: 0.011em; } /* 21px tagline */
+
+  /* 숫자 표시 (KPI, 가격 등) */
+  .num, .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+/* ============================================================
+   Apple-spec 컴포넌트 유틸리티 클래스
+   ============================================================ */
+@layer components {
+  /* Frosted sub-nav 배경 — Apple 의 정밀 backdrop 값 */
+  .bg-frosted {
+    background-color: rgba(255, 255, 255, 0.72);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
+  .bg-frosted-dark {
+    background-color: rgba(29, 29, 31, 0.72);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  /* 단일 product-shadow — 차트·매트릭스·원단 이미지에 사용 (Apple: 제품 전용) */
+  .shadow-product {
+    box-shadow: 0 5px 30px rgba(0, 0, 0, 0.22);
+  }
+  .shadow-product-soft {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     Apple 타이포 유틸리티 — clamp 로 viewport 비례 + Apple-tight
+     ────────────────────────────────────────────────────────── */
+  .text-hero {
+    font-size: clamp(44px, 7vw, 96px);
+    font-weight: 600;
+    letter-spacing: -0.028em;
+    line-height: 1.04;
+  }
+  .text-display-xl {
+    font-size: clamp(36px, 5.5vw, 72px);
+    font-weight: 600;
+    letter-spacing: -0.026em;
+    line-height: 1.06;
+  }
+  .text-display-lg {
+    font-size: clamp(32px, 4.2vw, 56px);
+    font-weight: 600;
+    letter-spacing: -0.024em;
+    line-height: 1.07;
+  }
+  .text-display-md {
+    font-size: clamp(24px, 2.8vw, 40px);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    line-height: 1.1;
+  }
+  .text-lead {
+    font-size: clamp(20px, 2.3vw, 28px);
+    font-weight: 300;
+    letter-spacing: -0.012em;
+    line-height: 1.28;
+  }
+  .text-tagline {
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: 0.011em;
+    line-height: 1.19;
+  }
+
+  /* GIANT 숫자 — KPI 핵심 가치 표시 */
+  .giant {
+    font-size: clamp(48px, 7vw, 88px);
+    font-weight: 600;
+    font-feature-settings: 'tnum';
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.024em;
+    line-height: 0.95;
+  }
+  .giant-sm {
+    font-size: clamp(36px, 5vw, 60px);
+    font-weight: 600;
+    font-feature-settings: 'tnum';
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.022em;
+    line-height: 0.95;
+  }
+
+  /* Eyebrow — Apple 의 작은 카테고리 라벨 */
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-action);
+  }
+
+  /* Pedestal — 차트/매트릭스를 "제품"처럼 받쳐주는 표면 */
+  .pedestal {
+    background: var(--color-canvas);
+    border: 1px solid var(--color-hairline);
+    border-radius: 18px;
+    padding: clamp(20px, 2.5vw, 40px);
+  }
+
+  /* Apple tight — 손쉬운 적용 */
+  .tight {
+    letter-spacing: -0.022em;
+  }
+  .tighter {
+    letter-spacing: -0.028em;
+  }
+
+  /* Press 마이크로 인터랙션 */
+  .press-scale {
+    transition: transform 120ms ease;
+  }
+  .press-scale:active {
+    transform: scale(0.97);
+  }
+
+  /* Hairline divider */
+  .hairline {
+    border-color: var(--color-hairline);
+  }
+
+  /* Apple section padding — viewport 비례 */
+  .section-pad {
+    padding-top: clamp(80px, 12vw, 192px);
+    padding-bottom: clamp(80px, 12vw, 192px);
+  }
+  .section-pad-sm {
+    padding-top: clamp(64px, 8vw, 128px);
+    padding-bottom: clamp(64px, 8vw, 128px);
   }
 }

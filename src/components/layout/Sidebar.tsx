@@ -1,205 +1,161 @@
 'use client'
 
+/**
+ * 디안 CFO Sidebar (데스크탑 전용 — md: 이상)
+ * 기준: docs/design-system/apple-spec.md
+ * - 화이트 배경, ink 텍스트, 단일 Action Blue 액센트
+ * - 활성 메뉴: parchment 표면 + ink 텍스트
+ * - 호버: 텍스트 강조만
+ *
+ * 모바일 (md 미만) 에서는 hidden — MobileNav 가 햄버거 시트 제공.
+ */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  LayoutDashboard,
-  Receipt,
-  Users,
-  AlertCircle,
-  Package,
-  Wallet,
-  BarChart3,
-  Bot,
-  Settings,
-  TrendingUp,
-  ChevronLeft,
-  ChevronRight,
-  CalendarCheck,
-  FileText,
-  PieChart,
-  Sparkles,
-  Upload as UploadIcon,
-  Layers,
-  Target as TargetIcon,
-  Coins,
-  Layers3,
-  Workflow,
-  Sun,
-  CalendarDays,
-  Brain,
-  MessageSquare,
-  Briefcase,
-  Megaphone,
-  Package as PackageIcon,
-  Bell,
-  Compass,
-  Send,
-  Wand2,
-  PackageOpen,
-} from 'lucide-react'
+import { TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AuthPill from '@/components/v11/AuthPill'
-
-type MenuItem = { href: string; label: string; icon: typeof LayoutDashboard }
-
-// v1.0 기존 11개 메뉴 (절대 보존)
-const v10MenuItems: MenuItem[] = [
-  { href: '/', label: '대시보드', icon: LayoutDashboard },
-  { href: '/settlement', label: '일일 결산', icon: CalendarCheck },
-  { href: '/transactions', label: '거래 관리', icon: Receipt },
-  { href: '/clients', label: '거래처 관리', icon: Users },
-  { href: '/receivables', label: '미수금 관리', icon: AlertCircle },
-  { href: '/products', label: '제품 관리', icon: Package },
-  { href: '/costs', label: '비용 관리', icon: Wallet },
-  { href: '/analysis', label: '분석/시뮬레이션', icon: BarChart3 },
-  { href: '/advisor', label: 'AI CFO 자문', icon: Bot },
-  { href: '/documents', label: '공문 작성', icon: FileText },
-  { href: '/settings', label: '설정', icon: Settings },
-]
-
-// v1.1 신규 메뉴 (Phase 1부터 단계 추가)
-const v11MenuItems: MenuItem[] = [
-  { href: '/finance/daily', label: '일일 운영', icon: Sun },
-  { href: '/finance/briefing', label: '모닝 브리핑 (AI)', icon: Brain },
-  { href: '/finance/consult', label: '라이브 컨설팅 (AI)', icon: MessageSquare },
-  { href: '/finance', label: '재무 메인 (v1.1)', icon: PieChart },
-  { href: '/finance/decomposition', label: '매출 인수분해', icon: Layers },
-  { href: '/finance/expenses', label: '자원 인수분해', icon: Coins },
-  { href: '/finance/sales', label: '영업 (#2a)', icon: Briefcase },
-  { href: '/finance/sales/materials', label: '영업자료 자동생성 (#9)', icon: Wand2 },
-  { href: '/finance/marketing', label: '마케팅 (#2b)', icon: Megaphone },
-  { href: '/finance/operations', label: '운영·샘플 (#2c)', icon: PackageIcon },
-  { href: '/finance/operations/intake', label: '입고 워크플로우 (#10)', icon: PackageOpen },
-  { href: '/finance/alerts', label: '이상치 알림 (#3)', icon: Bell },
-  { href: '/finance/cockpit', label: 'CEO 코크핏 (#7)', icon: Compass },
-  { href: '/finance/team', label: '팀 공유·슬랙 (#8)', icon: Send },
-  { href: '/finance/positioning', label: '포지셔닝 매트릭스', icon: Layers3 },
-  { href: '/finance/pricing', label: '4단계 가격 결정', icon: Workflow },
-  { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
-  { href: '/finance/wam', label: 'WAM (주간 회의)', icon: CalendarDays },
-  { href: '/finance/upload', label: '일계표 업로드', icon: UploadIcon },
-  { href: '/finance/clients', label: '거래처 관리 (v1.1)', icon: Users },
-]
+import { v10MenuItems, v11MenuItems, isMenuActive } from '@/lib/v11-nav-menu'
 
 export default function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [logoPath, setLogoPath] = useState<string | null>(null)
+
+  // 회사 로고
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/company-profile')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        if (data?.logoPath) setLogoPath(data.logoPath)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <aside
       className={cn(
-        'h-screen bg-slate-900 text-white flex flex-col transition-all duration-300 sticky top-0',
-        collapsed ? 'w-16' : 'w-60'
+        // 모바일(<md)에선 hidden, md(768px) 이상에서 표시
+        'hidden md:flex h-screen bg-card flex-col transition-all duration-300 sticky top-0 border-r border-[var(--color-hairline)] shrink-0',
+        collapsed ? 'w-14' : 'w-56'
       )}
     >
-      {/* Logo */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-700">
-        {!collapsed && (
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-blue-400" />
-            <span className="font-bold text-lg">CFO</span>
-          </div>
-        )}
+      {/* Logo bar — 메인 대시보드 (v1.0 /) 로 이동 */}
+      <div className="flex items-center justify-between px-4 h-12 border-b border-[var(--color-hairline)]">
+        <Link
+          href="/"
+          aria-label="대시보드로 이동"
+          className="flex items-center gap-2 press-scale rounded-md transition-opacity hover:opacity-80"
+        >
+          {logoPath ? (
+            <img
+              src={logoPath}
+              alt="디안"
+              className={cn('h-7 w-auto object-contain', collapsed ? 'mx-auto' : '')}
+            />
+          ) : (
+            <TrendingUp className="w-4 h-4 text-foreground shrink-0" strokeWidth={2} />
+          )}
+          {!collapsed && !logoPath && (
+            <span className="text-[16px] font-semibold tracking-[-0.022em] text-foreground">
+              디안
+            </span>
+          )}
+        </Link>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1 rounded hover:bg-slate-700 transition-colors"
+          className="p-1 rounded-md text-[var(--color-ink-muted-48)] hover:text-foreground transition-colors press-scale shrink-0"
+          aria-label={collapsed ? '펼치기' : '접기'}
         >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
         </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 overflow-y-auto">
+      <nav className="flex-1 py-3 overflow-y-auto">
         {/* v1.0 메뉴 */}
-        <ul className="space-y-1 px-2">
+        <ul className="space-y-px px-2">
           {v10MenuItems.map((item) => {
-            const isActive =
-              item.href === '/'
-                ? pathname === '/'
-                : pathname.startsWith(item.href)
+            const isActive = isMenuActive(item.href, pathname)
             const Icon = item.icon
-
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
+                    'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md transition-colors duration-150 text-[14px] tracking-[-0.012em]',
                     isActive
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-[var(--color-canvas-parchment)] text-foreground'
+                      : 'text-[var(--color-ink-muted-80)] hover:text-foreground'
                   )}
                   title={collapsed ? item.label : undefined}
                 >
-                  <Icon className="w-5 h-5 shrink-0" />
-                  {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                  <Icon
+                    className={cn(
+                      'w-3.5 h-3.5 shrink-0',
+                      isActive ? 'text-foreground' : 'text-[var(--color-ink-muted-48)]'
+                    )}
+                    strokeWidth={1.6}
+                  />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
                 </Link>
               </li>
             )
           })}
         </ul>
 
-        {/* v1.1 섹션 구분선 + 헤더 */}
-        <div className="my-4 px-2">
-          <div className="border-t border-slate-700" />
+        <div className="my-3 px-2">
+          <div className="border-t border-[var(--color-hairline)]" />
           {!collapsed && (
-            <div className="flex items-center gap-1.5 px-3 pt-3 pb-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-400/90">
-                v1.1 신규
+            <div className="px-2.5 pt-2.5 pb-1">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-muted-48)]">
+                v1.1
               </span>
             </div>
           )}
         </div>
 
         {/* v1.1 메뉴 */}
-        <ul className="space-y-1 px-2">
+        <ul className="space-y-px px-2">
           {v11MenuItems.map((item) => {
-            // /finance 는 정확히 일치할 때만 활성 (하위 /finance/upload 는 별개 메뉴)
-            const isActive =
-              item.href === '/finance'
-                ? pathname === '/finance'
-                : pathname.startsWith(item.href)
+            const isActive = isMenuActive(item.href, pathname)
             const Icon = item.icon
-
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
+                    'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md transition-colors duration-150 text-[14px] tracking-[-0.012em]',
                     isActive
-                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-[var(--color-canvas-parchment)] text-foreground'
+                      : 'text-[var(--color-ink-muted-80)] hover:text-foreground'
                   )}
                   title={collapsed ? item.label : undefined}
                 >
-                  <Icon className="w-5 h-5 shrink-0" />
-                  {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                  <Icon
+                    className={cn(
+                      'w-3.5 h-3.5 shrink-0',
+                      isActive ? 'text-foreground' : 'text-[var(--color-ink-muted-48)]'
+                    )}
+                    strokeWidth={1.6}
+                  />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
                 </Link>
               </li>
             )
           })}
         </ul>
 
-        {/* v1.1 인증 영역 */}
         <div className="mt-3 px-2">
-          <div className="border-t border-slate-700/50 pt-2">
+          <div className="border-t border-[var(--color-hairline)] pt-1.5">
             <AuthPill collapsed={collapsed} />
           </div>
         </div>
       </nav>
-
-      {/* Footer */}
-      {!collapsed && (
-        <div className="p-4 border-t border-slate-700">
-          <p className="text-xs text-slate-400 text-center">
-            디안 CFO · v1.0 + v1.1
-          </p>
-        </div>
-      )}
     </aside>
   )
 }

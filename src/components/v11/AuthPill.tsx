@@ -84,24 +84,26 @@ export default function AuthPill({ collapsed = false }: { collapsed?: boolean })
     return (
       <Link
         href="/login"
-        className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
+        className="flex items-center gap-2 rounded-md px-3 py-2 text-[12px] tracking-[-0.012em] text-[var(--color-action)] hover:bg-[var(--color-canvas-parchment)] transition-colors"
         title={collapsed ? '로그인' : undefined}
       >
-        <LogIn className="h-4 w-4 shrink-0" />
+        <LogIn className="h-3.5 w-3.5 shrink-0" />
         {!collapsed && <span>로그인</span>}
       </Link>
     )
   }
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[11px] text-slate-300">
-        <UserIcon className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-2 rounded-md px-3 py-1.5">
+        <UserIcon className="h-3 w-3 shrink-0 text-[var(--color-status-green)]" strokeWidth={2.4} />
         {!collapsed && (
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{state.email}</div>
+            <div className="truncate text-[11px] font-medium text-foreground tracking-[-0.012em]">
+              {state.email}
+            </div>
             {state.role && (
-              <div className="truncate text-[10px] uppercase tracking-wide text-slate-500">
+              <div className="truncate text-[9px] uppercase tracking-[0.08em] text-[var(--color-ink-muted-48)]">
                 {state.role}
               </div>
             )}
@@ -111,13 +113,13 @@ export default function AuthPill({ collapsed = false }: { collapsed?: boolean })
       <button
         onClick={handleSignOut}
         disabled={isPending}
-        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-50"
+        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-[12px] tracking-[-0.012em] text-[var(--color-ink-muted-48)] hover:bg-[var(--color-canvas-parchment)] hover:text-foreground transition-colors disabled:opacity-50"
         title={collapsed ? '로그아웃' : undefined}
       >
         {isPending ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
         ) : (
-          <LogOut className="h-4 w-4 shrink-0" />
+          <LogOut className="h-3.5 w-3.5 shrink-0" />
         )}
         {!collapsed && <span>{isPending ? '로그아웃 중...' : '로그아웃'}</span>}
       </button>

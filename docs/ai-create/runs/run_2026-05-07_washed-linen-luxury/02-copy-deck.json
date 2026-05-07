@@ -1,0 +1,141 @@
+{
+  "_diff_from_premium": {
+    "headline_avg_length_premium": "11자",
+    "headline_avg_length_luxury": "6자",
+    "cta_count_premium": 2,
+    "cta_count_luxury": 1,
+    "price_visible_premium": true,
+    "price_visible_luxury": false,
+    "scarcity_tone_premium": "한정 50롤 · 이번 주 입고",
+    "scarcity_tone_luxury": "30롤"
+  },
+
+  "hero": {
+    "headline": "결.",
+    "subheadline": "디안 SS26 Reserve.",
+    "primary_cta": "Reserve a Sample",
+    "secondary_cta": null
+  },
+
+  "sections": [
+    {
+      "id": "cover",
+      "headline": "결.",
+      "subhead": "디안 SS26 Reserve",
+      "body": "",
+      "image_brief": "다크 표면 위 시각적 비주얼 없음. 텍스트만. 침묵의 첫 인상.",
+      "framework_applied": "peak-end + luxury-minimalism (한 단어)"
+    },
+    {
+      "id": "big-idea",
+      "headline": "공간이 입을 옷.",
+      "body": "",
+      "framework_applied": "russell-hook + luxury-minimalism (weight 300, 절제)"
+    },
+    {
+      "id": "material",
+      "headline": "결의 무게.",
+      "subhead": "워시드 리넨",
+      "body": "한 명의 손이 짠 한 필. 결이 빛을 입는 자세.",
+      "bullets": [
+        "Libeco · 1858",
+        "자연 워싱"
+      ],
+      "image_brief": "마크로샷 + 늙은 손이 결에 닿는 순간. 어두운 배경, 단일 빛. 거의 단색.",
+      "framework_applied": "sensory-integration (시적 절제)"
+    },
+    {
+      "id": "color",
+      "headline": "셋",
+      "subhead": "여명 · 안개 · 심해",
+      "body": "",
+      "color_chips": [
+        { "name": "Ivory", "hex": "#F5F0E8", "story": "여명" },
+        { "name": "Greige", "hex": "#C4B8A8", "story": "안개" },
+        { "name": "Indigo", "hex": "#2C3445", "story": "심해" }
+      ],
+      "image_brief": "3개 컬러칩, 각 사이 여백 큼 (museum vitrine).",
+      "framework_applied": "luxury-minimalism (3개로 절제)"
+    },
+    {
+      "id": "specs",
+      "headline": "사양",
+      "body": "",
+      "table": [
+        { "label": "폭", "value": "150 cm" },
+        { "label": "중량", "value": "280 g/m²" },
+        { "label": "소재", "value": "워시드 리넨 100%" },
+        { "label": "원산지", "value": "벨기에 — Libeco" },
+        { "label": "최소", "value": "5 m · 한정 30롤" }
+      ],
+      "image_brief": null,
+      "framework_applied": "authority-cialdini (가격 미노출)"
+    },
+    {
+      "id": "use-case",
+      "headline": "한 공간에서.",
+      "body": "한남동 단독주택 · 동향 마스터 베드룸",
+      "use_cases": [
+        { "designer": "하나인테리어 · 김지윤", "space": "한남동 단독주택 · 동향" }
+      ],
+      "image_brief": "프리미엄 한국 단독주택 인테리어 — 단 하나의 워시드 리넨 시공. golden hour. 21:9 풀-블리드.",
+      "framework_applied": "social-proof + mirror-neuron (한 디자이너, 한 공간)"
+    },
+    {
+      "id": "designer-voice",
+      "headline": "",
+      "body": "",
+      "quote": {
+        "text": "결이 빛을 입는다.",
+        "author": "김지윤",
+        "role": "하나인테리어 · 수석 디자이너"
+      },
+      "image_brief": null,
+      "framework_applied": "mirror-neuron + luxury-minimalism (8자 인용)"
+    },
+    {
+      "id": "lifestyle",
+      "headline": "",
+      "body": "정오의 결.",
+      "image_brief": "정오 또는 황혼 — 워시드 리넨 커튼이 빛에 흐른다. 21:9 cinematic. 사람 없음.",
+      "framework_applied": "sensory-integration + peak (분위기만)"
+    },
+    {
+      "id": "craftsmanship",
+      "headline": "장인의 결",
+      "body": "벨기에 직조사 Libeco. 1858년부터 6대를 이어온 손. 한 명의 장인이 한 필을 짠다. 기계가 흉내 낼 수 없는 결의 미세한 농담은, 시간이 지날수록 깊어진다.",
+      "image_brief": "벨기에 늙은 장인의 손과 직기 — 16:9. 따뜻한 텅스텐. archival 톤. 거의 영적 인상.",
+      "framework_applied": "storybrand + luxury-minimalism (luxury 시그니처)"
+    },
+    {
+      "id": "authority",
+      "headline": "약속",
+      "body": "디안 평생 보증 · 개별 큐레이션 · OEKO-TEX 100",
+      "bullets": [],
+      "image_brief": null,
+      "framework_applied": "authority-cialdini (한 줄 절제)"
+    },
+    {
+      "id": "cta-closing",
+      "headline": "결을 만나세요.",
+      "subhead": "한정 30롤",
+      "body": "",
+      "image_brief": "마지막 풀폭 비주얼 — 워시드 리넨이 흐르는 가장 강한 한 장면.",
+      "framework_applied": "peak-end + luxury-minimalism + scarcity (Price upon request, 1 CTA)"
+    }
+  ],
+
+  "meta": {
+    "seo_title": "디안 SS26 Reserve — 워시드 리넨 | Libeco 한정 30롤",
+    "seo_description": "벨기에 Libeco 1858년부터 6대를 이어온 손. 한정 30롤 큐레이션. 디안.",
+    "keywords": ["디안", "Libeco", "워시드 리넨", "luxury", "한정"],
+    "og_title": "결. — 디안 SS26 Reserve",
+    "og_description": "공간이 입을 옷. 한정 30롤."
+  },
+
+  "tier_audit": {
+    "forbidden_words_found": [],
+    "cta_tier_match": true,
+    "_notes": "luxury 금기 어휘 검열 통과 — '특가/세일/할인/이벤트/9.99/지금 구매' 0건. 가격 미노출 ✓. CTA 1개 (Reserve a Sample) ✓. 어휘 절제 ✓."
+  }
+}

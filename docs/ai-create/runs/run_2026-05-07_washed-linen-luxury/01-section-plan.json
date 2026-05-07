@@ -1,0 +1,180 @@
+{
+  "total_sections": 11,
+  "skipped_sections": ["compare", "faq"],
+  "tile_rhythm": [
+    "canvas", "tile-dark", "parchment", "canvas", "parchment",
+    "canvas", "tile-dark", "canvas", "tile-dark", "parchment",
+    "tile-dark"
+  ],
+  "tier_applied": "luxury",
+  "_meta": {
+    "section_count_change": "13 → 11 (luxury 정책: 08 Compare, 12 FAQ 생략)",
+    "dark_tile_count": 4,
+    "vertical_air_target": "70%+ whitespace ratio"
+  },
+
+  "sections": [
+    {
+      "section_id": "cover",
+      "order": 1,
+      "tile": "tile-dark",
+      "_luxury_change": "premium 은 canvas, luxury 는 dark tile (가장 강한 첫인상)",
+      "frameworks": ["peak-end", "luxury-minimalism"],
+      "purpose": "검정 표면 위 한 단어. 침묵의 첫 인상.",
+      "layout": "centered-text",
+      "image_brief": null,
+      "_luxury_change_image": "premium 은 풀폭 비주얼, luxury 는 텍스트만 (추후 비주얼 등장)",
+      "copy_constraints": { "headline_max_chars": 8, "body_max_chars": 14, "bullet_max_count": 0 },
+      "tier_variation": "luxury — 한 단어 헤드라인, 가격 X, CTA 1개 (Price upon request)",
+      "skip_for_tiers": []
+    },
+    {
+      "section_id": "big-idea",
+      "order": 2,
+      "tile": "tile-dark",
+      "frameworks": ["russell-hook", "luxury-minimalism"],
+      "purpose": "한 문장. 마침표.",
+      "layout": "centered-text",
+      "image_brief": null,
+      "copy_constraints": { "headline_max_chars": 16, "body_max_chars": 0, "bullet_max_count": 0 },
+      "tier_variation": "luxury — display-xl weight 300 (premium 은 600). 절제.",
+      "skip_for_tiers": []
+    },
+    {
+      "section_id": "material",
+      "order": 3,
+      "tile": "parchment",
+      "frameworks": ["sensory-integration"],
+      "purpose": "마크로샷 + 시적 촉감 카피",
+      "layout": "image-left-text-right",
+      "image_brief": {
+        "placement": "macro",
+        "aspect": "4:3",
+        "mood": "extreme close-up of woven linen, single elderly hand barely touching the fabric, deep negative space, cinematic dim light, almost monochrome ivory tone"
+      },
+      "copy_constraints": { "headline_max_chars": 8, "body_max_chars": 50, "bullet_max_count": 2 },
+      "tier_variation": "luxury — 짧은 시적 카피, bullet 2개로 줄임 (premium 은 3)",
+      "skip_for_tiers": []
+    },
+    {
+      "section_id": "color",
+      "order": 4,
+      "tile": "canvas",
+      "frameworks": ["luxury-minimalism", "cognitive-ease"],
+      "purpose": "3개 컬러칩 (premium 4개 → luxury 3개). 절제.",
+      "layout": "gallery-grid",
+      "image_brief": {
+        "placement": "swatch",
+        "aspect": "1:1",
+        "mood": "three fabric color swatches arranged with generous negative space, museum vitrine aesthetic"
+      },
+      "copy_constraints": { "headline_max_chars": 4, "body_max_chars": 12, "bullet_max_count": 0 },
+      "tier_variation": "luxury — 3컬러로 절제, 칩 사이 여백 2배",
+      "skip_for_tiers": []
+    },
+    {
+      "section_id": "specs",
+      "order": 5,
+      "tile": "parchment",
+      "frameworks": ["authority-cialdini"],
+      "purpose": "핵심 사양만 (luxury 는 더 적게)",
+      "layout": "stat-row",
+      "image_brief": null,
+      "copy_constraints": { "headline_max_chars": 4, "body_max_chars": 0, "bullet_max_count": 5 },
+      "tier_variation": "luxury — 5행만 (premium 은 7행). 가격 미노출.",
+      "skip_for_tiers": []
+    },
+    {
+      "section_id": "use-case",
+      "order": 6,
+      "tile": "canvas",
+      "frameworks": ["mirror-neuron", "social-proof"],
+      "purpose": "단 하나의 시공 사례 — 압도적인 한 작업",
+      "layout": "full-bleed",
+      "_luxury_change": "premium 은 2-col 두 사례, luxury 는 풀폭 한 사례",
+      "image_brief": {
+        "placement": "lifestyle",
+        "aspect": "21:9",
+        "mood": "premium Korean residential interior, single washed linen curtain installation, golden hour, atmospheric, sublime, generous space"
+      },
+      "copy_constraints": { "headline_max_chars": 8, "body_max_chars": 40, "bullet_max_count": 0 },
+      "tier_variation": "luxury — 한 명의 디자이너, 한 공간, 풀-블리드",
+      "skip_for_tiers": []
+    },
+    {
+      "section_id": "designer-voice",
+      "order": 7,
+      "tile": "tile-dark",
+      "frameworks": ["mirror-neuron", "luxury-minimalism"],
+      "purpose": "유일한 인용 — 권위의 절정",
+      "layout": "centered-text",
+      "image_brief": null,
+      "copy_constraints": { "headline_max_chars": 18, "body_max_chars": 30, "bullet_max_count": 0 },
+      "tier_variation": "luxury — 인용 더 짧고 시적, 80% 수직 여백",
+      "skip_for_tiers": ["mid", "value"]
+    },
+    {
+      "section_id": "lifestyle",
+      "order": 8,
+      "tile": "canvas",
+      "frameworks": ["sensory-integration", "peak"],
+      "purpose": "분위기 — 시간이 지나가는 듯한 한 장면",
+      "layout": "full-bleed",
+      "image_brief": {
+        "placement": "lifestyle",
+        "aspect": "21:9",
+        "mood": "morning to evening time-lapse feel in single frame, washed linen curtain in subtle motion, sublime atmosphere, almost spiritual quality"
+      },
+      "copy_constraints": { "headline_max_chars": 0, "body_max_chars": 8, "bullet_max_count": 0 },
+      "tier_variation": "luxury — 헤드라인 없음, 시적 caption 8자 이내",
+      "skip_for_tiers": ["value"]
+    },
+    {
+      "section_id": "craftsmanship",
+      "order": 9,
+      "tile": "tile-dark",
+      "frameworks": ["storybrand", "luxury-minimalism"],
+      "purpose": "디안 luxury 의 시그니처 섹션 — 장인 스토리",
+      "layout": "image-right-text-left",
+      "image_brief": {
+        "placement": "craft",
+        "aspect": "16:9",
+        "mood": "elderly Belgian artisan's weathered hands at the loom, archival photography, single source of warm tungsten light, almost spiritual quality, decades of practice visible in hands"
+      },
+      "copy_constraints": { "headline_max_chars": 6, "body_max_chars": 80, "bullet_max_count": 0 },
+      "tier_variation": "luxury — 가장 긴 본문 허용 (이 페이지의 핵심)",
+      "skip_for_tiers": ["mid", "value"]
+    },
+    {
+      "section_id": "authority",
+      "order": 10,
+      "tile": "parchment",
+      "frameworks": ["authority-cialdini", "luxury-minimalism"],
+      "purpose": "인증·보증 — luxury 톤의 약속",
+      "layout": "centered-text",
+      "_luxury_change": "premium 은 4-icon row, luxury 는 텍스트 한 줄 (절제)",
+      "image_brief": null,
+      "copy_constraints": { "headline_max_chars": 6, "body_max_chars": 30, "bullet_max_count": 0 },
+      "tier_variation": "luxury — 정책 한 줄로 절제. icon row 생략.",
+      "skip_for_tiers": []
+    },
+    {
+      "section_id": "cta-closing",
+      "order": 11,
+      "tile": "tile-dark",
+      "frameworks": ["peak-end", "luxury-minimalism", "scarcity"],
+      "purpose": "마지막 절정 — 1개 CTA, 가격 미노출",
+      "layout": "cta-band",
+      "image_brief": {
+        "placement": "hero",
+        "aspect": "21:9",
+        "mood": "the page's most powerful image — washed linen in graceful motion, golden backlight, sublime atmospheric quality, museum-grade composition"
+      },
+      "copy_constraints": { "headline_max_chars": 14, "body_max_chars": 24, "bullet_max_count": 0 },
+      "tier_variation": "luxury — CTA 1개 (Price upon request). 'Reserve a Sample' 같은 톤.",
+      "skip_for_tiers": []
+    }
+  ],
+
+  "notes": "luxury 티어 — 11 섹션. 다크 tile 4번 (01·02·07·09·11 — 5번이지만 02 다음 03 parchment로 break). visual_density 5/10 (premium 은 7). 여백 비율 ↑, 카피 길이 ↓, CTA 1개, 가격 미노출, 'Price upon request' 톤. 시그니처 섹션은 09 Craftsmanship + 07 Designer Voice + 06 Use Case 한 사례 + 11 마지막 절정."
+}

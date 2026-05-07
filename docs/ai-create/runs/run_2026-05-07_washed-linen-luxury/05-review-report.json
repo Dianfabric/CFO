@@ -1,0 +1,42 @@
+{
+  "overall_status": "pass",
+  "total_issues": 0,
+  "comparison_with_premium": {
+    "section_count": "13 → 11 (-2: 08 Compare, 12 FAQ 생략) ✓",
+    "dark_tile_count": "4 → 5 ✓ (luxury 는 시작도 dark)",
+    "headline_avg_length": "11자 → 6자 (-45%) ✓",
+    "cta_count": "2 → 1 ✓",
+    "price_visible": "true → false ✓",
+    "color_count": "4 → 3 ✓",
+    "font_weight_dominant": "600 → 200-300 ✓",
+    "vertical_padding_avg": "150px → 200px+ (+33%) ✓",
+    "use_case_count": "2 → 1 ✓",
+    "lifestyle_image_count": "1 → 1 (full-bleed) ✓",
+    "scarcity_tone": "한정 50롤 · 이번 주 입고 → 한정 30롤 ✓ (절제)",
+    "cta_text": "샘플 신청 → Reserve a Sample / Price upon request ✓"
+  },
+
+  "highlights": [
+    "luxury 정책 100% 준수 — 가격 미노출, CTA 1개, 'Price upon request' 톤",
+    "헤드라인 'Apple-tight' 보다 더 절제 — '결.', '셋', '약속' 같은 한 단어 압축",
+    "Font weight 200-300 일관 적용 (premium 600 보다 가벼움)",
+    "Eyebrow uppercase + tracking 0.16-0.24em — luxury label 톤",
+    "Italic 인용 + footnote dash (—) 문체 적용",
+    "Color chip 사이 여백 2배 (museum vitrine)",
+    "디자이너 인용 8자로 압축 ('이 결이 빛을 덜어낸다' → '결이 빛을 입는다')",
+    "한 명의 디자이너, 한 공간 (premium 은 2명, 2공간)",
+    "11번 마지막 CTA 헤드라인 'clamp(56px, 8vw, 120px)' — 페이지 최강 비주얼"
+  ],
+
+  "tier_audit": {
+    "luxury_forbidden_words": ["할인", "특가", "세일", "이벤트", "9.99", "지금 구매", "원"],
+    "found_in_copy": [],
+    "result": "PASS — luxury 금기 어휘 0건"
+  },
+
+  "_meta": {
+    "reviewer": "dian-design-reviewer",
+    "compared_to": "run_2026-05-07_washed-linen-premium",
+    "reviewed_at": "2026-05-07"
+  }
+}

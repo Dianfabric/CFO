@@ -1,0 +1,34 @@
+{
+  "run_id": "run_2026-05-07_washed-linen-luxury",
+  "agent_kind": "product_detail",
+  "input_mode": "tier-variant-of-premium",
+
+  "product_name": "디안 SS26 워시드 리넨 — Reserve",
+  "category": "curtain",
+  "material": "100% 워시드 리넨 (벨기에 직조)",
+  "colors": ["아이보리 (여명)", "그레이지 (안개)", "인디고 (심해)"],
+  "season": "SS26",
+  "estimated_unit_price": null,
+
+  "target_occupations": ["interior_project"],
+  "target_division": "curtain",
+  "target_tier": "luxury",
+
+  "key_selling_points": [
+    "Libeco — 1858년부터 6대째 같은 손",
+    "장인 한 명이 짠 한 필",
+    "한정 30롤"
+  ],
+
+  "page_length": "long",
+  "tone": { "emotional": 9, "formal": 9, "visual_density": 5 },
+
+  "_diff_from_premium": [
+    "tier: premium → luxury",
+    "colors: 4개 → 3개 (절제)",
+    "estimated_unit_price: 55000 → null (가격 미공개)",
+    "key_selling_points: 가격·기능 → 장인성·한정",
+    "section count: 13 → 11 (08 Compare, 12 FAQ 생략)",
+    "visual_density: 7 → 5 (여백 증가)"
+  ]
+}

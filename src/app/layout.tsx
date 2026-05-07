@@ -29,11 +29,12 @@ export default function RootLayout({
       lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex bg-slate-50">
+      <body className="min-h-full flex bg-[var(--color-canvas)]">
         <Sidebar />
         <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
           <Header />
-          <main className="flex-1 p-6">
+          {/* main padding — viewport 적응 (모바일 4 → 데스크탑 8). tile 페이지는 내부에서 -mx-* 로 escape. */}
+          <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8 sm:py-10 lg:py-12">
             {children}
           </main>
         </div>

@@ -6,11 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:local": "prisma generate --schema=prisma/schema.local.prisma && prisma db push --schema=prisma/schema.local.prisma --skip-generate",
+    "db:prod": "prisma generate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@base-ui/react": "^1.3.0",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.3",

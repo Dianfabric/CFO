@@ -1,0 +1,49 @@
+{
+  "run_id": "run_2026-05-07_washed-linen-premium",
+  "agent_kind": "product_detail",
+  "input_mode": "default-fill",
+
+  "product_name": "디안 SS26 워시드 리넨",
+  "category": "curtain",
+  "material": "100% 워시드 리넨 (벨기에 직조)",
+  "colors": ["아이보리 (여명)", "그레이지 (안개)", "모스 (숲)", "인디고 (심해)"],
+  "season": "SS26",
+  "estimated_unit_price": 55000,
+
+  "target_occupations": ["interior_project", "curtain_styling"],
+  "target_division": "curtain",
+  "target_tier": "premium",
+
+  "key_selling_points": [
+    "벨기에 직조사 Libeco — 1858년부터 같은 손",
+    "자연 워싱 4단계 — 첫 세탁 후의 결을 미리 만든다",
+    "4가지 자연 컬러 — 여명·안개·숲·심해"
+  ],
+
+  "reference_urls": [],
+  "reference_images": [],
+  "competitor_pages": [],
+
+  "page_length": "long",
+  "tone": { "emotional": 7, "formal": 8, "visual_density": 7 },
+
+  "brand_identity": {
+    "big_idea": "공간의 가치를 결정짓는 소재의 품격",
+    "brand_persona": "세련된 전문가 — 디자이너의 디자이너",
+    "voice_tone": "격조, 신뢰, 절제",
+    "visual_primary_color": "#0066cc",
+    "visual_secondary_color": "#1d1d1f",
+    "visual_accent_color": "#0066cc",
+    "visual_font_heading": "Pretendard Variable",
+    "visual_font_body": "Pretendard Variable",
+    "visual_image_style": "natural light, editorial, minimal, museum gallery"
+  },
+
+  "client_context": null,
+
+  "_meta": {
+    "created_at": "2026-05-07",
+    "team_lead_version": "1.0",
+    "skills_used": ["dian-design-system", "dian-13-sections", "dian-tier-tone"]
+  }
+}
