@@ -16,6 +16,40 @@
 
 ---
 
+## 🔓 0.1. 로그인 강제 해제 상태 (V2.2 — 개발 중, 추후 복구 예정)
+
+> **현재 모든 페이지는 로그인 없이 접근·기능 가능**. 추후 인증 시스템 다시 활성화할 때 이 섹션을 참고해 복구.
+
+### 풀려있는 곳
+
+**1. `src/middleware.ts`**
+- `PROTECTED_PREFIXES: string[] = []` — 비어있음
+- 복구: `['/finance']` 로 되돌리면 `/finance/*` 만 인증 강제 (v1.0 경로는 원래 보호 안 함)
+
+**2. 20개 server action 파일** (`src/app/finance/**/actions.ts`)
+- 패턴 변경: `if (!user) return { ok: false, error: '로그인이 필요합니다.' }` → `const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'`
+- 패턴 변경: `if (!user) throw new Error('로그인이 필요합니다.')` → 동일한 fallback
+- `user.id` 사용처 → `userId` 로 자동 치환됨
+- 복구 시 ANON_UUID(`00000000-...`) 검색 + grep 으로 한 번에 되돌리기 가능
+
+**3. page 들의 `if (!user) return null`** — 그대로 둠 (빈 결과 반환 — UI 는 정상 렌더). 인증 복구 시 그대로 작동.
+
+### 복구 명령 (참고 — sed 또는 Python 일괄 치환)
+```bash
+# 1. middleware 복구
+# PROTECTED_PREFIXES: string[] = [] → ['/finance']
+
+# 2. server actions 일괄 복구 (Python)
+# const userId = user?.id ?? '00000000-...' → if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+# userId → user.id (단, 다른 곳에 userId 변수 있을 수 있으니 주의)
+```
+
+### 관련 commit
+- 해제: `389dd46` (feat: 로그인 강제 해제 — 개발 중 모든 페이지 + 기능 anon 허용)
+- 복구 시 이 commit 의 diff 를 역으로 적용하면 가장 안전
+
+---
+
 ## 1. 프로젝트 정체성
 
 **디안(Dian)** — B2B 프리미엄 인테리어 원단 유통·큐레이션 기업의 CFO 대시보드 시스템.
