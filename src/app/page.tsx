@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import DiavisGreeting from '@/components/v11/diavis/DiavisGreeting'
 import DashboardContent from '@/components/v11/diavis/DashboardContent'
+import DailyOpsBlock from '@/components/v11/diavis/DailyOpsBlock'
 
 export const dynamic = 'force-dynamic'
 
@@ -121,9 +122,18 @@ export default function DiavisHomePage() {
       </section>
 
       {/* ==================================================
-          2. v1.0 경영 대시보드 — KPI / 차트 / 미수금 / 최근 거래
+          1.5. 일일 운영 블록 — hero 직후 (KPI / 사이클 / 미수금 상태)
           ================================================== */}
       <section style={{ backgroundColor: 'var(--nv-canvas)' }}>
+        <div className="max-w-[1280px] mx-auto px-6 sm:px-12 py-10">
+          <DailyOpsBlock />
+        </div>
+      </section>
+
+      {/* ==================================================
+          2. v1.0 경영 대시보드 — KPI / 차트 / 미수금 / 최근 거래
+          ================================================== */}
+      <section style={{ backgroundColor: 'var(--nv-surface-soft)' }}>
         <div
           className="max-w-[1280px] mx-auto px-6 sm:px-12"
           style={{ paddingTop: '48px', paddingBottom: '48px' }}
