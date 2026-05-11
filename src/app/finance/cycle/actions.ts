@@ -26,7 +26,7 @@ export async function upsertGoal(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     if (input.id) {
       const { error } = await supabase
@@ -58,7 +58,7 @@ export async function upsertGoal(
           unit: input.unit ?? null,
           current_value: input.current_value ?? 0,
           is_leading_indicator: input.is_leading_indicator ?? false,
-          owner_id: user.id,
+          owner_id: userId,
           display_order: input.display_order ?? 0,
         })
         .select('id')
@@ -79,7 +79,7 @@ export async function deleteGoal(id: number): Promise<{ ok: boolean; error?: str
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('goals').delete().eq('id', id)
     if (error) return { ok: false, error: error.message }
@@ -100,7 +100,7 @@ export async function updateGoalProgress(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('goals').update({ current_value }).eq('id', id)
     if (error) return { ok: false, error: error.message }
@@ -131,11 +131,11 @@ export async function updateLongTermVision(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('long_term_vision')
-      .update({ ...input, updated_at: new Date().toISOString(), updated_by: user.id })
+      .update({ ...input, updated_at: new Date().toISOString(), updated_by: userId })
       .eq('id', 1)
     if (error) return { ok: false, error: error.message }
 
@@ -166,7 +166,7 @@ export async function updateCycleRetro(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const patch: Record<string, unknown> = {}
     if (input.vision_statement !== undefined) patch.vision_statement = input.vision_statement
@@ -202,7 +202,7 @@ export async function updateGoalAlignment(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('goals').update(patch).eq('id', goal_id)
     if (error) return { ok: false, error: error.message }
@@ -275,7 +275,7 @@ export async function updateCycleVision(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('cycles')

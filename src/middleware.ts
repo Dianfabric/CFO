@@ -1,18 +1,14 @@
 /**
  * Next.js 15 + Supabase SSR 미들웨어
  *
- * 두 가지 일을 한다:
- * 1. 모든 요청에서 Supabase 세션 쿠키 갱신 (만료 방지)
- * 2. v1.1 보호 경로(/finance, /v11/* 등)는 미인증 시 /login 으로 리다이렉트
- *
- * v1.0 경로(/, /transactions, /clients, ...)는 보호하지 않는다.
- *   v1.0은 자체 인증을 가지지 않는 단일 사용자 도구이므로 그대로 둔다.
+ * V2.2 — 개발 중에는 로그인 강제 없음.
+ * 모든 페이지는 로그인 없이 접근 가능. 세션 쿠키만 갱신.
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-// 인증이 필요한 v1.1 경로 prefix
-const PROTECTED_PREFIXES = ['/finance']
+// 인증 강제 X — 개발 중 모든 페이지 접근 허용
+const PROTECTED_PREFIXES: string[] = []
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })

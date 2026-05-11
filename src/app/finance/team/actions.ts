@@ -36,7 +36,7 @@ export async function upsertAnnouncement(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       title: input.title,
@@ -64,7 +64,7 @@ export async function upsertAnnouncement(
 
     const { data, error } = await supabase
       .from('team_announcements')
-      .insert({ ...payload, created_by: user.id })
+      .insert({ ...payload, created_by: userId })
       .select('id')
       .single()
     if (error) return { ok: false, error: error.message }
@@ -84,7 +84,7 @@ export async function deleteAnnouncement(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('team_announcements')
@@ -125,14 +125,14 @@ export async function updateSlackSettings(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('slack_settings')
       .update({
         ...input,
         updated_at: new Date().toISOString(),
-        updated_by: user.id,
+        updated_by: userId,
       })
       .eq('id', 1)
 
@@ -159,7 +159,7 @@ export async function sendDigestToSlack(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 설정 조회
     const { data: settings, error: settingsError } = await supabase
@@ -220,7 +220,7 @@ export async function sendDigestToSlack(
       status,
       status_code: statusCode,
       error: errorMsg,
-      triggered_by: user.id,
+      triggered_by: userId,
     })
 
     // include_in_daily 공지 — 오늘 발송된 것으로 마킹
@@ -258,7 +258,7 @@ export async function testWebhook(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { data: settings } = await supabase
       .from('slack_settings')
@@ -288,7 +288,7 @@ export async function testWebhook(
       message_type: 'test',
       status: res.ok ? 'sent' : 'failed',
       status_code: res.status,
-      triggered_by: user.id,
+      triggered_by: userId,
     })
 
     revalidatePath('/finance/team/slack')

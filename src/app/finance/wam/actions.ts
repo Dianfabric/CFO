@@ -15,7 +15,7 @@ export async function createWAM(): Promise<never> {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) throw new Error('로그인이 필요합니다.')
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 활성 사이클 조회
     const { data: cycle, error: cycleErr } = await supabase
@@ -38,7 +38,7 @@ export async function createWAM(): Promise<never> {
         attendees: [],
         next_week_priorities: [],
         scorecard: {},
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single()
@@ -71,7 +71,7 @@ export async function updateWAM(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const patch: Record<string, unknown> = {}
     if (input.meeting_date !== undefined) patch.meeting_date = input.meeting_date
@@ -115,7 +115,7 @@ export async function deleteWAM(id: number): Promise<{ ok: boolean; error?: stri
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('weekly_action_meetings').delete().eq('id', id)
     if (error) return { ok: false, error: error.message }

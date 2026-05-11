@@ -32,12 +32,12 @@ export async function updateBrandIdentity(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload: Record<string, unknown> = {
       ...input,
       updated_at: new Date().toISOString(),
-      updated_by: user.id,
+      updated_by: userId,
     }
 
     const { error } = await supabase
@@ -81,7 +81,7 @@ export async function upsertContentItem(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload: Record<string, unknown> = {
       channel: input.channel,
@@ -112,7 +112,7 @@ export async function upsertContentItem(
     } else {
       const { data, error } = await supabase
         .from('content_items')
-        .insert({ ...payload, created_by: user.id })
+        .insert({ ...payload, created_by: userId })
         .select('id')
         .single()
       if (error) return { ok: false, error: error.message }
@@ -132,7 +132,7 @@ export async function deleteContentItem(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
     const { error } = await supabase.from('content_items').delete().eq('id', id)
     if (error) return { ok: false, error: error.message }
     revalidatePath('/finance/marketing/content')
@@ -164,7 +164,7 @@ export async function upsertChannelSnapshot(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       channel: input.channel,
@@ -176,7 +176,7 @@ export async function upsertChannelSnapshot(
       engagement_rate: input.engagement_rate ?? null,
       inquiries_count: input.inquiries_count ?? 0,
       notes: input.notes ?? null,
-      created_by: user.id,
+      created_by: userId,
     }
 
     const { error } = await supabase
@@ -213,7 +213,7 @@ export async function upsertScript(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       name: input.name,
@@ -239,7 +239,7 @@ export async function upsertScript(
     } else {
       const { data, error } = await supabase
         .from('marketing_scripts')
-        .insert({ ...payload, created_by: user.id })
+        .insert({ ...payload, created_by: userId })
         .select('id')
         .single()
       if (error) return { ok: false, error: error.message }
@@ -276,7 +276,7 @@ export async function upsertDream100(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       name: input.name,
@@ -302,7 +302,7 @@ export async function upsertDream100(
     } else {
       const { data, error } = await supabase
         .from('marketing_dream100')
-        .insert({ ...payload, added_by: user.id })
+        .insert({ ...payload, added_by: userId })
         .select('id')
         .single()
       if (error) return { ok: false, error: error.message }
@@ -322,7 +322,7 @@ export async function deleteDream100(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
     const { error } = await supabase.from('marketing_dream100').delete().eq('id', id)
     if (error) return { ok: false, error: error.message }
     revalidatePath('/finance/marketing/dream100')
@@ -357,7 +357,7 @@ export async function upsertCampaign(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       name: input.name,
@@ -386,7 +386,7 @@ export async function upsertCampaign(
     } else {
       const { data, error } = await supabase
         .from('marketing_campaigns')
-        .insert({ ...payload, created_by: user.id })
+        .insert({ ...payload, created_by: userId })
         .select('id')
         .single()
       if (error) return { ok: false, error: error.message }
@@ -406,7 +406,7 @@ export async function deleteCampaign(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
     const { error } = await supabase.from('marketing_campaigns').delete().eq('id', id)
     if (error) return { ok: false, error: error.message }
     revalidatePath('/finance/marketing/campaigns')
@@ -424,7 +424,7 @@ export async function deleteScript(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
     const { error } = await supabase.from('marketing_scripts').delete().eq('id', id)
     if (error) return { ok: false, error: error.message }
     revalidatePath('/finance/marketing/scripts')

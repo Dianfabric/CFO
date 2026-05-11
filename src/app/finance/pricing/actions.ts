@@ -30,14 +30,14 @@ export async function createDecision(): Promise<never> {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) throw new Error('로그인이 필요합니다.')
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { data, error } = await supabase
       .from('price_decisions')
       .insert({
         type: 'price_increase',
         decision_date: new Date().toISOString().split('T')[0],
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single()
@@ -57,7 +57,7 @@ export async function upsertDecision(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload: Record<string, unknown> = {
       type: input.type,
@@ -86,7 +86,7 @@ export async function upsertDecision(
     } else {
       const { data, error } = await supabase
         .from('price_decisions')
-        .insert({ ...payload, created_by: user.id })
+        .insert({ ...payload, created_by: userId })
         .select('id')
         .single()
       if (error) return { ok: false, error: error.message }
@@ -106,13 +106,13 @@ export async function approveDecision(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // CEO/임원 권한 확인
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .maybeSingle()
     if (!['ceo', 'executive'].includes(profile?.role ?? '')) {
       return { ok: false, error: 'CEO 또는 임원만 승인할 수 있습니다.' }
@@ -127,7 +127,7 @@ export async function approveDecision(
       .update({
         ceo_approved: true,
         approved_at: new Date().toISOString(),
-        approved_by: user.id,
+        approved_by: userId,
         validation_due_date: validation.toISOString().split('T')[0],
       })
       .eq('id', id)
@@ -154,7 +154,7 @@ export async function validateDecision(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('price_decisions')
@@ -192,7 +192,7 @@ export async function upsertPricingPolicy(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       client_id: input.client_id,
@@ -267,7 +267,7 @@ export async function upsertPromotion(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       name: input.name,
@@ -296,7 +296,7 @@ export async function upsertPromotion(
     } else {
       const { data, error } = await supabase
         .from('price_promotions')
-        .insert({ ...payload, created_by: user.id })
+        .insert({ ...payload, created_by: userId })
         .select('id')
         .single()
       if (error) return { ok: false, error: error.message }
@@ -330,7 +330,7 @@ export async function deleteDecision(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('price_decisions').delete().eq('id', id)
     if (error) return { ok: false, error: error.message }

@@ -37,7 +37,7 @@ export async function createIntake(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 1) DB insert
     const { data: row, error } = await supabase
@@ -54,7 +54,7 @@ export async function createIntake(
         estimated_unit_price: input.estimated_unit_price ?? null,
         notes: input.notes ?? null,
         stage: input.run_ai_eval ? 'evaluating' : 'arrived',
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single()
@@ -81,7 +81,7 @@ export async function createIntake(
           .join('\n'),
         source: input.source === 'overseas' ? 'overseas' : 'domestic',
         tags: ['신제품 샘플', input.material ?? ''].filter(Boolean),
-        uploaded_by: user.id,
+        uploaded_by: userId,
       })
       .select('id')
       .single()
@@ -238,7 +238,7 @@ export async function savePlan(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('incoming_samples')
@@ -258,7 +258,7 @@ export async function savePlan(
 
     // Stage 4 진입 시 자동 체크리스트 생성
     if (input.go_next) {
-      await ensureActionItems(input.sample_id, user.id)
+      await ensureActionItems(input.sample_id, userId)
     }
 
     revalidatePath(`/finance/operations/intake/${input.sample_id}`)
@@ -316,14 +316,14 @@ export async function toggleActionItem(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { data: item, error: itemErr } = await supabase
       .from('intake_action_items')
       .update({
         completed,
         completed_at: completed ? new Date().toISOString() : null,
-        completed_by: completed ? user.id : null,
+        completed_by: completed ? userId : null,
       })
       .eq('id', item_id)
       .select('sample_id')
@@ -361,7 +361,7 @@ export async function actionCreateMarketingContent(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { data: m } = await supabase
       .from('incoming_samples')
@@ -408,7 +408,7 @@ export async function actionCreateSampleRequests(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { data: m } = await supabase
       .from('incoming_samples')
@@ -428,7 +428,7 @@ export async function actionCreateSampleRequests(
       request_date: today,
       status: 'pending' as const,
       notes: `[자동 입고] ${m.name}`,
-      requested_by: user.id,
+      requested_by: userId,
     }))
 
     const { data: rows, error } = await supabase
@@ -462,7 +462,7 @@ export async function actionCreateSlackAnnouncement(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { data: m } = await supabase
       .from('incoming_samples')
@@ -484,7 +484,7 @@ export async function actionCreateSlackAnnouncement(
       target_channel: 'employees',
       include_in_daily: true,
       include_in_weekly: false,
-      created_by: user.id,
+      created_by: userId,
     })
 
     if (error) return { ok: false, error: error.message }
@@ -513,7 +513,7 @@ export async function saveReview(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('intake_performance_reviews').upsert(
       {
@@ -523,7 +523,7 @@ export async function saveReview(
         what_didnt: input.what_didnt ?? null,
         lessons_learned: input.lessons_learned ?? null,
         measured_metrics: input.measured_metrics ?? {},
-        reviewed_by: user.id,
+        reviewed_by: userId,
         reviewed_at: new Date().toISOString(),
       },
       { onConflict: 'sample_id,review_kind' },
@@ -608,7 +608,7 @@ export async function upsertPlaybook(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('sample_intake_playbook').upsert(
       {
@@ -618,7 +618,7 @@ export async function upsertPlaybook(
         recommended_actions: input.recommended_actions,
         notes: input.notes ?? null,
         active: true,
-        updated_by: user.id,
+        updated_by: userId,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'occupation,division,tier' },

@@ -25,7 +25,7 @@ export async function upsertProductLine(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       name: input.name.trim(),
@@ -66,7 +66,7 @@ export async function deleteProductLine(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 실제 삭제보단 비활성화가 안전 (FK 거는 products가 있을 수 있음)
     const { error } = await supabase

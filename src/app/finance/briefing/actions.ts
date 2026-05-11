@@ -217,7 +217,7 @@ export async function generateBriefing(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const briefingDate = date ?? new Date().toISOString().split('T')[0]
 
@@ -225,7 +225,7 @@ export async function generateBriefing(
     const { data: existing } = await supabase
       .from('ai_briefings')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('briefing_date', briefingDate)
       .eq('type', type)
       .maybeSingle()
@@ -266,7 +266,7 @@ export async function generateBriefing(
 
     // INSERT
     const insertPayload: Record<string, unknown> = {
-      user_id: user.id,
+      user_id: userId,
       briefing_date: briefingDate,
       type,
     }
@@ -310,13 +310,13 @@ export async function deleteBriefing(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('ai_briefings')
       .delete()
       .eq('id', id)
-      .eq('user_id', user.id) // 본인 것만
+      .eq('user_id', userId) // 본인 것만
     if (error) return { ok: false, error: error.message }
 
     revalidatePath('/finance/briefing')
@@ -335,13 +335,13 @@ export async function markReviewed(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('ai_briefings')
       .update({ user_reviewed: true, user_notes })
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
     if (error) return { ok: false, error: error.message }
 
     revalidatePath('/finance/briefing')

@@ -58,7 +58,7 @@ export async function generateHSO(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 브랜드 컨텍스트 자동 가져오기
     const { data: brand } = await supabase

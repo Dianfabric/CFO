@@ -25,7 +25,7 @@ export async function createSampleRequest(): Promise<never> {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) throw new Error('로그인이 필요합니다.')
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 첫 거래처 자동 선택 (없으면 빈 폼)
     const { data: firstClient } = await supabase
@@ -46,7 +46,7 @@ export async function createSampleRequest(): Promise<never> {
         client_id: firstClient.id,
         request_date: new Date().toISOString().split('T')[0],
         status: 'pending',
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single()
@@ -67,7 +67,7 @@ export async function updateSampleRequest(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const patch: Record<string, unknown> = {
       client_id: input.client_id,
@@ -248,7 +248,7 @@ export async function upsertSampleBook(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
       name: input.name,
@@ -268,7 +268,7 @@ export async function upsertSampleBook(
     } else {
       const { data, error } = await supabase
         .from('sample_books')
-        .insert({ ...payload, created_by: user.id })
+        .insert({ ...payload, created_by: userId })
         .select('id')
         .single()
       if (error) return { ok: false, error: error.message }

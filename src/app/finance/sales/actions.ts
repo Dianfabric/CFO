@@ -30,10 +30,10 @@ export async function upsertActivity(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
-      agent_id: user.id,
+      agent_id: userId,
       client_id: input.client_id,
       activity_type: input.activity_type,
       activity_date: input.activity_date,
@@ -80,7 +80,7 @@ export async function deleteActivity(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('sales_activities')
@@ -110,7 +110,7 @@ export async function updateClientSalesFields(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('clients').update(patch).eq('id', clientId)
     if (error) return { ok: false, error: error.message }
@@ -140,7 +140,7 @@ export async function updateSegmentMessage(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('segments').update(patch).eq('id', segmentId)
     if (error) return { ok: false, error: error.message }

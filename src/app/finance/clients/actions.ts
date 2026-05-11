@@ -31,7 +31,7 @@ export async function updateClient(
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 빈 문자열은 null로 (occupation/division은 enum이라 ''는 invalid)
     const patch: Record<string, unknown> = {}

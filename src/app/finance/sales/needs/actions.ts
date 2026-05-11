@@ -25,10 +25,10 @@ export async function upsertNeedCard(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
-      agent_id: user.id,
+      agent_id: userId,
       client_id: input.client_id ?? null,
       category: input.category?.trim() || null,
       description: input.description.trim(),
@@ -61,7 +61,7 @@ export async function moveNeedCardStatus(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('need_cards').update({ status }).eq('id', id)
     if (error) return { ok: false, error: error.message }
@@ -78,7 +78,7 @@ export async function voteNeedCard(id: number): Promise<{ ok: boolean; error?: s
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // increment votes
     const { data: cur } = await supabase.from('need_cards').select('votes').eq('id', id).maybeSingle()
@@ -100,7 +100,7 @@ export async function deleteNeedCard(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase.from('need_cards').delete().eq('id', id)
     if (error) return { ok: false, error: error.message }

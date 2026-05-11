@@ -51,7 +51,7 @@ export async function createMaterial(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 1) 빈 자료 레코드 생성 (status: generating)
     const { data: created, error: createError } = await supabase
@@ -71,7 +71,7 @@ export async function createMaterial(
         slide_count: input.slide_count ?? 7,
         video_durations: input.video_durations ?? [15, 30],
         status: 'generating',
-        created_by: user.id,
+        created_by: userId,
       })
       .select('id')
       .single()
@@ -174,7 +174,7 @@ export async function createMaterial(
       framework_ids: input.framework_keys,
       tone_settings: input.tone,
       ai_meta: material.meta ?? {},
-      created_by: user.id,
+      created_by: userId,
     })
 
     revalidatePath('/finance/sales/materials')
@@ -211,7 +211,7 @@ export async function regenerateMaterial(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     // 기존 자료 + 자산 로드
     const { data: existing, error: existError } = await supabase
@@ -311,7 +311,7 @@ export async function regenerateMaterial(
         framework_ids: frameworkKeys,
         tone_settings: tone,
         ai_meta: result.material.meta ?? {},
-        created_by: user.id,
+        created_by: userId,
       }),
     ])
 
@@ -331,7 +331,7 @@ export async function buildMaterialPptx(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const [matQ, brandQ] = await Promise.all([
       supabase.from('sales_materials').select('*').eq('id', material_id).single(),
@@ -396,7 +396,7 @@ export async function createAsset(
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { data, error } = await supabase
       .from('sales_material_assets')
@@ -409,7 +409,7 @@ export async function createAsset(
         source: input.source ?? 'domestic',
         storage_path: input.storage_path ?? null,
         tags: input.tags ?? [],
-        uploaded_by: user.id,
+        uploaded_by: userId,
       })
       .select('id')
       .single()

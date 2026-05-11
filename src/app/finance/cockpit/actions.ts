@@ -28,12 +28,12 @@ export async function createOneOnOne(): Promise<never> {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('로그인이 필요합니다.')
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { data, error } = await supabase
       .from('one_on_one_notes')
       .insert({
-        owner_id: user.id,
+        owner_id: userId,
         meeting_date: new Date().toISOString().split('T')[0],
       })
       .select('id')
@@ -53,7 +53,7 @@ export async function updateOneOnOne(
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const patch: Record<string, unknown> = {
       counterpart_id: input.counterpart_id ?? null,
@@ -75,7 +75,7 @@ export async function updateOneOnOne(
       .from('one_on_one_notes')
       .update(patch)
       .eq('id', input.id)
-      .eq('owner_id', user.id)
+      .eq('owner_id', userId)
     if (error) return { ok: false, error: error.message }
 
     revalidatePath('/finance/cockpit/one-on-one')
@@ -92,13 +92,13 @@ export async function deleteOneOnOne(
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const { error } = await supabase
       .from('one_on_one_notes')
       .delete()
       .eq('id', id)
-      .eq('owner_id', user.id)
+      .eq('owner_id', userId)
     if (error) return { ok: false, error: error.message }
 
     revalidatePath('/finance/cockpit/one-on-one')
@@ -132,10 +132,10 @@ export async function upsertSelfCheckin(
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const payload = {
-      user_id: user.id,
+      user_id: userId,
       checkin_date: input.checkin_date,
       period_type: input.period_type ?? 'weekly',
       time_management_score: input.time_management_score ?? null,
@@ -179,7 +179,7 @@ export async function updateStrengths(
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -196,7 +196,7 @@ export async function updateStrengths(
     if (input.golden_hours_end !== undefined)
       patch.golden_hours_end = input.golden_hours_end
 
-    const { error } = await supabase.from('profiles').update(patch).eq('id', user.id)
+    const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
     if (error) return { ok: false, error: error.message }
 
     revalidatePath('/finance/cockpit/strengths')
@@ -220,7 +220,7 @@ export async function updateTelegramSettings(
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: '로그인이 필요합니다.' }
+    const userId = user?.id ?? '00000000-0000-0000-0000-000000000000'
 
     const patch: Record<string, unknown> = {}
     if (input.telegram_chat_id !== undefined) patch.telegram_chat_id = input.telegram_chat_id
@@ -230,7 +230,7 @@ export async function updateTelegramSettings(
     if (input.evening_note_time !== undefined)
       patch.evening_note_time = input.evening_note_time
 
-    const { error } = await supabase.from('profiles').update(patch).eq('id', user.id)
+    const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
     if (error) return { ok: false, error: error.message }
 
     revalidatePath('/finance/cockpit/telegram')
