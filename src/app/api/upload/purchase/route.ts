@@ -73,21 +73,26 @@ export async function POST(request: NextRequest) {
 }
 
 // 수입세금계산서/수입신고필증에서 과세표준 + 세액 + 날짜 추출 (Claude AI)
+// 주의: 프롬프트에 구체적인 숫자 예시를 넣으면 모델이 그대로 복사하는 경향이 있어
+// 예시는 0/플레이스홀더만 사용
 async function extractImportTaxFields(text: string): Promise<{ taxBase: number; taxAmount: number; date: string }> {
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 250,
     messages: [{
       role: 'user',
-      content: `수입신고필증/수입세금계산서에서 다음 3가지를 추출하세요.
-- 과세표준 (= 총과세가격 KRW 또는 부가가치세과표) - 원화 금액
-- 세액 (= 부가가치세 또는 총세액합계) - 원화 금액
-- 수리일자 (또는 신고일) - YYYY-MM-DD
+      content: `다음 PDF 텍스트는 한국 수입신고필증/수입세금계산서야. 3가지 필드를 정확히 추출해.
 
-${text.slice(0, 5000)}
+추출할 필드:
+1. taxBase: 과세표준 원화금액 (필드명: "총과세가격 ￦" 또는 "부가가치세과표")
+2. taxAmount: 부가가치세 원화금액 (필드명: "부가가치세" 또는 "총세액합계")
+3. date: 수리일자 또는 신고일 (YYYY-MM-DD 형식, "/"는 "-"로 변환)
 
-JSON만 반환 (다른 텍스트 없이):
-{"taxBase":3742044,"taxAmount":374200,"date":"2026-04-28"}`,
+PDF 텍스트:
+${text.slice(0, 6000)}
+
+위 PDF에서 실제로 추출한 숫자를 JSON으로만 반환 (예시 복사 금지, 추출 실패시 0):
+{"taxBase":<숫자>,"taxAmount":<숫자>,"date":"<YYYY-MM-DD>"}`,
     }],
   })
 
@@ -101,6 +106,43 @@ JSON만 반환 (다른 텍스트 없이):
     taxBase: Number(parsed.taxBase) || 0,
     taxAmount: Number(parsed.taxAmount) || 0,
     date: parsed.date || '',
+  }
+}
+
+// 글로지텍 INVOICE에서 운임/날짜/B/L 추출 (Claude AI — pdf-parse 텍스트 레이아웃이 깨져 regex 신뢰 불가)
+async function extractGlogiFields(text: string): Promise<{ totalAmount: number; date: string; invoiceNo: string; blNo: string }> {
+  const msg = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 300,
+    messages: [{
+      role: 'user',
+      content: `다음 PDF 텍스트는 글로지텍(GLOGITECH) 해운 INVOICE야. 4가지 필드를 추출해.
+
+추출할 필드:
+1. totalAmount: TOTAL AMOUNT KRW 원화금액 (운임+VAT 합계)
+2. date: 청구일자 (YYYY-MM-DD 형식)
+3. invoiceNo: INVOICE No. (예: OIHI로 시작)
+4. blNo: H.B/L No. (예: YWYTIN으로 시작하는 코드. "FCL/LCL"이나 "M.B/L" 등 라벨이 아님)
+
+PDF 텍스트:
+${text.slice(0, 4000)}
+
+위 PDF에서 실제로 추출한 값을 JSON으로만 반환 (예시 복사 금지, 추출 실패시 0/빈문자열):
+{"totalAmount":<숫자>,"date":"<YYYY-MM-DD>","invoiceNo":"<문자열>","blNo":"<문자열>"}`,
+    }],
+  })
+
+  const raw = msg.content[0]
+  if (raw.type !== 'text') throw new Error('AI 응답 오류')
+  const jsonMatch = raw.text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('글로지텍 파싱 실패')
+
+  const parsed = JSON.parse(jsonMatch[0])
+  return {
+    totalAmount: Number(parsed.totalAmount) || 0,
+    date: parsed.date || '',
+    invoiceNo: String(parsed.invoiceNo || '').trim(),
+    blNo: String(parsed.blNo || '').trim(),
   }
 }
 
@@ -167,15 +209,15 @@ async function handleImportTax(text: string): Promise<NextResponse> {
 
 // ── 배 통관 번들 (글로지텍 운임 + 수입신고필증/세금계산서) ──
 async function handleBundlePDF(text: string): Promise<NextResponse> {
-  // 1) 글로지텍 운임 부분 추출 (regex)
-  const freightMatch = text.match(/TOTAL AMOUNT[:\s]+KRW[\s]*([\d,]+)/)
-  const freightAmount = freightMatch ? parseInt(freightMatch[1].replace(/,/g, ''), 10) : 0
-  const freightDate = text.match(/청구일자\s*:\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? ''
-  const invoiceNo = text.match(/INVOICE No\.\s*:\s*(\S+)/)?.[1]?.trim() ?? ''
-  const blNo = text.match(/H\.B\/L No\.\s*:\s*(\S+)/)?.[1]?.trim() ?? ''
-
-  // 2) 수입신고필증/세금계산서 부분 추출 (Claude AI)
-  const { taxBase, taxAmount, date: clearanceDate } = await extractImportTaxFields(text)
+  // pdf-parse가 라벨/값을 분리해서 추출하므로 regex로는 신뢰 불가
+  // 두 영역(글로지텍 INVOICE / 수입신고필증) 모두 Claude AI 로 추출
+  const [
+    { totalAmount: freightAmount, date: freightDate, invoiceNo, blNo },
+    { taxBase, taxAmount, date: clearanceDate },
+  ] = await Promise.all([
+    extractGlogiFields(text),
+    extractImportTaxFields(text),
+  ])
 
   if (freightAmount === 0 && taxBase === 0 && taxAmount === 0) {
     return NextResponse.json({ error: '번들에서 어떤 금액도 추출하지 못했습니다.' }, { status: 400 })
@@ -261,22 +303,9 @@ async function handleBundlePDF(text: string): Promise<NextResponse> {
   })
 }
 
-// ── 글로지텍 해운 인보이스 ──
+// ── 글로지텍 해운 인보이스 (단독) ──
 async function handleGlogiInvoice(text: string): Promise<NextResponse> {
-  const extractNum = (pattern: RegExp) => {
-    const m = text.match(pattern)
-    return m ? parseInt(m[1].replace(/,/g, ''), 10) : 0
-  }
-  const extractStr = (pattern: RegExp) => {
-    const m = text.match(pattern)
-    return m ? m[1].trim() : ''
-  }
-
-  // "TOTAL AMOUNT: KRW 1,054,394"
-  const totalAmount = extractNum(/TOTAL AMOUNT[:\s]+KRW[\s]*([\d,]+)/)
-  const dateStr = extractStr(/청구일자\s*:\s*(\d{4}-\d{2}-\d{2})/) || extractStr(/(\d{4}-\d{2}-\d{2})/)
-  const invoiceNo = extractStr(/INVOICE No\.\s*:\s*(\S+)/)
-  const blNo = extractStr(/H\.B\/L No\.\s*:\s*(\S+)/)
+  const { totalAmount, date: dateStr, invoiceNo, blNo } = await extractGlogiFields(text)
 
   if (totalAmount === 0) {
     return NextResponse.json({ error: 'TOTAL AMOUNT를 파싱할 수 없습니다.' }, { status: 400 })
