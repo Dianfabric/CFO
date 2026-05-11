@@ -56,14 +56,14 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  /* 라디우스 — Apple spec: sm 8 / md 11 / lg 18 / pill 9999 */
-  --radius-sm: 0.5rem;       /* 8px — 다크 유틸리티 버튼 */
-  --radius-md: 0.6875rem;    /* 11px — Pearl Button */
-  --radius-lg: 1.125rem;     /* 18px — utility cards */
-  --radius-xl: 1.5rem;       /* 24px — 큰 카드 */
-  --radius-2xl: 2rem;
-  --radius-3xl: 2.5rem;
-  --radius-4xl: 3rem;
+  /* 라디우스 — NVIDIA spec V2.1: 2px on every interactive (avatars=full only) */
+  --radius-sm: 0.125rem;     /* 2px */
+  --radius-md: 0.125rem;     /* 2px */
+  --radius-lg: 0.125rem;     /* 2px */
+  --radius-xl: 0.125rem;     /* 2px */
+  --radius-2xl: 0.125rem;
+  --radius-3xl: 0.125rem;
+  --radius-4xl: 0.125rem;
 
   /* 디안 추가 토큰 (Apple spec 의 의미 보존) */
   --color-canvas: #ffffff;
@@ -84,8 +84,40 @@
   --color-action: #0066cc;
   --color-action-focus: #0071e3;
   --color-action-on-dark: #2997ff;
-  --color-alert-red: #ff3b30;       /* iOS system red — 위험 신호 */
-  --color-status-green: #34c759;    /* iOS system green — 정상 */
+  --color-alert-red: #ff3b30;
+  --color-status-green: #34c759;
+
+  /* ============================================================
+     NVIDIA 디자인 토큰 (V2.1 — 전역 재디자인)
+     기준: NVIDIA marketing system spec
+     ============================================================ */
+  /* Brand & Accent */
+  --nv-primary: #76b900;            /* NVIDIA Green — 모든 CTA·active·decorative */
+  --nv-primary-dark: #5a8d00;       /* pressed state */
+  --nv-accent-pale: #bff230;        /* editorial highlight */
+
+  /* Surface */
+  --nv-canvas: #ffffff;
+  --nv-surface-soft: #f7f7f7;       /* breadcrumb, sub-nav, alt-row */
+  --nv-surface-dark: #000000;       /* hero/footer chapter */
+  --nv-surface-elevated: #1a1a1a;   /* nested dark panels */
+  --nv-hairline: #cccccc;           /* 1px card border */
+  --nv-hairline-strong: #5e5e5e;    /* dark surface divider */
+
+  /* Text */
+  --nv-ink: #000000;                /* headlines on canvas */
+  --nv-body: #1a1a1a;               /* long-form body */
+  --nv-mute: #757575;               /* metadata, breadcrumb sep */
+  --nv-stone: #898989;              /* least-emphasis */
+  --nv-ash: #a7a7a7;                /* disabled icon */
+  --nv-on-dark: #ffffff;
+  --nv-on-dark-mute: rgba(255, 255, 255, 0.7);
+
+  /* Semantic */
+  --nv-error: #e52020;
+  --nv-warning: #df6500;
+  --nv-success-deep: #3f8500;
+  --nv-link-blue: #0046a4;          /* inline prose links only */
 }
 
 /* ============================================================
@@ -100,49 +132,49 @@
   --popover: #ffffff;
   --popover-foreground: #1d1d1f;
 
-  /* Primary = Action Blue (디안의 단일 액션 컬러) */
-  --primary: #0066cc;
-  --primary-foreground: #ffffff;
+  /* Primary = NVIDIA Green (V2.1 — 단일 액센트) */
+  --primary: #76b900;
+  --primary-foreground: #000000;     /* 그린 위 검정 텍스트 — NVIDIA 스펙 */
 
-  /* Secondary = parchment */
-  --secondary: #f5f5f7;
-  --secondary-foreground: #1d1d1f;
+  /* Secondary = NVIDIA surface-soft */
+  --secondary: #f7f7f7;
+  --secondary-foreground: #1a1a1a;
 
-  /* Muted = parchment + softer ink */
-  --muted: #f5f5f7;
-  --muted-foreground: #7a7a7a;
+  /* Muted = surface-soft + mute */
+  --muted: #f7f7f7;
+  --muted-foreground: #757575;
 
-  /* Accent = parchment (Apple은 두번째 accent 컬러 없음 — parchment surface 활용) */
-  --accent: #f5f5f7;
-  --accent-foreground: #1d1d1f;
+  /* Accent = surface-soft */
+  --accent: #f7f7f7;
+  --accent-foreground: #1a1a1a;
 
-  /* Destructive = iOS system red */
-  --destructive: #ff3b30;
+  /* Destructive = NVIDIA error */
+  --destructive: #e52020;
 
-  /* Border / Input / Ring — hairline grammar */
-  --border: #e0e0e0;
-  --input: #e0e0e0;
-  --ring: #0071e3;
+  /* Border / Input / Ring — NVIDIA hairline */
+  --border: #cccccc;
+  --input: #cccccc;
+  --ring: #76b900;                    /* 그린 focus */
 
-  /* Charts — 단일 액션 컬러 단계 (single-hue palette) */
-  --chart-1: #0066cc;       /* primary action */
-  --chart-2: #4d94db;       /* lighter step */
-  --chart-3: #8db8e8;       /* lighter step 2 */
-  --chart-4: #1d1d1f;       /* ink */
-  --chart-5: #7a7a7a;       /* ink-muted */
+  /* Charts — NVIDIA Green 단계 (single-hue) */
+  --chart-1: #76b900;
+  --chart-2: #5a8d00;
+  --chart-3: #bff230;
+  --chart-4: #1a1a1a;
+  --chart-5: #757575;
 
-  /* Radius base — Apple spec: sm 8 (utility) */
-  --radius: 0.5rem;
+  /* Radius base — NVIDIA spec: 2px on all interactive */
+  --radius: 0.125rem;                 /* 2px */
 
-  /* Sidebar — 화이트 + ultra-quiet (Apple 의 nav-recedes 원칙) */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1d1d1f;
-  --sidebar-primary: #0066cc;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f5f5f7;
-  --sidebar-accent-foreground: #1d1d1f;
-  --sidebar-border: #e0e0e0;
-  --sidebar-ring: #0071e3;
+  /* Sidebar — NVIDIA dark surface (V2.1) */
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #76b900;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: rgba(255, 255, 255, 0.05);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #5e5e5e;
+  --sidebar-ring: #76b900;
 
   /* Fonts */
   --font-sans: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont,
@@ -355,5 +387,197 @@
   .section-pad-sm {
     padding-top: clamp(64px, 8vw, 128px);
     padding-bottom: clamp(64px, 8vw, 128px);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     NVIDIA 컴포넌트 유틸리티 (V2.1)
+     ────────────────────────────────────────────────────────── */
+
+  /* NVIDIA primary CTA — green fill */
+  .nv-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 11px 24px;
+    background-color: var(--nv-primary);
+    color: #000000;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.25;
+    border-radius: 2px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .nv-btn-primary:hover {
+    background-color: var(--nv-primary-dark);
+  }
+  .nv-btn-primary:active {
+    background-color: var(--nv-primary-dark);
+    transform: scale(0.98);
+  }
+
+  /* NVIDIA outline CTA — transparent + green border */
+  .nv-btn-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 11px 13px;
+    background-color: transparent;
+    color: var(--nv-ink);
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.25;
+    border: 2px solid var(--nv-primary);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .nv-btn-outline:hover {
+    background-color: rgba(118, 185, 0, 0.08);
+  }
+
+  /* NVIDIA outline on dark surface */
+  .nv-btn-outline-dark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 11px 24px;
+    background-color: transparent;
+    color: var(--nv-on-dark);
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.25;
+    border: 1px solid var(--nv-on-dark);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .nv-btn-outline-dark:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* NVIDIA card — flat with hairline border */
+  .nv-card {
+    background-color: var(--nv-canvas);
+    border: 1px solid var(--nv-hairline);
+    border-radius: 2px;
+    padding: 24px;
+    position: relative;
+  }
+
+  /* NVIDIA corner-square — 12×12px green decorative motif */
+  .nv-corner-square {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background-color: var(--nv-primary);
+    pointer-events: none;
+  }
+  .nv-corner-square--tl { top: 0; left: 0; }
+  .nv-corner-square--tr { top: 0; right: 0; }
+  .nv-corner-square--bl { bottom: 0; left: 0; }
+  .nv-corner-square--br { bottom: 0; right: 0; }
+
+  /* NVIDIA badge tag — uppercase pill */
+  .nv-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 4px 10px;
+    background-color: var(--nv-surface-soft);
+    color: var(--nv-body);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.43;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* NVIDIA hero typography */
+  .nv-display-xl {
+    font-size: clamp(32px, 5vw, 48px);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+  .nv-display-lg {
+    font-size: clamp(28px, 3.5vw, 36px);
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .nv-heading-xl {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .nv-heading-md {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .nv-card-title {
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.47;
+  }
+  .nv-body {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--nv-body);
+  }
+  .nv-body-strong {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+  .nv-body-sm {
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.67;
+  }
+  .nv-eyebrow {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.43;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--nv-mute);
+  }
+  .nv-caption {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.25;
+    color: var(--nv-mute);
+  }
+
+  /* NVIDIA section rhythm — 64px between major blocks */
+  .nv-section {
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+  .nv-section-hero {
+    padding: 80px 48px;
+  }
+
+  /* Ghost-link arrow ("Learn More →") */
+  .nv-ghost-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--nv-primary);
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: gap 120ms ease;
+  }
+  .nv-ghost-link:hover {
+    gap: 10px;
   }
 }

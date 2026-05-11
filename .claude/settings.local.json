@@ -260,7 +260,32 @@
       "Bash(node scripts/debug-imagen.mjs)",
       "Bash(echo \"EXIT=$?\")",
       "Bash(npx next *)",
-      "Bash(git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m 'checkpoint: V2.0 backup — pre-NVIDIA redesign + AI Create infra *)"
+      "Bash(git -c user.name=Claude -c user.email=noreply@anthropic.com commit -m 'checkpoint: V2.0 backup — pre-NVIDIA redesign + AI Create infra *)",
+      "Bash(curl -s -L -o /dev/null -w \"HTTP %{http_code}\\\\n\" --max-redirs 3 http://localhost:3000/)",
+      "Bash(git log *)",
+      "Bash(curl -s \"http://localhost:3000/api/clients\" --max-time 15)",
+      "Bash(python -c \"import sys, json; d = json.load\\(sys.stdin\\); print\\(f'count: {len\\(d\\)}\\\\\\\\nfirst 3:'\\); [print\\(f'  - {c[\\\\\"name\\\\\"]} \\({c[\\\\\"source\\\\\"]}\\)'\\) for c in d[:3]]\")",
+      "Bash(curl -s \"http://localhost:3000/api/products\" --max-time 15)",
+      "Bash(python -c \"import sys, json; d = json.load\\(sys.stdin\\); print\\(f'count: {len\\(d\\)}'\\); [print\\(f'  - {p[\\\\\"name\\\\\"]}'\\) for p in d[:3]]\")",
+      "Bash(curl -s -X POST \"http://localhost:3000/api/products/sync\" --max-time 60)",
+      "Bash(curl -s \"http://localhost:3000/api/products\" --max-time 30)",
+      "Bash(python -c \"import sys, json; d = json.load\\(sys.stdin\\); print\\(f'count: {len\\(d\\)}'\\); [print\\(f'  - {p[\\\\\"name\\\\\"]} \\({p.get\\(\\\\\"category\\\\\", \\\\\"-\\\\\"\\)}\\)'\\) for p in d[:3]]\")",
+      "Bash(curl -s \"http://localhost:3000/api/documents\" --max-time 10)",
+      "Bash(python -c \"import sys, json; d = json.load\\(sys.stdin\\); print\\(f'docs count: {len\\(d\\) if isinstance\\(d, list\\) else \\\\\"N/A — \\\\\" + str\\(d\\)[:200]}'\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/documents/last-prices?clientId=at_test&productIds=test\" --max-time 10)",
+      "Bash(curl -s \"http://localhost:3000/api/transactions\" --max-time 10)",
+      "Bash(python -c \"import sys, json; d = json.load\\(sys.stdin\\); print\\(f'tx total: {d.get\\(\\\\\"total\\\\\", \\\\\"N/A\\\\\"\\)}, transactions array len: {len\\(d.get\\(\\\\\"transactions\\\\\", []\\)\\)}'\\)\")",
+      "Bash(sqlite3 dev.db \"SELECT COUNT\\(*\\) FROM OfficialDocument;\")",
+      "Bash(sqlite3 dev.db \"SELECT COUNT\\(*\\) FROM \\\\\"Transaction\\\\\";\")",
+      "Bash(sqlite3 dev.db \"SELECT COUNT\\(*\\) FROM Product;\")",
+      "Bash(sqlite3 prisma/dev.db \"SELECT COUNT\\(*\\) FROM OfficialDocument;\")",
+      "Bash(sqlite3 prisma/dev.db \"SELECT COUNT\\(*\\) FROM \\\\\"Transaction\\\\\";\")",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(node scripts/inspect-root-db.mjs)",
+      "Bash(npx vercel *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | redirect: %{redirect_url} | size: %{size_download}\\\\n\" -L --max-time 15 https://dianfabric.github.io/dian-quote/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | redirect: %{redirect_url} | size: %{size_download}\\\\n\" -L --max-time 15 https://dian-fabric-search.vercel.app/)",
+      "Bash(git -c user.name=dodianbook -c user.email=dodianbook@gmail.com commit -m ' *)"
     ]
   }
 }

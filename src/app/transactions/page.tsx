@@ -12,6 +12,7 @@ import {
   formatKRW, formatDate, getTransactionTypeName, getPaymentMethodName,
   getPaymentStatusName, getChannelName,
 } from '@/lib/formatters'
+import NvHeroStrip from '@/components/v11/nvidia/NvHeroStrip'
 
 interface Product { id: string; name: string; unit: string; sellingPrice: number; purchasePrice: number }
 interface Client { id: string; name: string; type: string }
@@ -203,14 +204,15 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">거래 관리</h1>
-          <p className="text-sm text-slate-500">매출·비용·매입 거래를 기록하고 조회합니다</p>
-        </div>
+    <div className="space-y-8">
+      <NvHeroStrip
+        eyebrow="Finance"
+        title="거래 관리."
+        subtitle="매출·비용·매입 거래를 기록하고 조회합니다."
+      />
+      <div className="flex items-center justify-end">
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-1 border-blue-300 text-blue-700 hover:bg-blue-50"
+          <Button variant="outline" size="sm" className="gap-1.5"
             onClick={() => { setShippingOpen(true); setShippingState('idle'); setShippingItems([]); setShippingError('') }}>
             <Ship className="w-4 h-4" />해외운송비 PDF
           </Button>

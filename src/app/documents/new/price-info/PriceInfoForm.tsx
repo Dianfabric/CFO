@@ -222,6 +222,24 @@ export default function PriceInfoForm() {
     }))
   }
 
+  // ── 품목 DB에 없는 제품 직접 추가 ─────────────────────────────
+  const addManualRow = (initialName?: string) => {
+    setForm(s => ({
+      ...s,
+      rows: [
+        ...s.rows,
+        {
+          _productId: undefined,
+          productName: (initialName ?? '').trim(),
+          spec: '',
+          yardPrice: 0,
+          width: 0,
+        },
+      ],
+    }))
+    setProductSearch('')
+  }
+
   const updateRow = (i: number, patch: Partial<RowData>) =>
     setForm(s => ({ ...s, rows: s.rows.map((r, idx) => idx === i ? { ...r, ...patch } : r) }))
 
@@ -755,23 +773,71 @@ export default function PriceInfoForm() {
                     className="h-8 text-sm mb-2"
                     value={productSearch}
                     onChange={e => setProductSearch(e.target.value)}
+                    onKeyDown={e => {
+                      if (
+                        e.key === 'Enter' &&
+                        productSearch.trim() &&
+                        !productSearchLoading &&
+                        products.length === 0
+                      ) {
+                        e.preventDefault()
+                        addManualRow(productSearch)
+                        setProductPickerOpen(false)
+                      }
+                    }}
                     autoFocus
                   />
                   {productSearchLoading ? (
                     <p className="text-xs text-slate-400 text-center py-3">검색 중...</p>
                   ) : !productSearch.trim() ? (
-                    <p className="text-xs text-slate-400 text-center py-3">원단명을 입력하면 검색됩니다</p>
+                    <div className="text-center py-3">
+                      <p className="text-xs text-slate-400 mb-2">원단명을 입력하면 검색됩니다</p>
+                      <button
+                        type="button"
+                        onClick={() => { addManualRow(); setProductPickerOpen(false) }}
+                        className="inline-flex items-center gap-1 h-7 px-3 text-xs bg-white border border-slate-300 rounded-md hover:border-blue-500 hover:text-blue-600 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        품목에 없는 제품 직접 입력
+                      </button>
+                    </div>
                   ) : products.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-3">결과 없음</p>
-                  ) : products.map(p => (
-                    <button key={p.id}
-                      onClick={() => { addProductRow(p); setProductSearch('') }}
-                      className="w-full text-left px-2.5 py-2 rounded-md hover:bg-white text-sm flex justify-between items-center"
-                    >
-                      <span className="font-medium">{p.name}</span>
-                      <span className="text-xs text-slate-500">{krw(p.sellingPrice)}/{p.unit}</span>
-                    </button>
-                  ))}
+                    <div className="text-center py-3">
+                      <p className="text-xs text-slate-400 mb-2">검색 결과가 없습니다</p>
+                      <button
+                        type="button"
+                        onClick={() => { addManualRow(productSearch); setProductPickerOpen(false) }}
+                        className="inline-flex items-center gap-1 h-7 px-3 text-xs bg-blue-50 text-blue-700 border border-blue-300 rounded-md hover:bg-blue-100 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        &lsquo;{productSearch.trim()}&rsquo; 그대로 추가
+                      </button>
+                      <p className="text-[10px] text-slate-400 mt-1.5">
+                        Enter 키로도 추가 가능
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {products.map(p => (
+                        <button key={p.id}
+                          onClick={() => { addProductRow(p); setProductSearch('') }}
+                          className="w-full text-left px-2.5 py-2 rounded-md hover:bg-white text-sm flex justify-between items-center"
+                        >
+                          <span className="font-medium">{p.name}</span>
+                          <span className="text-xs text-slate-500">{krw(p.sellingPrice)}/{p.unit}</span>
+                        </button>
+                      ))}
+                      <div className="mt-1 pt-2 border-t border-slate-200 text-center">
+                        <button
+                          type="button"
+                          onClick={() => { addManualRow(productSearch); setProductPickerOpen(false) }}
+                          className="text-[11px] text-slate-500 hover:text-blue-600 transition-colors"
+                        >
+                          + 위 검색어를 신규 품목으로 추가
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 

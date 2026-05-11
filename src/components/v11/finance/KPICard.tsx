@@ -36,33 +36,46 @@ export default function KPICard({
           : 'text-foreground'
 
   return (
-    <Card>
-      <CardContent className="flex items-start justify-between gap-3 py-2">
+    <Card className="relative">
+      {/* NVIDIA corner-square */}
+      <span
+        aria-hidden
+        className="absolute top-0 left-0"
+        style={{
+          width: '12px',
+          height: '12px',
+          backgroundColor: 'var(--nv-primary)',
+        }}
+      />
+      <CardContent className="flex items-start justify-between gap-3 py-2 pt-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-ink-muted-48)]">
+          <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#757575]">
             {label}
           </p>
           <p
             className={cn(
-              'mt-2 truncate text-[28px] font-semibold tabular-nums tracking-[-0.022em] leading-none',
+              'mt-2 truncate text-[28px] font-bold tabular-nums tracking-tight leading-none',
               valueClass,
             )}
           >
             {value}
           </p>
           {hint && (
-            <p className="mt-2 text-[12px] tracking-[-0.012em] text-[var(--color-ink-muted-48)] flex items-center gap-1.5">
+            <p className="mt-2 text-[12px] text-[#757575] flex items-center gap-1.5">
               {tone === 'negative' && (
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-alert-red)]" />
+                <span className="inline-block h-1.5 w-1.5 bg-[#e52020]" />
               )}
               {tone === 'positive' && (
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-status-green)]" />
+                <span className="inline-block h-1.5 w-1.5 bg-[#76b900]" />
               )}
               {hint}
             </p>
           )}
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[var(--color-canvas-parchment)] text-[var(--color-ink-muted-48)]">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center bg-[#f7f7f7] border border-[#cccccc] text-[#1a1a1a]"
+          style={{ borderRadius: '2px' }}
+        >
           <Icon className="h-4 w-4" strokeWidth={1.8} />
         </div>
       </CardContent>

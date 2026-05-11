@@ -53,7 +53,16 @@ export async function renderCanvas(elementId = 'document-print-area'): Promise<H
   <base href="${location.origin}">
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 0; background: #fff; }
+    /* letter-spacing 만 globals.css 와 일치 — 한국어 자간을 미리보기와 동일하게 */
+    body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      letter-spacing: -0.01em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
     img  { max-width: none !important; }
     table { border-collapse: collapse; }
   </style>

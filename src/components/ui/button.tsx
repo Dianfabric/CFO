@@ -19,54 +19,52 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // 기본 — Apple Action Blue pill (button-primary)
+        // 기본 — NVIDIA primary (green fill, 2px radius, bold 700)
         default:
-          "rounded-full bg-primary text-primary-foreground tracking-tight hover:bg-[#0058b3] active:scale-95",
+          "rounded-[2px] bg-primary text-primary-foreground font-bold tracking-tight hover:bg-[#5a8d00] active:scale-95",
 
-        // outline = ghost pill (button-secondary-pill)
+        // outline — NVIDIA secondary (2px green border)
         outline:
-          "rounded-full bg-transparent text-primary border border-primary/80 tracking-tight hover:bg-primary/5 active:scale-95",
+          "rounded-[2px] bg-transparent text-foreground border-2 border-primary font-bold tracking-tight hover:bg-primary/5 active:scale-95",
 
-        // secondary = pearl capsule (button-pearl-capsule)
+        // secondary — NVIDIA surface-soft button
         secondary:
-          "rounded-[11px] bg-[var(--color-surface-pearl)] text-[var(--color-ink-muted-80)] border border-[var(--color-divider-soft)] hover:bg-[var(--color-canvas-parchment)] active:scale-95",
+          "rounded-[2px] bg-[#f7f7f7] text-[#1a1a1a] border border-[#cccccc] font-bold hover:bg-[#eeeeee] active:scale-95",
 
-        // dark utility — global nav 액션 (Sign In, Bag 같은 것)
+        // dark — NVIDIA dark surface utility
         dark:
-          "rounded-lg bg-[var(--color-ink)] text-white tracking-tight hover:bg-[var(--color-surface-tile-1)] active:scale-95",
+          "rounded-[2px] bg-black text-white font-bold tracking-tight hover:bg-[#1a1a1a] active:scale-95",
 
-        // ghost — ultra-quiet (사이드바 메뉴 등)
+        // ghost — ultra-quiet
         ghost:
-          "rounded-lg bg-transparent text-foreground hover:bg-[var(--color-canvas-parchment)] aria-expanded:bg-[var(--color-canvas-parchment)] dark:hover:bg-muted/30",
+          "rounded-[2px] bg-transparent text-foreground hover:bg-[#f7f7f7] aria-expanded:bg-[#f7f7f7]",
 
-        // destructive — 민감한 액션 (Apple 톤: 배경 거의 없음)
+        // destructive — NVIDIA error
         destructive:
-          "rounded-full bg-transparent text-destructive border border-destructive/40 hover:bg-destructive/5 active:scale-95",
+          "rounded-[2px] bg-transparent text-destructive border border-destructive/40 hover:bg-destructive/5 active:scale-95",
 
         // link — inline 텍스트 링크
         link:
           "rounded-none bg-transparent text-primary underline-offset-4 hover:underline px-0",
       },
       size: {
-        // default — Apple primary CTA: 11×22 padding, 17px body, h ~44
+        // default — NVIDIA standard CTA: 44px height, 24px padding, 16px bold
         default:
-          "h-10 px-5 text-[15px] gap-1.5 has-data-[icon=inline-end]:pr-3.5 has-data-[icon=inline-start]:pl-3.5",
+          "h-11 px-6 text-[16px] gap-1.5 has-data-[icon=inline-end]:pr-4 has-data-[icon=inline-start]:pl-4",
 
-        // xs — 미니 (xs 칩, 인라인 액션)
         xs: "h-6 px-2.5 text-[11px] gap-1 [&_svg:not([class*='size-'])]:size-3",
 
-        // sm — 유틸리티 액션
         sm: "h-8 px-3 text-[13px] gap-1 [&_svg:not([class*='size-'])]:size-3.5",
 
-        // lg — Store hero CTA (Apple spec: 18px, weight 300!)
-        lg: "h-12 px-7 text-[18px] font-light gap-2",
+        // lg — NVIDIA hero CTA (button-lg: 18px bold)
+        lg: "h-12 px-7 text-[18px] font-bold gap-2",
 
-        // icon — 44×44 (Apple touch target)
-        icon: "size-10 rounded-full",
+        // icon — 44×44 (touch target) — 2px radius (NVIDIA: only avatar/social are full)
+        icon: "size-10 rounded-[2px]",
 
-        "icon-xs": "size-6 rounded-full [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8 rounded-full [&_svg:not([class*='size-'])]:size-3.5",
-        "icon-lg": "size-11 rounded-full",
+        "icon-xs": "size-6 rounded-[2px] [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-8 rounded-[2px] [&_svg:not([class*='size-'])]:size-3.5",
+        "icon-lg": "size-11 rounded-[2px]",
       },
     },
     defaultVariants: {

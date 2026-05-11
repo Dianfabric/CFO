@@ -18,12 +18,12 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        // base — flat + hairline + 18px radius (store-utility-card)
-        "group/card flex flex-col gap-5 overflow-hidden rounded-[18px] bg-card py-6 text-card-foreground border border-[var(--color-hairline)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0",
-        // sm size — 더 작은 카드
+        // base — NVIDIA card (V2.1): flat + 1px hairline #cccccc + 2px radius
+        "group/card flex flex-col gap-5 overflow-hidden rounded-[2px] bg-card py-6 text-card-foreground border border-[#cccccc] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0",
+        // sm size
         "data-[size=sm]:gap-3 data-[size=sm]:py-4 data-[size=sm]:has-data-[slot=card-footer]:pb-0",
-        // 이미지 처리
-        "*:[img:first-child]:rounded-t-[18px] *:[img:last-child]:rounded-b-[18px]",
+        // 이미지 — 위/아래 꽉 차게
+        "*:[img:first-child]:rounded-none *:[img:last-child]:rounded-none",
         className
       )}
       {...props}
@@ -100,7 +100,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-b-[18px] border-t border-[var(--color-hairline)] bg-[var(--color-canvas-parchment)] px-6 py-4 group-data-[size=sm]/card:px-4 group-data-[size=sm]/card:py-3",
+        "flex items-center rounded-none border-t border-[#cccccc] bg-[#f7f7f7] px-6 py-4 group-data-[size=sm]/card:px-4 group-data-[size=sm]/card:py-3",
         className
       )}
       {...props}

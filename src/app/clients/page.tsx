@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Plus, Search, Users, Pencil, Phone, Mail } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import NvHeroStrip from '@/components/v11/nvidia/NvHeroStrip'
 
 interface Client {
   id: string; name: string; businessNumber: string | null; contactName: string | null;
@@ -74,12 +75,13 @@ export default function ClientsPage() {
   const typeLabel = (t: string) => CLIENT_TYPES.find(ct => ct.value === t)?.label || t
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">거래처 관리</h1>
-          <p className="text-sm text-slate-500">B2B 고객사 및 원자재 공급사를 관리합니다</p>
-        </div>
+    <div className="space-y-8">
+      <NvHeroStrip
+        eyebrow="Go-To-Market"
+        title="거래처 관리."
+        subtitle="B2B 고객사 및 원자재 공급사를 관리합니다."
+      />
+      <div className="flex items-center justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNew} className="gap-1"><Plus className="w-4 h-4" />거래처 등록</Button>

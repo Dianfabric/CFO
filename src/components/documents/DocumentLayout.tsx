@@ -49,13 +49,16 @@ export default function DocumentLayout({ header, body, bodyLineHeight = 1.9, tab
         background: '#ffffff',
         color: '#1a1a1a',
         fontFamily: '"Malgun Gothic", "맑은 고딕", -apple-system, BlinkMacSystemFont, sans-serif',
-        padding: '84px 64px 0 64px',
+        padding: '104px 64px 20px 64px',
         boxSizing: 'border-box',
         position: 'relative',
         fontSize: 13,
         lineHeight: 1.7,
+        letterSpacing: '-0.01em',
         display: 'flex',
         flexDirection: 'column',
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale',
       }}
     >
       {/* ===== 상단 헤더 ===== */}

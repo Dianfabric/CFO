@@ -26,7 +26,8 @@ export default function PriceChangeTable({ rows, direction, effectiveDate, vipNa
     .split(/\s*\/\s*/)[0]
     .trim()
   const isUp = direction === 'UP'
-  const labelNew = isUp ? '인상 금액' : '인하 금액'
+  const labelNewPrice = isUp ? '인상 단가' : '인하 단가'         // newPrice 컬럼 헤더
+  const labelDeltaAmount = isUp ? '인상 금액' : '인하 금액'      // newPrice − oldPrice (신규 컬럼)
   const labelDelta = isUp ? '인상률' : '인하율'
 
   // 특별할인이 있는 행이 하나라도 있으면 할인 컬럼 표시
@@ -45,31 +46,35 @@ export default function PriceChangeTable({ rows, direction, effectiveDate, vipNa
         <tr>
           <th style={th}>품　명</th>
           <th style={{ ...th, width: 70 }}>단위</th>
-          <th style={{ ...th, width: 110, textAlign: 'right' }}>기존 금액</th>
-          <th style={{ ...th, width: 110, textAlign: 'right' }}>{labelNew}</th>
+          <th style={{ ...th, width: 100, textAlign: 'right' }}>기존 단가</th>
+          <th style={{ ...th, width: 100, textAlign: 'right' }}>{labelNewPrice}</th>
+          <th style={{ ...th, width: 100, textAlign: 'right' }}>{labelDeltaAmount}</th>
           {hasDiscount && (
             <th style={{ ...th, width: 100, textAlign: 'right', color: '#1a5fa0' }}>특별할인</th>
           )}
           {hasDiscount && (
             <th style={{ ...th, width: 100, textAlign: 'right', color: '#1a5fa0' }}>최종 단가</th>
           )}
-          <th style={{ ...th, width: 86, textAlign: 'right' }}>{labelDelta}</th>
+          <th style={{ ...th, width: 78, textAlign: 'right' }}>{labelDelta}</th>
         </tr>
       </thead>
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={hasDiscount ? 7 : 5} style={{ ...td, textAlign: 'center', color: '#aaa', padding: 24 }}>품목을 추가해 주세요</td>
+            <td colSpan={hasDiscount ? 8 : 6} style={{ ...td, textAlign: 'center', color: '#aaa', padding: 24 }}>품목을 추가해 주세요</td>
           </tr>
         ) : rows.map((r, i) => {
           const disc = r.discount ?? 0
           const finalPrice = r.newPrice - disc
+          // 인상 금액 = 인상 단가 − 기존 단가 (할인 적용 전)
+          const deltaAmount = r.newPrice - r.oldPrice
+          // 인상률 = 최종 단가 기준 (할인 적용 후)
           const delta = r.oldPrice > 0 ? ((finalPrice - r.oldPrice) / r.oldPrice) * 100 : 0
 
           const vipOld = r.vipOldPrice ?? 0
           const vipNew = r.vipNewPrice ?? 0
+          const vipDeltaAmount = vipNew - vipOld
           const vipDelta = vipOld > 0 ? ((vipNew - vipOld) / vipOld) * 100 : 0
-          const rowHasVip = vipOld > 0 || vipNew > 0
 
           return (
             <tr key={i}>
@@ -95,6 +100,14 @@ export default function PriceChangeTable({ rows, direction, effectiveDate, vipNa
                 {hasVip && vipNew > 0 && (
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#7a3aa0', marginTop: 2 }}>
                     ({krw(vipNew)})
+                  </div>
+                )}
+              </td>
+              <td style={{ ...td, textAlign: 'right', fontWeight: 600, color: isUp ? '#a01a1a' : '#0a6f3a' }}>
+                <div>{deltaAmount === 0 ? '-' : `${deltaAmount > 0 ? '+' : '−'}${krw(Math.abs(deltaAmount))}`}</div>
+                {hasVip && vipOld > 0 && vipNew > 0 && (
+                  <div style={{ fontSize: 11, fontWeight: 500, color: '#7a3aa0', marginTop: 2 }}>
+                    ({vipDeltaAmount > 0 ? '+' : vipDeltaAmount < 0 ? '−' : ''}{krw(Math.abs(vipDeltaAmount))})
                   </div>
                 )}
               </td>
