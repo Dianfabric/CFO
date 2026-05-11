@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { FileText, Plus, TrendingUp, TrendingDown, CalendarOff, Wallet, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon } from 'lucide-react'
+import { FileText, Plus, TrendingUp, CalendarOff, Wallet, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon } from 'lucide-react'
 import DocumentPreviewDialog, { DocFull } from '@/components/documents/DocumentPreviewDialog'
 import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/SavedDocumentRender'
 import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
@@ -169,13 +169,6 @@ export default function DocumentsPage() {
                 <TrendingUp className="w-5 h-5 text-rose-600 mb-2" />
                 <div className="font-semibold text-sm">단가 인상</div>
                 <div className="text-xs text-slate-500 mt-1">% 또는 정액으로 인상</div>
-              </div>
-            </Link>
-            <Link href="/documents/new/price-change?direction=DOWN" className="group">
-              <div className="border rounded-lg p-4 bg-white hover:border-emerald-400 hover:shadow-sm transition">
-                <TrendingDown className="w-5 h-5 text-emerald-600 mb-2" />
-                <div className="font-semibold text-sm">단가 인하</div>
-                <div className="text-xs text-slate-500 mt-1">% 또는 정액으로 인하</div>
               </div>
             </Link>
             <Link href="/documents/new/price-info">

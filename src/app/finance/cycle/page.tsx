@@ -29,6 +29,7 @@ import { calculateCycleProgress, daysUntilNextMonday } from '@/lib/v11-cycle'
 import { formatKRW } from '@/lib/formatters'
 import GoalsList from '@/components/v11/cycle/GoalsList'
 import type { GoalRow } from '@/components/v11/cycle/GoalEditDialog'
+import CycleStartCard from '@/components/v11/cycle/CycleStartCard'
 import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
@@ -150,24 +151,7 @@ export default async function CyclePage() {
           <h1 className="text-2xl font-bold text-slate-900">12주 대시보드</h1>
           <p className="mt-1 text-sm text-slate-500">활성 사이클이 없습니다.</p>
         </div>
-        <Card className="border-rose-200 bg-rose-50">
-          <CardContent>
-            <div className="flex items-start gap-3 text-sm text-rose-900">
-              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-              <div>
-                <p className="font-semibold">사이클을 찾지 못했습니다.</p>
-                <p className="mt-1 text-xs">{error}</p>
-                <p className="mt-2 text-xs">
-                  Supabase SQL Editor에서 다음을 실행하면 새 12주 사이클이 시작됩니다:
-                </p>
-                <pre className="mt-1 overflow-x-auto rounded bg-white p-2 text-[11px]">
-{`INSERT INTO cycles (cycle_number, start_date, end_date, status)
-VALUES (1, CURRENT_DATE, CURRENT_DATE + 83, 'active');`}
-                </pre>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <CycleStartCard error={error} />
       </div>
     )
   }

@@ -215,6 +215,57 @@ export async function updateGoalAlignment(
   }
 }
 
+/**
+ * 첫 12주 사이클을 한 클릭으로 시작.
+ * - 활성 사이클 있으면 그 번호 + 1
+ * - 없으면 #1 부터
+ * - 오늘 시작, 83일 후 종료 (12주)
+ */
+export async function startCycle(): Promise<
+  { ok: true; cycleNumber: number } | { ok: false; error: string }
+> {
+  try {
+    const supabase = await createClient()
+
+    // 가장 최근 사이클 번호 조회 (있으면 +1)
+    const { data: last } = await supabase
+      .from('cycles')
+      .select('cycle_number')
+      .order('cycle_number', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const nextNumber = last ? Number(last.cycle_number) + 1 : 1
+
+    // 12주 = 83일 후
+    const today = new Date()
+    const end = new Date(today)
+    end.setDate(today.getDate() + 83)
+
+    const startStr = today.toISOString().split('T')[0]
+    const endStr = end.toISOString().split('T')[0]
+
+    const { error } = await supabase.from('cycles').insert({
+      cycle_number: nextNumber,
+      start_date: startStr,
+      end_date: endStr,
+      status: 'active',
+    })
+
+    if (error) return { ok: false, error: error.message }
+
+    revalidatePath('/finance/cycle')
+    revalidatePath('/dashboard')
+    revalidatePath('/')
+    return { ok: true, cycleNumber: nextNumber }
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
+}
+
 export async function updateCycleVision(
   cycle_id: number,
   vision_statement: string,
