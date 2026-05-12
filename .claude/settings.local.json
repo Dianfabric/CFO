@@ -287,7 +287,8 @@
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | redirect: %{redirect_url} | size: %{size_download}\\\\n\" -L --max-time 15 https://dian-fabric-search.vercel.app/)",
       "Bash(git -c user.name=dodianbook -c user.email=dodianbook@gmail.com commit -m ' *)",
       "Bash(git -c user.name=dodianbook -c user.email=dodianbook@gmail.com merge production/main --no-ff -m 'merge: production/main \\(배 통관 PDF 파싱 fix 2b23786\\) ← V2.1 NVIDIA 재디자인 *)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(git -c user.name=dodianbook -c user.email=dodianbook@gmail.com commit -m 'docs: CLAUDE.md 에 로그인 강제 해제 상태 명시 \\(추후 복구용\\) *)"
     ]
   }
 }

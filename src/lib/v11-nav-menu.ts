@@ -69,7 +69,7 @@ export const v10MenuItems: MenuItem[] = [
   { href: '/costs', label: '비용 관리', icon: Wallet },
   { href: '/analysis', label: '분석/시뮬레이션', icon: BarChart3 },
   { href: '/advisor', label: 'AI CFO 자문', icon: Bot },
-  { href: '/documents', label: '공문 작성', icon: FileText },
+  { href: '/documents', label: '공문/서류', icon: FileText },
   { href: '/settings', label: '설정', icon: Settings },
 ]
 
@@ -179,7 +179,7 @@ export const menuGroups: MenuGroup[] = [
       { href: '/advisor', label: 'AI CFO 자문', icon: Bot },
       { href: '/finance/consult', label: '라이브 컨설팅 (AI)', icon: MessageSquare },
       { href: '/finance/ai-create', label: 'AI Create', icon: Sparkles },
-      { href: '/documents', label: '공문 작성 (AI)', icon: FileText },
+      { href: '/documents', label: '공문/서류 (AI)', icon: FileText },
     ],
   },
   {

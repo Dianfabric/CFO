@@ -213,6 +213,16 @@ export default function DocumentsPage() {
                 <div className="text-xs text-slate-500 mt-1">원단 단가 조회</div>
               </div>
             </a>
+            <Link href="/documents/storage" className="group">
+              <div className="border-2 p-4 bg-white hover:shadow-sm transition" style={{ borderColor: 'var(--nv-primary)', borderRadius: '2px' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <FileText className="w-5 h-5" style={{ color: 'var(--nv-primary)' }} />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--nv-primary)' }}>NEW</span>
+                </div>
+                <div className="font-semibold text-sm">서류 보관함</div>
+                <div className="text-xs text-slate-500 mt-1">계약서·인증서·시험성적서 등</div>
+              </div>
+            </Link>
           </div>
         </CardContent>
       </Card>

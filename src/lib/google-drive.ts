@@ -75,3 +75,87 @@ export async function uploadToDrive(
   const json = await res.json()
   return json.id as string
 }
+
+// ============================================================
+// 서류 보관함용 — 더 풍부한 정보 받아오기
+// ============================================================
+
+export interface DriveFileDetails {
+  id: string
+  name: string
+  mimeType: string
+  size: number | null
+  webViewLink: string         // 브라우저에서 미리보기
+  webContentLink: string      // 직접 다운로드
+  thumbnailLink: string | null
+  iconLink: string
+}
+
+const DETAIL_FIELDS = 'id,name,mimeType,size,webViewLink,webContentLink,thumbnailLink,iconLink'
+
+/** 업로드 + 상세 정보(미리보기 URL 등) 반환 */
+export async function uploadToDriveWithDetails(
+  blob: Blob,
+  filename: string,
+  mimeType: string,
+  parentId: string,
+  token: string,
+): Promise<DriveFileDetails> {
+  const metadata = JSON.stringify({ name: filename, parents: [parentId] })
+  const form = new FormData()
+  form.append('metadata', new Blob([metadata], { type: 'application/json' }))
+  form.append('file', blob, filename)
+
+  const res = await fetch(
+    `${DRIVE_UPLOAD}/files?uploadType=multipart&fields=${encodeURIComponent(DETAIL_FIELDS)}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    },
+  )
+  if (!res.ok) {
+    const txt = await res.text()
+    throw new Error(`Drive upload failed (${res.status}): ${txt}`)
+  }
+  const j = await res.json()
+  return {
+    id: j.id,
+    name: j.name,
+    mimeType: j.mimeType,
+    size: j.size ? Number(j.size) : null,
+    webViewLink: j.webViewLink,
+    webContentLink: j.webContentLink,
+    thumbnailLink: j.thumbnailLink ?? null,
+    iconLink: j.iconLink,
+  }
+}
+
+/** Drive 파일 삭제 (또는 휴지통으로) */
+export async function deleteFromDrive(
+  fileId: string,
+  token: string,
+  trash = true,
+): Promise<void> {
+  if (trash) {
+    // 휴지통으로 (복구 가능)
+    const res = await fetch(`${DRIVE_API}/files/${fileId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trashed: true }),
+    })
+    if (!res.ok) throw new Error(`Drive trash failed: ${res.status}`)
+  } else {
+    // 영구 삭제
+    const res = await fetch(`${DRIVE_API}/files/${fileId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Drive delete failed: ${res.status}`)
+    }
+  }
+}
