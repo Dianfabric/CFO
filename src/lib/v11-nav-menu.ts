@@ -61,6 +61,7 @@ export type MenuGroup = {
 
 export const v10MenuItems: MenuItem[] = [
   { href: '/', label: '대시보드', icon: LayoutDashboard },
+  { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
   { href: '/settlement', label: '일일 결산', icon: CalendarCheck },
   { href: '/transactions', label: '거래 관리', icon: Receipt },
   { href: '/clients', label: '거래처 관리', icon: Users },
@@ -69,7 +70,7 @@ export const v10MenuItems: MenuItem[] = [
   { href: '/costs', label: '비용 관리', icon: Wallet },
   { href: '/analysis', label: '분석/시뮬레이션', icon: BarChart3 },
   { href: '/advisor', label: 'AI CFO 자문', icon: Bot },
-  { href: '/documents', label: '공문/서류', icon: FileText },
+  { href: '/documents', label: '공문 / 자료', icon: FileText },
   { href: '/settings', label: '설정', icon: Settings },
 ]
 
@@ -91,7 +92,6 @@ export const v11MenuItems: MenuItem[] = [
   { href: '/finance/team', label: '팀 공유·슬랙 (#8)', icon: Send },
   { href: '/finance/positioning', label: '포지셔닝 매트릭스', icon: Layers3 },
   { href: '/finance/pricing', label: '4단계 가격 결정', icon: Workflow },
-  { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
   { href: '/finance/wam', label: 'WAM (주간 회의)', icon: CalendarDays },
   { href: '/finance/upload', label: '일계표 업로드', icon: UploadIcon },
   { href: '/finance/clients', label: '거래처 관리 (v1.1)', icon: Users },
@@ -179,7 +179,7 @@ export const menuGroups: MenuGroup[] = [
       { href: '/advisor', label: 'AI CFO 자문', icon: Bot },
       { href: '/finance/consult', label: '라이브 컨설팅 (AI)', icon: MessageSquare },
       { href: '/finance/ai-create', label: 'AI Create', icon: Sparkles },
-      { href: '/documents', label: '공문/서류 (AI)', icon: FileText },
+      { href: '/documents', label: '공문 / 자료 (AI)', icon: FileText },
     ],
   },
   {

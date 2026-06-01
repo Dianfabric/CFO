@@ -132,7 +132,12 @@ export default async function HistoryPage() {
                     return (
                       <tr key={c.id} className="border-b last:border-0 hover:bg-slate-50">
                         <td className="px-3 py-1.5 font-bold text-slate-700">
-                          #{c.cycle_number}
+                          <Link
+                            href={`/finance/cycle/summary?cycle_id=${c.id}`}
+                            className="text-blue-600 hover:underline"
+                          >
+                            #{c.cycle_number} →
+                          </Link>
                         </td>
                         <td className="px-3 py-1.5 text-slate-600">
                           {c.start_date} ~ {c.end_date}

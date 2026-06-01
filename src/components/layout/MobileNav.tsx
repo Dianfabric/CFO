@@ -111,6 +111,7 @@ export default function MobileNav() {
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    prefetch
                     onClick={() => setOpen(false)}
                     className={cn(
                       'relative flex items-center gap-3 h-11 px-3 text-[14px] transition-colors tracking-tight',
@@ -166,6 +167,7 @@ export default function MobileNav() {
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    prefetch
                     onClick={() => setOpen(false)}
                     className={cn(
                       'relative flex items-center gap-3 h-11 px-3 text-[14px] transition-colors tracking-tight',

@@ -20,7 +20,10 @@ declare global {
 }
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ''
-const SCOPE = 'https://www.googleapis.com/auth/drive.file'
+const DEFAULT_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+/** Drive.file + Sheets — 자료 보관함·서류·잠재거래처 시트 동기화에 모두 사용 가능 */
+export const DRIVE_AND_SHEETS_SCOPE =
+  'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets'
 const TOKEN_TTL_MS = 55 * 60 * 1000 // 55분 (구글 토큰 만료 1시간보다 여유 있게)
 
 /**
@@ -31,7 +34,7 @@ const TOKEN_TTL_MS = 55 * 60 * 1000 // 55분 (구글 토큰 만료 1시간보다
  *  - 없으면 OAuth 팝업을 띄워 토큰을 획득
  *  - 버튼 클릭 핸들러 내부(user gesture)에서 호출해야 팝업 차단 방지
  */
-export function useGoogleDrive() {
+export function useGoogleDrive(scope: string = DEFAULT_SCOPE) {
   const [token, setToken] = useState<string | null>(null)
   const tokenRef = useRef<string | null>(null)
   const tokenClientRef = useRef<{ requestAccessToken(): void } | null>(null)
@@ -62,7 +65,7 @@ export function useGoogleDrive() {
       if (!tokenClientRef.current) {
         tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
           client_id: CLIENT_ID,
-          scope: SCOPE,
+          scope,
           callback: (resp) => {
             if (resp.error || !resp.access_token) {
               rejectRef.current?.(new Error(resp.error ?? '토큰 획득 실패'))
@@ -86,7 +89,7 @@ export function useGoogleDrive() {
 
       tokenClientRef.current.requestAccessToken()
     })
-  }, [clearToken])
+  }, [clearToken, scope])
 
   return { token, getToken }
 }

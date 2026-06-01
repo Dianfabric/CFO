@@ -13,6 +13,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "../WINE", "run", "dev"],
       "port": 3100
+    },
+    {
+      "name": "tiny-habit",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "../tiny-habit", "run", "dev"],
+      "port": 3200
     }
   ]
 }

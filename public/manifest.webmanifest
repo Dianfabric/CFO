@@ -1,0 +1,68 @@
+{
+  "name": "DIAVIS — 디안 CFO 시스템",
+  "short_name": "DIAVIS",
+  "description": "디안 CFO 통합 경영 시스템 — 결을 만드는 사람을 위한 AI 동반자",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#000000",
+  "theme_color": "#76b900",
+  "lang": "ko-KR",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "12주 대시보드",
+      "short_name": "12주",
+      "description": "직원별 OKR + 주간 진행률",
+      "url": "/finance/cycle",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "주간 WAM 회의",
+      "short_name": "WAM",
+      "description": "AI 자동 생성 주간 회의 자료",
+      "url": "/finance/cycle/wam",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "거래 입력",
+      "short_name": "거래",
+      "description": "오늘 거래 추가",
+      "url": "/transactions",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

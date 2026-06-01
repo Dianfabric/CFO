@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- 배경: 검정 그라데이션 (깊이감) -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+    <!-- D 글자: NVIDIA 그린 → 더 밝은 그린 그라데이션 -->
+    <linearGradient id="d-gradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bff230"/>
+      <stop offset="50%" stop-color="#76b900"/>
+      <stop offset="100%" stop-color="#5a8d00"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 배경 -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- 미세한 grid 텍스처 (NVIDIA tech 느낌, 거의 안 보일 정도로) -->
+  <g opacity="0.06" stroke="#76b900" stroke-width="1">
+    <line x1="0" y1="128" x2="512" y2="128"/>
+    <line x1="0" y1="256" x2="512" y2="256"/>
+    <line x1="0" y1="384" x2="512" y2="384"/>
+    <line x1="128" y1="0" x2="128" y2="512"/>
+    <line x1="256" y1="0" x2="256" y2="512"/>
+    <line x1="384" y1="0" x2="384" y2="512"/>
+  </g>
+
+  <!-- NVIDIA corner-square 모티프 (좌상) -->
+  <rect x="40" y="40" width="36" height="36" fill="#76b900"/>
+
+  <!-- "D" — 두꺼운 sans path, 가로 너비 240, 세로 높이 296 (캔버스 60% 정도, 중앙 정렬) -->
+  <!-- 외곽: 좌측 세로축 + 상하 가로 + 우측 반원 -->
+  <path
+    d="M 136 108 L 136 404 L 296 404 C 380 404 432 348 432 256 C 432 164 380 108 296 108 Z M 218 186 L 218 326 L 296 326 C 336 326 358 296 358 256 C 358 216 336 186 296 186 Z"
+    fill="url(#d-gradient)"
+    fill-rule="evenodd"
+  />
+
+  <!-- 좌하 액센트: 진행률 바 모티프 (작은 그린 strip 3개) -->
+  <g>
+    <rect x="40" y="446" width="36" height="6" fill="#76b900"/>
+    <rect x="84" y="446" width="20" height="6" fill="#76b900" opacity="0.6"/>
+    <rect x="112" y="446" width="10" height="6" fill="#76b900" opacity="0.3"/>
+  </g>
+
+  <!-- 우상 액센트: 미세한 그린 dot -->
+  <circle cx="464" cy="58" r="6" fill="#76b900"/>
+</svg>

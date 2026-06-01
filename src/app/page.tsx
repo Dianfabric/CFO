@@ -29,6 +29,7 @@ import {
 import DiavisGreeting from '@/components/v11/diavis/DiavisGreeting'
 import DashboardContent from '@/components/v11/diavis/DashboardContent'
 import DailyOpsBlock from '@/components/v11/diavis/DailyOpsBlock'
+import VisionHeroBlock from '@/components/v11/diavis/VisionHeroBlock'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,6 +119,9 @@ export default function DiavisHomePage() {
               경영 대시보드
             </Link>
           </div>
+
+          {/* 비전 미니 블록 — long_term_vision 입력값 표시 */}
+          <VisionHeroBlock />
         </div>
       </section>
 

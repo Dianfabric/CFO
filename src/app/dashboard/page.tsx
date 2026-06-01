@@ -1,12 +1,18 @@
 /**
- * 경영 대시보드 = 일일 운영 블록
+ * 경영 대시보드 = 일일 운영 블록 + 12주 사이클 합산
  * 콘텐츠는 DailyOpsBlock 컴포넌트로 분리 — / 메인에서도 재사용.
  */
 import DailyOpsBlock from '@/components/v11/diavis/DailyOpsBlock'
+import CycleDashboardSummary from '@/components/v11/cycle/CycleDashboardSummary'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default function DashboardPage() {
-  return <DailyOpsBlock />
+  return (
+    <div className="space-y-8">
+      <DailyOpsBlock />
+      <CycleDashboardSummary />
+    </div>
+  )
 }

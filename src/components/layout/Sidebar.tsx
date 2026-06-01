@@ -17,13 +17,31 @@ import { useState, useEffect } from 'react'
 import AuthPill from '@/components/v11/AuthPill'
 import { v10MenuItems, v11MenuItems, isMenuActive } from '@/lib/v11-nav-menu'
 
+// sessionStorage 키 — 페이지 전환마다 fetch 안 함
+const LOGO_CACHE_KEY = 'dian:company-logo'
+
 export default function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  // SSR/CSR 일치 — 초기엔 null, 마운트 후 sessionStorage 에서 즉시 hydrate
   const [logoPath, setLogoPath] = useState<string | null>(null)
 
-  // 회사 로고
+  // 회사 로고 — sessionStorage 캐시 + 백그라운드 갱신 (페이지 전환 지연 없음)
   useEffect(() => {
+    // 1) sessionStorage 즉시 hydrate
+    try {
+      const cached = sessionStorage.getItem(LOGO_CACHE_KEY)
+      if (cached) setLogoPath(cached)
+    } catch {
+      /* ignore */
+    }
+
+    // 2) 1세션에 1회만 백그라운드 fetch (탭 닫기 전까지 재호출 없음)
+    if (typeof window !== 'undefined' && (window as { __dianLogoFetched?: boolean }).__dianLogoFetched) {
+      return
+    }
+    ;(window as { __dianLogoFetched?: boolean }).__dianLogoFetched = true
+
     let cancelled = false
     fetch('/api/company-profile')
       .then(async (r) => {
@@ -38,7 +56,14 @@ export default function Sidebar() {
       })
       .then((data) => {
         if (cancelled) return
-        if (data?.logoPath) setLogoPath(data.logoPath)
+        if (data?.logoPath) {
+          setLogoPath(data.logoPath)
+          try {
+            sessionStorage.setItem(LOGO_CACHE_KEY, data.logoPath)
+          } catch {
+            /* ignore */
+          }
+        }
       })
       .catch(() => {})
     return () => {
@@ -117,6 +142,7 @@ export default function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  prefetch
                   className={cn(
                     'relative flex items-center gap-2.5 px-3 py-1.5 transition-colors text-[13px] tracking-tight',
                     isActive
@@ -175,6 +201,7 @@ export default function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  prefetch
                   className={cn(
                     'relative flex items-center gap-2.5 px-3 py-1.5 transition-colors text-[13px] tracking-tight',
                     isActive

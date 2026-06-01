@@ -39,6 +39,7 @@ import { calculateCycleProgress, daysUntilNextMonday } from '@/lib/v11-cycle'
 import { formatKRW } from '@/lib/formatters'
 import { CLIENT_TIER_COLOR, CLIENT_TIER_LABEL } from '@/lib/v11-labels'
 import { cn } from '@/lib/utils'
+import CycleDashboardSummary from '@/components/v11/cycle/CycleDashboardSummary'
 
 /* 일일 운영 블록 — server component, 두 페이지에서 재사용
  *   /          (DIAVIS 메인) hero 직후
@@ -803,72 +804,8 @@ export default async function DailyOpsBlock() {
         </p>
       </div>
 
-      {/* 12주 사이클 미니 + 목표 진행 */}
-      {cycleProgress && (
-        <Card>
-          <CardContent className="py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Target className="h-5 w-5 text-emerald-600" />
-                <div>
-                  <div className="text-xs text-slate-500">
-                    사이클 #{data.cycle?.cycle_number}
-                  </div>
-                  <div className="font-semibold text-slate-800">
-                    Week {cycleProgress.weekNumber} / 12{' '}
-                    <span className="text-xs font-normal text-slate-400">
-                      · D-{cycleProgress.daysRemaining}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {data.totalGoals > 0 && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-500">
-                    12주 목표 진행:{' '}
-                    <strong className="text-slate-800">
-                      {data.passedGoals}/{data.totalGoals}
-                    </strong>{' '}
-                    (80% 통과) ·{' '}
-                    <strong className="text-slate-800">
-                      평균 {(data.goalProgress * 100).toFixed(0)}%
-                    </strong>
-                  </span>
-                  <Link href="/finance/cycle">
-                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
-                      상세 <ArrowRight className="ml-0.5 h-3 w-3" />
-                    </Button>
-                  </Link>
-                </div>
-              )}
-
-              {data.totalGoals === 0 && (
-                <Link href="/finance/cycle">
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs">
-                    <Plus className="mr-1 h-3 w-3" />
-                    12주 목표 설정
-                  </Button>
-                </Link>
-              )}
-
-              {wamDday <= 7 && (
-                <span className="rounded bg-blue-50 px-2 py-1 text-[11px] text-blue-700">
-                  <Clock className="mr-0.5 inline h-3 w-3" />
-                  WAM: {wamDday === 0 ? '오늘' : `D-${wamDday}`}
-                </span>
-              )}
-            </div>
-
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all"
-                style={{ width: `${cycleProgress.totalProgress * 100}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* 12주 사이클 — 직원별 진행률 + 큰 목표/사이클 정보 인라인 편집 */}
+      <CycleDashboardSummary />
 
       {/* 긴급 미수금 — 연체 있을 때만 표시 (없으면 위 KPI 카드만으로 충분) */}
       {data.topOverdue.length > 0 && (

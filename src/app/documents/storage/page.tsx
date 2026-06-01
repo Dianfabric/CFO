@@ -31,7 +31,7 @@ export default function DocumentStoragePage() {
             className="inline-flex items-center gap-1.5 text-[12px] tracking-tight text-[#757575] hover:text-[#000] transition-colors mb-3"
           >
             <ChevronLeft className="w-3 h-3" strokeWidth={1.8} />
-            공문/서류
+            공문 / 자료
           </Link>
           <div className="flex items-center gap-2.5">
             <FolderArchive

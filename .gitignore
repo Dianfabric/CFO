@@ -52,3 +52,7 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# Supabase CLI 임시 파일
+supabase/.temp/
+

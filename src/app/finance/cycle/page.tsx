@@ -27,9 +27,9 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { calculateCycleProgress, daysUntilNextMonday } from '@/lib/v11-cycle'
 import { formatKRW } from '@/lib/formatters'
-import GoalsList from '@/components/v11/cycle/GoalsList'
-import type { GoalRow } from '@/components/v11/cycle/GoalEditDialog'
 import CycleStartCard from '@/components/v11/cycle/CycleStartCard'
+import CycleDashboardSummary from '@/components/v11/cycle/CycleDashboardSummary'
+import CycleKpiBoard from '@/components/v11/cycle/CycleKpiBoard'
 import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
@@ -60,7 +60,6 @@ async function loadCycleData() {
     if (e1 || !cycle) {
       return {
         cycle: null,
-        goals: [],
         revenue: 0,
         margin: 0,
         activeClients: 0,
@@ -68,13 +67,6 @@ async function loadCycleData() {
         error: e1?.message ?? '활성 사이클이 없습니다',
       }
     }
-
-    // 목표
-    const { data: goals } = await supabase
-      .from('goals')
-      .select('*')
-      .eq('cycle_id', cycle.id)
-      .order('display_order', { ascending: true })
 
     // 사이클 기간 동안의 거래 (자동 후행지표)
     const { data: txCurrent } = await supabase
@@ -120,7 +112,6 @@ async function loadCycleData() {
 
     return {
       cycle: cycle as Cycle,
-      goals: (goals ?? []) as GoalRow[],
       revenue,
       margin,
       activeClients,
@@ -130,7 +121,6 @@ async function loadCycleData() {
   } catch (e) {
     return {
       cycle: null,
-      goals: [] as GoalRow[],
       revenue: 0,
       margin: 0,
       activeClients: 0,
@@ -141,7 +131,7 @@ async function loadCycleData() {
 }
 
 export default async function CyclePage() {
-  const { cycle, goals, revenue, margin, activeClients, prevRevenue, error } =
+  const { cycle, revenue, margin, activeClients, prevRevenue, error } =
     await loadCycleData()
 
   if (!cycle) {
@@ -179,82 +169,11 @@ export default async function CyclePage() {
         </div>
       </div>
 
-      {/* 사이클 진행 카드 (큰 진행 바) */}
-      <Card className="overflow-hidden">
-        <CardContent className="space-y-4 py-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold tabular-nums text-slate-900">
-                  Week {progress.weekNumber}
-                </span>
-                <span className="text-lg text-slate-400">/ 12</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-500">
-                <Calendar className="mr-1 inline h-3 w-3" />
-                시작 {cycle.start_date} · 종료 {cycle.end_date}
-                {' · '}
-                <strong className="text-slate-700">D-{progress.daysRemaining}</strong>
-              </p>
-            </div>
+      {/* KPI 모아보기 차트 (모든 직원 KR 한 화면) */}
+      <CycleKpiBoard />
 
-            <div className="flex items-center gap-3">
-              {wamDday <= 7 && (
-                <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-800">
-                  <Clock className="mr-1 inline h-3 w-3" />
-                  다음 WAM: <strong>{wamDday === 0 ? '오늘' : `D-${wamDday}`}</strong>
-                </div>
-              )}
-              <div className="text-right">
-                <div className="text-xl font-bold tabular-nums text-emerald-600">
-                  {Math.round(progress.totalProgress * 100)}%
-                </div>
-                <div className="text-[10px] text-slate-400">사이클 진행</div>
-              </div>
-            </div>
-          </div>
-
-          {/* 진행 바 */}
-          <div className="relative h-3 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all"
-              style={{ width: `${progress.totalProgress * 100}%` }}
-            />
-            {/* 12주 마커 */}
-            {Array.from({ length: 11 }).map((_, i) => (
-              <div
-                key={i}
-                className="absolute top-0 h-full w-px bg-white/40"
-                style={{ left: `${((i + 1) / 12) * 100}%` }}
-              />
-            ))}
-          </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400">
-            <span>W1</span>
-            <span>W4</span>
-            <span>W7</span>
-            <span>W10</span>
-            <span>W12</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 비전 (있으면) */}
-      {cycle.vision_statement && (
-        <Card className="border-amber-200 bg-amber-50/50">
-          <CardContent className="py-3">
-            <div className="flex items-start gap-3">
-              <Target className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                  사이클 비전
-                </div>
-                <p className="mt-1 text-sm text-slate-800">{cycle.vision_statement}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* 직원별 OKR 합산 (큰 목표 + 사이클 미니 헤더 + 직원별 진행률 카드) */}
+      <CycleDashboardSummary />
 
       {/* 자동 후행지표 (transactions 집계) */}
       <div>
@@ -326,13 +245,94 @@ export default async function CyclePage() {
         </div>
       </div>
 
-      {/* 12주 목표 */}
-      <GoalsList goals={goals} cycleId={cycle.id} />
-
       {/* 추가 페이지 */}
       <div>
         <h2 className="mb-3 text-sm font-semibold text-slate-700">⚡ 12주 사이클 도구</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <Link href="/finance/cycle/employees">
+            <Card
+              className="cursor-pointer transition border-2"
+              style={{ borderColor: 'var(--nv-primary)' }}
+            >
+              <CardContent className="space-y-1 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">직원별 12주 OKR</div>
+                  <span
+                    className="text-[9px] font-bold uppercase tracking-[0.1em]"
+                    style={{ color: 'var(--nv-primary)' }}
+                  >
+                    NEW
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  목표 → KR → 주간 → 일일 투두 (토글식)
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/cycle/summary">
+            <Card
+              className="cursor-pointer transition border-2"
+              style={{ borderColor: 'var(--nv-primary)' }}
+            >
+              <CardContent className="space-y-1 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">사이클 1장 요약</div>
+                  <span
+                    className="text-[9px] font-bold uppercase tracking-[0.1em]"
+                    style={{ color: 'var(--nv-primary)' }}
+                  >
+                    NEW
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  KR 점수표 + AI 분석 + 사이클 종료/이월
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/cycle/wam">
+            <Card
+              className="cursor-pointer transition border-2"
+              style={{ borderColor: 'var(--nv-primary)' }}
+            >
+              <CardContent className="space-y-1 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">주간 WAM (AI 자동)</div>
+                  <span
+                    className="text-[9px] font-bold uppercase tracking-[0.1em]"
+                    style={{ color: 'var(--nv-primary)' }}
+                  >
+                    NEW
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  매주 월요일 8시 자동 생성 · 회의실 모드
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/finance/cycle/suggestions">
+            <Card
+              className="cursor-pointer transition border-2"
+              style={{ borderColor: 'var(--nv-warning)' }}
+            >
+              <CardContent className="space-y-1 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">💬 건의사항 목록</div>
+                  <span
+                    className="text-[9px] font-bold uppercase tracking-[0.1em]"
+                    style={{ color: 'var(--nv-warning)' }}
+                  >
+                    NEW
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  주별 작성 · 미해결/해결됨 · 해결 메모
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
           <Link href="/finance/cycle/indicators">
             <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
               <CardContent className="space-y-1 py-3">

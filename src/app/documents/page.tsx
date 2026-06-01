@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { FileText, Plus, TrendingUp, CalendarOff, Wallet, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon } from 'lucide-react'
+import { FileText, Plus, TrendingUp, CalendarOff, Wallet, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon, FolderOpen, UserPlus } from 'lucide-react'
 import DocumentPreviewDialog, { DocFull } from '@/components/documents/DocumentPreviewDialog'
 import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/SavedDocumentRender'
 import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
@@ -216,11 +216,31 @@ export default function DocumentsPage() {
             <Link href="/documents/storage" className="group">
               <div className="border-2 p-4 bg-white hover:shadow-sm transition" style={{ borderColor: 'var(--nv-primary)', borderRadius: '2px' }}>
                 <div className="flex items-center justify-between mb-2">
-                  <FileText className="w-5 h-5" style={{ color: 'var(--nv-primary)' }} />
+                  <FolderOpen className="w-5 h-5" style={{ color: 'var(--nv-primary)' }} />
                   <span className="text-[9px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--nv-primary)' }}>NEW</span>
                 </div>
                 <div className="font-semibold text-sm">서류 보관함</div>
                 <div className="text-xs text-slate-500 mt-1">계약서·인증서·시험성적서 등</div>
+              </div>
+            </Link>
+            <Link href="/documents/media" className="group">
+              <div className="border-2 p-4 bg-white hover:shadow-sm transition" style={{ borderColor: 'var(--nv-primary)', borderRadius: '2px' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <ImageIcon className="w-5 h-5" style={{ color: 'var(--nv-primary)' }} />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--nv-primary)' }}>NEW</span>
+                </div>
+                <div className="font-semibold text-sm">자료 보관함</div>
+                <div className="text-xs text-slate-500 mt-1">사진·영상·룩북·레퍼런스</div>
+              </div>
+            </Link>
+            <Link href="/documents/contacts" className="group">
+              <div className="border-2 p-4 bg-white hover:shadow-sm transition" style={{ borderColor: 'var(--nv-primary)', borderRadius: '2px' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <UserPlus className="w-5 h-5" style={{ color: 'var(--nv-primary)' }} />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--nv-primary)' }}>NEW</span>
+                </div>
+                <div className="font-semibold text-sm">잠재 거래처 등록</div>
+                <div className="text-xs text-slate-500 mt-1">문의 컨택 풀 + Sheets 동기화</div>
               </div>
             </Link>
           </div>

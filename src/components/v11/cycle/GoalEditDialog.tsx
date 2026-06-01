@@ -52,10 +52,12 @@ const CATEGORIES: { value: string; label: string }[] = [
 ]
 
 const UNITS: { value: string; label: string }[] = [
-  { value: 'KRW', label: '원 (KRW)' },
-  { value: 'count', label: '건/명' },
-  { value: '%', label: '퍼센트 (%)' },
-  { value: 'days', label: '일' },
+  { value: 'count', label: '건' },
+  { value: 'item', label: '개' },
+  { value: 'KRW', label: '원' },
+  { value: 'percent', label: '%' },
+  { value: 'hours', label: '시간' },
+  { value: 'ratio', label: '배' },
 ]
 
 export default function GoalEditDialog({

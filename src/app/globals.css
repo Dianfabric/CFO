@@ -1,3 +1,14 @@
+/* ============================================================
+   ⚠ @import 는 CSS 표준상 파일 최상단(@charset/@layer 다음)에 와야 함.
+   Turbopack 의 strict CSS parser 가 이를 강제하므로 가장 위로 이동.
+   ============================================================ */
+
+/* Pretendard (한글 + 영문 SF Pro 매칭) — variable */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css');
+
+/* Inter (영문 SF Pro 대체) — variable */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -7,12 +18,6 @@
    기준: docs/design-system/apple-spec.md
    원칙: Photography-first → Data-first. UI recedes. Single accent (Action Blue).
    ============================================================ */
-
-/* Pretendard (한글 + 영문 SF Pro 매칭) — variable */
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css');
-
-/* Inter (영문 SF Pro 대체) — variable */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
