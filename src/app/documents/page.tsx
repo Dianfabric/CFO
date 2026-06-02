@@ -183,10 +183,19 @@ export default function DocumentsPage() {
               <div className="font-semibold text-sm">결제 요청</div>
               <div className="text-xs text-slate-500 mt-1">곧 추가 예정</div>
             </div>
+            {/* 견적서 작성 — PWA standalone 모드에서도 OS 브라우저 새 탭으로 강제 위임 */}
             <a
               href="https://dianfabric.github.io/dian-quote/"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => {
+                e.preventDefault()
+                window.open(
+                  'https://dianfabric.github.io/dian-quote/',
+                  '_blank',
+                  'noopener,noreferrer',
+                )
+              }}
               className="block cursor-pointer"
             >
               <div className="border rounded-lg p-4 bg-white hover:border-indigo-400 hover:shadow-sm transition">
@@ -202,6 +211,14 @@ export default function DocumentsPage() {
               href="https://dian-fabric-search.vercel.app/"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => {
+                e.preventDefault()
+                window.open(
+                  'https://dian-fabric-search.vercel.app/',
+                  '_blank',
+                  'noopener,noreferrer',
+                )
+              }}
               className="block cursor-pointer"
             >
               <div className="border rounded-lg p-4 bg-white hover:border-purple-400 hover:shadow-sm transition">
