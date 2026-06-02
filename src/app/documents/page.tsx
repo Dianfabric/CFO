@@ -183,53 +183,25 @@ export default function DocumentsPage() {
               <div className="font-semibold text-sm">결제 요청</div>
               <div className="text-xs text-slate-500 mt-1">곧 추가 예정</div>
             </div>
-            {/* 견적서 작성 — PWA standalone 모드에서도 OS 브라우저 새 탭으로 강제 위임 */}
-            <a
-              href="https://dianfabric.github.io/dian-quote/"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.preventDefault()
-                window.open(
-                  'https://dianfabric.github.io/dian-quote/',
-                  '_blank',
-                  'noopener,noreferrer',
-                )
-              }}
-              className="block cursor-pointer"
-            >
+            {/* 견적서 작성 — 사이트 안 iframe 페이지로 (PWA 새 탭 없이 작동) */}
+            <Link href="/documents/quote" className="block cursor-pointer">
               <div className="border rounded-lg p-4 bg-white hover:border-indigo-400 hover:shadow-sm transition">
                 <div className="flex items-center justify-between mb-2">
                   <Receipt className="w-5 h-5 text-indigo-600" />
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div className="font-semibold text-sm">견적서 작성</div>
                 <div className="text-xs text-slate-500 mt-1">DiAN 견적서 생성기</div>
               </div>
-            </a>
-            <a
-              href="https://dian-fabric-search.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.preventDefault()
-                window.open(
-                  'https://dian-fabric-search.vercel.app/',
-                  '_blank',
-                  'noopener,noreferrer',
-                )
-              }}
-              className="block cursor-pointer"
-            >
+            </Link>
+            <Link href="/documents/fabric-search" className="block cursor-pointer">
               <div className="border rounded-lg p-4 bg-white hover:border-purple-400 hover:shadow-sm transition">
                 <div className="flex items-center justify-between mb-2">
                   <Tag className="w-5 h-5 text-purple-600" />
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                 </div>
                 <div className="font-semibold text-sm">단가 검색</div>
                 <div className="text-xs text-slate-500 mt-1">원단 단가 조회</div>
               </div>
-            </a>
+            </Link>
             <Link href="/documents/storage" className="group">
               <div className="border-2 p-4 bg-white hover:shadow-sm transition" style={{ borderColor: 'var(--nv-primary)', borderRadius: '2px' }}>
                 <div className="flex items-center justify-between mb-2">
