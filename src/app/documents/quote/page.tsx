@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * 견적서 작성 — DIAVIS 안에 iframe 으로 임베드
  *
@@ -7,8 +9,6 @@
  */
 import Link from 'next/link'
 import { ChevronLeft, Receipt, ExternalLink } from 'lucide-react'
-
-export const dynamic = 'force-dynamic'
 
 const QUOTE_URL = 'https://dianfabric.github.io/dian-quote/'
 

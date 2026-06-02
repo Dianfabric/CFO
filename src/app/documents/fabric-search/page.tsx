@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * 단가 검색 — DIAVIS 안에 iframe 으로 임베드
  *
@@ -7,8 +9,6 @@
  */
 import Link from 'next/link'
 import { ChevronLeft, Tag, ExternalLink } from 'lucide-react'
-
-export const dynamic = 'force-dynamic'
 
 const SEARCH_URL = 'https://dian-fabric-search.vercel.app/'
 
