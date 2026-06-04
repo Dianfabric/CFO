@@ -231,7 +231,12 @@ export default function ReceivablesPage() {
                     </div>
                   </div>
                   <div className="text-right ml-3">
-                    <p className={`text-xl font-bold ${agingColor(client.oldestDays)}`}>{formatKRW(client.totalAmount)}</p>
+                    <p className={`text-xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
+                      {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
+                    </p>
+                    {client.totalAmount < 0 && (
+                      <p className="text-[10px] text-blue-500 mt-0.5">입금 초과</p>
+                    )}
                   </div>
                 </div>
 

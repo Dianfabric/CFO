@@ -79,19 +79,19 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // 거래처 잔액 = sum(모든 AR 원금) - sum(모든 입금)
+    // 거래처 잔액 = sum(모든 AR 원금) - sum(모든 입금) — 음수면 입금 초과(선수금)
     for (const c of Object.values(byClient)) {
       const totalOrig = c.items.reduce((s, ar) => s + ar.originalAmount, 0)
       const totalPaid = c.allPayments.reduce((s, p) => s + p.amount, 0)
-      c.totalAmount = Math.max(0, totalOrig - totalPaid)
+      c.totalAmount = totalOrig - totalPaid
     }
 
     // 담당자별 정렬 (건수 내림차순)
     Object.values(byClient).forEach(c => c.salesPersons.sort((a, b) => b.count - a.count))
 
-    // includeFullyPaid=false 면 잔액 0 거래처 제외
+    // includeFullyPaid=false 면 잔액 0 거래처만 숨김 (음수=입금초과는 노출)
     const summary = Object.values(byClient)
-      .filter(c => includeFullyPaid || c.totalAmount > 0)
+      .filter(c => includeFullyPaid || c.totalAmount !== 0)
       .sort((a, b) => b.totalAmount - a.totalAmount)
     const totalAR = summary.reduce((s, c) => s + c.totalAmount, 0)
     const overdueTotal = receivables
