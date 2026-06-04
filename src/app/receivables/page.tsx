@@ -240,29 +240,6 @@ export default function ReceivablesPage() {
                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
                       {client.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>}
                       <span>{client.count}건</span>
-                      <Badge variant={agingBadge(client.oldestDays)}>최장 {client.oldestDays}일</Badge>
-                      {(() => {
-                        // 매출 합 vs 세금계산서 합 — 미발행 ₩X
-                        const saleSum = client.items.reduce((s, ar) => s + ar.originalAmount, 0)
-                        const uninvoiced = saleSum - (client.taxSum ?? 0)
-                        if (uninvoiced > 0 && (client.taxSum ?? 0) > 0) {
-                          return <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">📄 미발행 {formatKRW(uninvoiced)}</Badge>
-                        }
-                        if ((client.taxSum ?? 0) === 0 && saleSum > 0) {
-                          return <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">📄 세금계산서 없음</Badge>
-                        }
-                        return null
-                      })()}
-                      {(() => {
-                        // 일계표 입금 vs 통장 입금 비교
-                        const payTotal = client.allPayments.reduce((s, p) => s + p.amount, 0)
-                        const bankTotal = client.bankInSum ?? 0
-                        if (bankTotal === 0 && payTotal > 0) return null  // 통장 없으면 표시 안 함
-                        if (bankTotal === 0 && payTotal === 0) return null
-                        const diff = bankTotal - payTotal
-                        if (Math.abs(diff) < 100) return <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">🟢 통장 일치</Badge>
-                        return <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700">⚠ 통장 차이 {diff > 0 ? '+' : ''}{formatKRW(diff)}</Badge>
-                      })()}
                     </div>
                     {/* 담당자 뱃지 */}
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
