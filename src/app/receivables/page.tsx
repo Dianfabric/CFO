@@ -278,12 +278,6 @@ export default function ReceivablesPage() {
                                 <option value="__custom__">기타 (직접 입력)</option>
                               </select>
                             )}
-                            <p className="font-bold text-red-600">{formatKRW(row.ar.remainingAmount)}</p>
-                            <Button size="sm" variant="outline" onClick={e => {
-                              e.stopPropagation()
-                              setPayDialog({ arId: row.ar.id, clientName: client.clientName, remaining: row.ar.remainingAmount })
-                              setPayAmount(row.ar.remainingAmount)
-                            }}>회수</Button>
                           </div>
                         </div>
 
