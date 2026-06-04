@@ -78,8 +78,6 @@ export const v11MenuItems: MenuItem[] = [
   { href: '/finance/briefing', label: '모닝 브리핑 (AI)', icon: Brain },
   { href: '/finance/consult', label: '라이브 컨설팅 (AI)', icon: MessageSquare },
   { href: '/finance', label: '재무 메인 (v1.1)', icon: PieChart },
-  { href: '/finance/decomposition', label: '매출 인수분해', icon: Layers },
-  { href: '/finance/expenses', label: '자원 인수분해', icon: Coins },
   { href: '/finance/sales', label: '영업 (#2a)', icon: Briefcase },
   { href: '/finance/sales/materials', label: '영업자료 자동생성 (#9)', icon: Wand2 },
   { href: '/finance/marketing', label: '마케팅 (#2b)', icon: Megaphone },
@@ -127,8 +125,6 @@ export const menuGroups: MenuGroup[] = [
     items: [
       { href: '/finance', label: '재무 메인', icon: PieChart },
       { href: '/transactions', label: '거래 관리', icon: Receipt },
-      { href: '/finance/decomposition', label: '매출 인수분해', icon: Layers },
-      { href: '/finance/expenses', label: '자원 인수분해', icon: Coins },
       { href: '/receivables', label: '미수금 관리', icon: AlertCircle },
       { href: '/costs', label: '비용 관리', icon: Wallet },
       { href: '/analysis', label: '분석/시뮬레이션', icon: BarChart3 },

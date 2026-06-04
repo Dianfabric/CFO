@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { formatKRW, formatPercent } from '@/lib/formatters'
 import { simulatePriceChange } from '@/lib/calculations'
+import { Layers, Coins, ArrowRight } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell, LineChart, Line,
@@ -71,6 +73,48 @@ export default function AnalysisPage() {
           <Button variant={tab === 'overview' ? 'default' : 'outline'} size="sm" onClick={() => setTab('overview')}>분석</Button>
           <Button variant={tab === 'simulation' ? 'default' : 'outline'} size="sm" onClick={() => setTab('simulation')}>시뮬레이션</Button>
         </div>
+      </div>
+
+      {/* 관련 분석 도구 — 매출/자원 인수분해 (사이드바에서 통합됨, V2.4.2) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Link href="/finance/decomposition" className="block">
+          <div
+            className="bg-white p-4 transition-colors h-full"
+            style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--nv-primary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--nv-hairline)')}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <Layers className="w-5 h-5" style={{ color: 'var(--nv-primary)' }} />
+              <ArrowRight className="w-4 h-4" style={{ color: 'var(--nv-stone)' }} />
+            </div>
+            <div className="text-[14px] font-bold" style={{ color: 'var(--nv-ink)' }}>
+              매출 인수분해
+            </div>
+            <div className="text-[12px] mt-1" style={{ color: 'var(--nv-mute)' }}>
+              24셀 매트릭스 + 4티어 분포 + 채널·제품·고객별 매출 분해
+            </div>
+          </div>
+        </Link>
+        <Link href="/finance/expenses" className="block">
+          <div
+            className="bg-white p-4 transition-colors h-full"
+            style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--nv-primary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--nv-hairline)')}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <Coins className="w-5 h-5" style={{ color: 'var(--nv-primary)' }} />
+              <ArrowRight className="w-4 h-4" style={{ color: 'var(--nv-stone)' }} />
+            </div>
+            <div className="text-[14px] font-bold" style={{ color: 'var(--nv-ink)' }}>
+              자원 인수분해
+            </div>
+            <div className="text-[12px] mt-1" style={{ color: 'var(--nv-mute)' }}>
+              변동비·고정비 분류 + 자원 효율 + 비용 인수분해
+            </div>
+          </div>
+        </Link>
       </div>
 
       {tab === 'overview' ? (
