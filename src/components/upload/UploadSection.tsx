@@ -38,6 +38,13 @@ function docTypeLabel(type: string): string {
 
 function formatPurchaseResult(json: Record<string, unknown>): { message: string; detail?: string } {
   const type = json.type as string
+  if (type === 'sales_person') {
+    const unm = (json.unmatchedMagamCount as number) ?? 0
+    return {
+      message: `담당자 마감 적용 완료 (${json.fileDate ?? ''})`,
+      detail: `담당자 채워진 거래 ${json.personUpdated}건 | 메타(직군/제품) ${json.itemTagged}개${unm > 0 ? ` | ⚠️ 마감 행 미매칭 ${unm}건` : ''}`,
+    }
+  }
   if (type === 'customs') {
     return {
       message: `관세 청구서 등록 완료 (${json.date ?? ''})`,
@@ -79,8 +86,16 @@ function formatPurchaseResult(json: Record<string, unknown>): { message: string;
 
 async function processFile(item: FileItem): Promise<{ message: string; detail?: string }> {
   const form = new FormData()
-  const isExcel = /\.xlsx?$/i.test(item.file.name)
-  const endpoint = isExcel ? '/api/upload/sales' : '/api/upload/purchase'
+  const name = item.file.name
+  const isExcel = /\.xlsx?$/i.test(name)
+  const isMagam = /디안[_ ]?마감|디안마감/i.test(name)
+  // 파일 종류 자동 라우팅:
+  // - "디안_마감_*.xlsx" → 담당자 마감 엑셀
+  // - 다른 .xls/.xlsx → 일계표
+  // - .pdf 등 → 매입 PDF
+  const endpoint = isMagam ? '/api/upload/sales-person'
+    : isExcel ? '/api/upload/sales'
+    : '/api/upload/purchase'
   form.append('file', item.file)
 
   const res = await fetch(endpoint, { method: 'POST', body: form })
@@ -201,7 +216,7 @@ export default function UploadSection({ onUploadSuccess }: { onUploadSuccess?: (
           <Upload className="w-4 h-4 text-blue-600" />
           일일 마감 업로드
           <span className="text-xs font-normal text-slate-400 ml-1">
-            일계표(.xls) · 관세청구서 · 로드썬 · 글로지텍 · 수입세금계산서 — 어떤 파일이든 드래그하세요
+            일계표 · 디안 마감(담당자) · 관세 · 로드썬 · 글로지텍 · 수입세금계산서 — 어떤 파일이든 드래그
           </span>
         </CardTitle>
       </CardHeader>
