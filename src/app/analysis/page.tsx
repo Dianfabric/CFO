@@ -151,7 +151,7 @@ export default function AnalysisPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {data?.productAnalysis.map(p => (
+                  {(data?.productAnalysis ?? []).map(p => (
                     <div key={p.id} className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: GRADE_COLORS[p.grade] }} />
                       <span className="text-sm flex-1 truncate">{p.name}</span>
@@ -173,7 +173,7 @@ export default function AnalysisPage() {
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={data?.channelSales.map(cs => ({ name: channelLabel(cs.channel), value: cs.amount })) || []}
+                      <Pie data={(data?.channelSales ?? []).map(cs => ({ name: channelLabel(cs.channel), value: cs.amount }))}
                         cx="50%" cy="50%" outerRadius={80} dataKey="value"
                         label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                         {(data?.channelSales || []).map((_, i) => <Cell key={i} fill={CHANNEL_COLORS[i]} />)}
@@ -197,11 +197,11 @@ export default function AnalysisPage() {
                 <Label>제품 선택</Label>
                 <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                   value={simProduct?.id || ''} onChange={e => {
-                    const p = data?.productAnalysis.find(pa => pa.id === e.target.value)
+                    const p = (data?.productAnalysis ?? []).find(pa => pa.id === e.target.value)
                     setSimProduct(p || null); setPriceChange(0); setVolumeChange(0)
                   }}>
                   <option value="">제품을 선택하세요</option>
-                  {data?.productAnalysis.map(p => <option key={p.id} value={p.id}>{p.name} (마진 {formatPercent(p.margin)})</option>)}
+                  {(data?.productAnalysis ?? []).map(p => <option key={p.id} value={p.id}>{p.name} (마진 {formatPercent(p.margin)})</option>)}
                 </select>
               </div>
               {simProduct && (
