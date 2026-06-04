@@ -41,9 +41,17 @@ export default function ReceivablesPage() {
     setLoading(true)
     try {
       const res = await fetch('/api/receivables')
-      setData(await res.json())
-    } catch (err) { console.error(err) }
-    finally { setLoading(false) }
+      const json = await res.json()
+      if (!res.ok || !json?.summary) {
+        console.error('[receivables fetch]', json)
+        setData({ summary: [], totalAR: 0, overdueTotal: 0, totalCount: 0, allPersons: [] })
+      } else {
+        setData(json)
+      }
+    } catch (err) {
+      console.error(err)
+      setData({ summary: [], totalAR: 0, overdueTotal: 0, totalCount: 0, allPersons: [] })
+    } finally { setLoading(false) }
   }
 
   useEffect(() => { fetchData() }, [])

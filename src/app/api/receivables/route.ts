@@ -69,8 +69,9 @@ export async function GET() {
 
     return NextResponse.json({ summary, totalAR, overdueTotal, totalCount: receivables.length, allPersons })
   } catch (error) {
-    console.error(error)
-    return NextResponse.json({ error: 'Failed' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('[receivables GET]', msg)
+    return NextResponse.json({ error: msg.slice(0, 300) }, { status: 500 })
   }
 }
 
