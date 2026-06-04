@@ -63,6 +63,8 @@ export default function ReceivablesPage() {
   const [bulkCustom, setBulkCustom] = useState('')
   const [expandedAr, setExpandedAr] = useState<string | null>(null)
   const [includeFullyPaid, setIncludeFullyPaid] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')  // YYYY-MM-DD, '' = 무제한
+  const [dateTo, setDateTo] = useState('')
 
   const fetchData = async () => {
     setLoading(true)
@@ -193,7 +195,26 @@ export default function ReceivablesPage() {
           {filterPerson && (
             <span className="text-xs text-slate-500 ml-auto">필터 합계: <strong className="text-slate-700">{formatKRW(filteredTotal)}</strong></span>
           )}
-          <label className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${filterPerson ? '' : 'ml-auto'} text-slate-600 hover:text-slate-900`}>
+          <div className={`flex items-center gap-1.5 text-xs ${filterPerson ? '' : 'ml-auto'}`}>
+            <span className="text-slate-500">기간:</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="border rounded px-1.5 py-0.5 text-xs"
+            />
+            <span className="text-slate-400">~</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="border rounded px-1.5 py-0.5 text-xs"
+            />
+            {(dateFrom || dateTo) && (
+              <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-slate-400 hover:text-slate-700 px-1">✕</button>
+            )}
+          </div>
+          <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none text-slate-600 hover:text-slate-900">
             <input
               type="checkbox"
               checked={includeFullyPaid}
@@ -279,130 +300,165 @@ export default function ReceivablesPage() {
                 </div>
 
                 {expandedClient === client.clientId && (() => {
-                  // 매출 AR + 일계표 입금 + 세금계산서(보라) + 통장 입금(초록) 시간순 (최신 먼저)
-                  type SaleRow = { kind: 'sale'; ts: number; ar: ARItem }
-                  type PayRow = { kind: 'pay'; ts: number; pay: PaymentEntry }
-                  type TaxRow = { kind: 'tax'; ts: number; tax: TaxInvoiceEntry }
-                  type BankRow = { kind: 'bank'; ts: number; bank: BankInEntry }
-                  const rows: (SaleRow | PayRow | TaxRow | BankRow)[] = [
+                  // 4종 데이터를 행으로 합쳐서 시간순 정렬, 컬럼 테이블로 표시
+                  type Row =
+                    | { kind: 'sale'; ts: number; ar: ARItem }
+                    | { kind: 'pay'; ts: number; pay: PaymentEntry }
+                    | { kind: 'tax'; ts: number; tax: TaxInvoiceEntry }
+                    | { kind: 'bank'; ts: number; bank: BankInEntry }
+                  const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : -Infinity
+                  const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : Infinity
+                  const allRows: Row[] = [
                     ...client.items.map(ar => ({ kind: 'sale' as const, ts: new Date(ar.transaction.date).getTime(), ar })),
                     ...client.allPayments.map(pay => ({ kind: 'pay' as const, ts: new Date(pay.paymentDate).getTime(), pay })),
                     ...(client.taxInvoices ?? []).map(tax => ({ kind: 'tax' as const, ts: new Date(tax.issueDate).getTime(), tax })),
                     ...(client.bankIns ?? []).map(bank => ({ kind: 'bank' as const, ts: new Date(bank.txDateTime).getTime(), bank })),
-                  ].sort((a, b) => b.ts - a.ts)
+                  ]
+                  const rows = allRows.filter(r => r.ts >= fromTs && r.ts <= toTs).sort((a, b) => b.ts - a.ts)
+
+                  const fmtDate = (ts: number) => new Date(ts).toLocaleDateString('ko-KR')
 
                   return (
-                  <div className="mt-4 pt-4 border-t space-y-2">
-                    {rows.map(row => row.kind === 'pay' ? (
-                      isCorrectionPay(row.pay.notes) ? (
-                        <div key={`pay-${row.pay.id}`} className="flex items-center justify-between p-2 bg-slate-100/60 rounded-lg">
-                          <div className="flex-1">
-                            <p className="text-sm text-slate-500">⚙️ 잔액 조정</p>
-                            <p className="text-xs text-slate-400">{new Date(row.pay.paymentDate).toLocaleDateString('ko-KR')} · {row.pay.notes ?? ''}</p>
-                          </div>
-                          <p className="font-bold text-slate-500">+{formatKRW(row.pay.amount)}</p>
-                        </div>
-                      ) : (
-                        <div key={`pay-${row.pay.id}`} className="flex items-center justify-between p-2 bg-blue-50/40 rounded-lg">
-                          <div className="flex-1">
-                            <p className="text-sm text-slate-600">일계표 입금</p>
-                            <p className="text-xs text-slate-500">{new Date(row.pay.paymentDate).toLocaleDateString('ko-KR')}{row.pay.notes ? ` · ${row.pay.notes}` : ''}</p>
-                          </div>
-                          <p className="font-bold text-blue-600">+{formatKRW(row.pay.amount)}</p>
-                        </div>
-                      )
-                    ) : row.kind === 'tax' ? (
-                      <div key={`tax-${row.tax.id}`} className="flex items-center justify-between p-2 bg-purple-50/40 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm text-slate-600">📄 세금계산서</p>
-                          <p className="text-xs text-slate-500">{new Date(row.tax.issueDate).toLocaleDateString('ko-KR')}{row.tax.itemName ? ` · ${row.tax.itemName}` : ''} · 공급가 {formatKRW(row.tax.supplyAmount)}</p>
-                        </div>
-                        <p className="font-bold text-purple-600">{formatKRW(row.tax.totalAmount)}</p>
-                      </div>
-                    ) : row.kind === 'bank' ? (
-                      <div key={`bank-${row.bank.id}`} className="flex items-center justify-between p-2 bg-green-50/40 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm text-slate-600">🟢 통장 입금</p>
-                          <p className="text-xs text-slate-500">{new Date(row.bank.txDateTime).toLocaleDateString('ko-KR')} · {row.bank.rawCounterparty || row.bank.rawDescription}</p>
-                        </div>
-                        <p className="font-bold text-green-600">+{formatKRW(row.bank.amount)}</p>
-                      </div>
-                    ) : (
-                      <div key={row.ar.id} className={isCorrectionSale(row.ar.transaction.description) ? 'bg-slate-100/60 rounded-lg' : 'bg-slate-50 rounded-lg'}>
-                        <div
-                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-slate-100 rounded-lg"
-                          onClick={(e) => { e.stopPropagation(); setExpandedAr(expandedAr === row.ar.id ? null : row.ar.id) }}
-                        >
-                          <div className="flex-1">
-                            <p className={`text-sm ${isCorrectionSale(row.ar.transaction.description) ? 'text-slate-500' : ''}`}>
-                              {isCorrectionSale(row.ar.transaction.description) ? '⚙️ 이월 조정: ' : '매출: '}{formatKRW(row.ar.originalAmount)}
-                            </p>
-                            <p className="text-xs text-slate-500">{new Date(row.ar.transaction.date).toLocaleDateString('ko-KR')}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {!isCorrectionSale(row.ar.transaction.description) && (() => {
-                              const matched = (client.taxInvoices ?? []).some(t => t.matchedTransactionId === row.ar.transactionId)
-                              if (matched) return <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-[10px] px-1.5">📄 발행</Badge>
-                              return <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700 text-[10px] px-1.5">⚠ 미발행</Badge>
-                            })()}
-                            {row.ar.transaction.salesPerson ? (
-                              <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
-                                <User className="w-3 h-3" />{row.ar.transaction.salesPerson}
-                              </Badge>
-                            ) : (
-                              <select
-                                className="text-xs border rounded px-1.5 py-0.5 bg-amber-50 border-amber-300 text-amber-700"
-                                defaultValue=""
-                                onClick={e => e.stopPropagation()}
-                                onChange={e => {
-                                  e.stopPropagation()
-                                  const v = e.target.value
-                                  if (v === '__custom__') {
-                                    const name = prompt('담당자 이름 입력:')
-                                    if (name?.trim()) handleAssignPerson(row.ar.transactionId, name.trim())
-                                  } else if (v) handleAssignPerson(row.ar.transactionId, v)
-                                }}
-                              >
-                                <option value="">담당자 선택</option>
-                                {personList.map(p => <option key={p} value={p}>{p}</option>)}
-                                <option value="__custom__">기타 (직접 입력)</option>
-                              </select>
-                            )}
-                            <p className="font-bold text-red-600">+{formatKRW(row.ar.originalAmount)}</p>
-                          </div>
-                        </div>
-
-                        {expandedAr === row.ar.id && (
-                          <div className="px-3 pb-3 pt-1 border-t border-slate-200">
-                            <p className="text-[11px] text-slate-500 font-medium mb-1 mt-2">품목</p>
-                            {row.ar.transaction.items.length === 0 ? (
-                              <p className="text-xs text-slate-400 py-1">품목 정보 없음</p>
-                            ) : (
-                              <table className="w-full text-xs">
-                                <thead className="text-slate-500">
-                                  <tr className="border-b border-slate-200">
-                                    <th className="text-left py-1.5 font-normal">품목</th>
-                                    <th className="text-right py-1.5 font-normal w-20">수량</th>
-                                    <th className="text-right py-1.5 font-normal w-24">단가</th>
-                                    <th className="text-right py-1.5 font-normal w-28">금액</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {row.ar.transaction.items.map((it, i) => (
-                                    <tr key={i} className="border-b border-slate-100 last:border-0">
-                                      <td className="py-1.5 text-slate-700">{it.productName}</td>
-                                      <td className="py-1.5 text-right text-slate-600">{it.quantity.toLocaleString()}</td>
-                                      <td className="py-1.5 text-right text-slate-600">{formatKRW(it.unitPrice)}</td>
-                                      <td className="py-1.5 text-right font-medium text-slate-800">{formatKRW(it.amount)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            )}
-                          </div>
+                  <div className="mt-4 pt-4 border-t">
+                    <table className="w-full text-xs">
+                      <thead className="text-slate-500 border-b border-slate-200">
+                        <tr>
+                          <th className="text-left py-1.5 font-normal w-24">날짜</th>
+                          <th className="text-right py-1.5 font-normal w-32">매출</th>
+                          <th className="text-right py-1.5 font-normal w-32">일계표 입금</th>
+                          <th className="text-right py-1.5 font-normal w-32">통장 입금</th>
+                          <th className="text-right py-1.5 font-normal w-32">세금계산서</th>
+                          <th className="text-left py-1.5 font-normal pl-3">메모/담당자</th>
+                          <th className="w-8"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.length === 0 && (
+                          <tr><td colSpan={7} className="py-4 text-center text-slate-400">표시할 항목이 없습니다 (필터 확인)</td></tr>
                         )}
-                      </div>
-                    ))}
+                        {rows.map(row => {
+                          if (row.kind === 'sale') {
+                            const correction = isCorrectionSale(row.ar.transaction.description)
+                            const matched = (client.taxInvoices ?? []).some(t => t.matchedTransactionId === row.ar.transactionId)
+                            return (
+                              <>
+                                <tr
+                                  key={`s-${row.ar.id}`}
+                                  className={`border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${correction ? 'bg-slate-50/50' : ''}`}
+                                  onClick={(e) => { e.stopPropagation(); setExpandedAr(expandedAr === row.ar.id ? null : row.ar.id) }}
+                                >
+                                  <td className="py-2 text-slate-600">{fmtDate(row.ts)}</td>
+                                  <td className={`py-2 text-right font-bold ${correction ? 'text-slate-500' : 'text-red-600'}`}>
+                                    {correction ? '⚙️ ' : '+'}{formatKRW(row.ar.originalAmount)}
+                                  </td>
+                                  <td></td><td></td><td></td>
+                                  <td className="py-2 pl-3">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {!correction && (matched
+                                        ? <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-[10px] px-1.5">📄 발행</Badge>
+                                        : <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700 text-[10px] px-1.5">⚠ 미발행</Badge>
+                                      )}
+                                      {row.ar.transaction.salesPerson ? (
+                                        <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700 text-[10px] px-1.5">
+                                          <User className="w-3 h-3" />{row.ar.transaction.salesPerson}
+                                        </Badge>
+                                      ) : !correction && (
+                                        <select
+                                          className="text-[10px] border rounded px-1 py-0.5 bg-amber-50 border-amber-300 text-amber-700"
+                                          defaultValue=""
+                                          onClick={e => e.stopPropagation()}
+                                          onChange={e => {
+                                            e.stopPropagation()
+                                            const v = e.target.value
+                                            if (v === '__custom__') {
+                                              const name = prompt('담당자 이름 입력:')
+                                              if (name?.trim()) handleAssignPerson(row.ar.transactionId, name.trim())
+                                            } else if (v) handleAssignPerson(row.ar.transactionId, v)
+                                          }}
+                                        >
+                                          <option value="">담당자</option>
+                                          {personList.map(p => <option key={p} value={p}>{p}</option>)}
+                                          <option value="__custom__">기타</option>
+                                        </select>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="text-center text-slate-400">{expandedAr === row.ar.id ? '▼' : '▶'}</td>
+                                </tr>
+                                {expandedAr === row.ar.id && (
+                                  <tr key={`s-d-${row.ar.id}`} className="bg-slate-50/60">
+                                    <td colSpan={7} className="px-3 py-2">
+                                      <p className="text-[11px] text-slate-500 font-medium mb-1">품목</p>
+                                      {row.ar.transaction.items.length === 0 ? (
+                                        <p className="text-xs text-slate-400 py-1">품목 정보 없음</p>
+                                      ) : (
+                                        <table className="w-full text-xs">
+                                          <thead className="text-slate-500">
+                                            <tr className="border-b border-slate-200">
+                                              <th className="text-left py-1 font-normal">품목</th>
+                                              <th className="text-right py-1 font-normal w-20">수량</th>
+                                              <th className="text-right py-1 font-normal w-24">단가</th>
+                                              <th className="text-right py-1 font-normal w-28">금액</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {row.ar.transaction.items.map((it, i) => (
+                                              <tr key={i} className="border-b border-slate-100 last:border-0">
+                                                <td className="py-1 text-slate-700">{it.productName}</td>
+                                                <td className="py-1 text-right text-slate-600">{it.quantity.toLocaleString()}</td>
+                                                <td className="py-1 text-right text-slate-600">{formatKRW(it.unitPrice)}</td>
+                                                <td className="py-1 text-right font-medium text-slate-800">{formatKRW(it.amount)}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      )}
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
+                            )
+                          }
+                          if (row.kind === 'pay') {
+                            const correction = isCorrectionPay(row.pay.notes)
+                            return (
+                              <tr key={`p-${row.pay.id}`} className={`border-b border-slate-100 ${correction ? 'bg-slate-50/50' : 'bg-blue-50/30'}`}>
+                                <td className="py-2 text-slate-600">{fmtDate(row.ts)}</td>
+                                <td></td>
+                                <td className={`py-2 text-right font-bold ${correction ? 'text-slate-500' : 'text-blue-600'}`}>
+                                  {correction ? '⚙️ ' : '+'}{formatKRW(row.pay.amount)}
+                                </td>
+                                <td></td><td></td>
+                                <td className="py-2 pl-3 text-slate-500 text-[11px]">{correction ? '잔액 조정' : row.pay.notes ?? '일계표 입금'}</td>
+                                <td></td>
+                              </tr>
+                            )
+                          }
+                          if (row.kind === 'bank') {
+                            return (
+                              <tr key={`b-${row.bank.id}`} className="border-b border-slate-100 bg-green-50/30">
+                                <td className="py-2 text-slate-600">{fmtDate(row.ts)}</td>
+                                <td></td><td></td>
+                                <td className="py-2 text-right font-bold text-green-600">+{formatKRW(row.bank.amount)}</td>
+                                <td></td>
+                                <td className="py-2 pl-3 text-slate-500 text-[11px]">🟢 {row.bank.rawCounterparty || row.bank.rawDescription}</td>
+                                <td></td>
+                              </tr>
+                            )
+                          }
+                          // tax
+                          return (
+                            <tr key={`t-${row.tax.id}`} className="border-b border-slate-100 bg-purple-50/30">
+                              <td className="py-2 text-slate-600">{fmtDate(row.ts)}</td>
+                              <td></td><td></td><td></td>
+                              <td className="py-2 text-right font-bold text-purple-600">{formatKRW(row.tax.totalAmount)}</td>
+                              <td className="py-2 pl-3 text-slate-500 text-[11px]">📄 {row.tax.itemName ?? ''} · 공급가 {formatKRW(row.tax.supplyAmount)}</td>
+                              <td></td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                   )
                 })()}
