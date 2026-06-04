@@ -33,6 +33,75 @@ interface TxRow {
   voucherNo: string
 }
 
+// 입금 처리: 일계표 입금 행을 거래처별 미수금에 FIFO 적용
+// - 거래처명은 일계표 그대로 (exact 매칭, 정규화 안 함)
+// - 매칭 안 되거나 미수금 없으면 skip (선수금 처리 안 함)
+// - 중복 방지: 같은 (clientId, 날짜) 에 '[일계표]' 마커 결제 이미 있으면 그 날짜 입금 skip
+async function processDeposits(txRows: TxRow[], txDate: Date, dateStr: string): Promise<{ count: number; total: number }> {
+  const deposits = txRows.filter(r => r.account === '입금')
+  let count = 0
+  let total = 0
+
+  for (const r of deposits) {
+    const amount = Math.abs(r.amount)
+    if (!r.client || amount === 0) continue
+
+    // 거래처 (exact match)
+    const client = await prisma.client.findFirst({ where: { name: r.client } })
+    if (!client) continue
+
+    // 같은 날짜에 일계표 입금이 이미 적용됐는지 확인
+    const dayStart = new Date(txDate); dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(txDate); dayEnd.setHours(23, 59, 59, 999)
+    const existed = await prisma.arPayment.findFirst({
+      where: {
+        paymentDate: { gte: dayStart, lte: dayEnd },
+        notes: { startsWith: `[일계표] ${dateStr} | ${r.client}` },
+      },
+    })
+    if (existed) continue // 이미 처리됨
+
+    // 미수금 FIFO (오래된 순)
+    let remaining = amount
+    const ars = await prisma.accountsReceivable.findMany({
+      where: { clientId: client.id, status: { in: ['OUTSTANDING', 'PARTIAL'] } },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    for (const ar of ars) {
+      if (remaining <= 0) break
+      const apply = Math.min(remaining, ar.remainingAmount)
+      if (apply <= 0) continue
+
+      await prisma.arPayment.create({
+        data: {
+          receivableId: ar.id,
+          amount: apply,
+          paymentDate: txDate,
+          paymentMethod: '입금',
+          notes: `[일계표] ${dateStr} | ${r.client}`,
+        },
+      })
+
+      const newRem = ar.remainingAmount - apply
+      await prisma.accountsReceivable.update({
+        where: { id: ar.id },
+        data: {
+          remainingAmount: Math.max(0, newRem),
+          status: newRem <= 0 ? 'PAID' : 'PARTIAL',
+        },
+      })
+      remaining -= apply
+    }
+
+    // 적용된 금액 (남은 잔액은 무시 — 사용자 요청)
+    count++
+    total += (amount - remaining)
+  }
+
+  return { count, total }
+}
+
 function extractTxRows(rows: unknown[][]): TxRow[] {
   const result: TxRow[] = []
   for (const r of rows) {
@@ -87,6 +156,7 @@ export async function POST(request: NextRequest) {
       salesCount: number; totalSales: number
       expenseCount: number; totalExpenses: number
       purchaseCount: number; totalPurchases: number
+      depositCount: number; totalDeposits: number
     }[] = []
     const unmatchedProducts: string[] = []
 
@@ -98,22 +168,28 @@ export async function POST(request: NextRequest) {
       const dayStart = new Date(txDate); dayStart.setHours(0, 0, 0, 0)
       const dayEnd = new Date(txDate); dayEnd.setHours(23, 59, 59, 999)
 
-      // 중복 확인 — 해당 날짜 일계표 SALE이 이미 있으면 스킵
-      const existing = await prisma.transaction.findFirst({
-        where: { date: { gte: dayStart, lte: dayEnd }, type: 'SALE', description: { startsWith: '일계표' } }
-      })
-      if (existing) {
-        results.push({ date: dateStr, skipped: true, skipReason: '이미 업로드된 날짜', salesCount: 0, totalSales: 0, expenseCount: 0, totalExpenses: 0, purchaseCount: 0, totalPurchases: 0 })
-        continue
-      }
-
       const ws = workbook.Sheets[sheetName]
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]
       const txRows = extractTxRows(rows)
 
+      // SALE 중복 확인 — 매출은 이미 있으면 입금만 처리하고 매출/경비/매입은 스킵
+      const existingSale = await prisma.transaction.findFirst({
+        where: { date: { gte: dayStart, lte: dayEnd }, type: 'SALE', description: { startsWith: '일계표' } }
+      })
+      const skipMain = !!existingSale
+
       let salesCount = 0, totalSales = 0
       let expenseCount = 0, totalExpenses = 0
       let purchaseCount = 0, totalPurchases = 0
+      let depositCount = 0, totalDeposits = 0
+
+      if (skipMain) {
+        // 매출/경비/매입은 이미 등록됨. 입금만 처리.
+        const dep = await processDeposits(txRows, txDate, dateStr)
+        depositCount = dep.count; totalDeposits = dep.total
+        results.push({ date: dateStr, skipped: false, skipReason: depositCount > 0 ? `매출 중복 — 입금 ${depositCount}건만 적용` : '이미 업로드된 날짜', salesCount: 0, totalSales: 0, expenseCount: 0, totalExpenses: 0, purchaseCount: 0, totalPurchases: 0, depositCount, totalDeposits })
+        continue
+      }
 
       // ── 외출 (SALE): 전표No 기준 그룹핑 ──────────────────
       const saleGroups = new Map<string, TxRow[]>()
@@ -276,9 +352,13 @@ export async function POST(request: NextRequest) {
         totalPurchases += totalAmount
       }
 
-      // 입금/출금은 AR 관리 페이지에서 처리 (스킵)
+      // 입금 처리 — 거래처별 미수금에 FIFO 적용
+      const dep = await processDeposits(txRows, txDate, dateStr)
+      depositCount = dep.count; totalDeposits = dep.total
 
-      results.push({ date: dateStr, skipped: false, salesCount, totalSales, expenseCount, totalExpenses, purchaseCount, totalPurchases })
+      // 출금은 사용하지 않음 (사용자 요청)
+
+      results.push({ date: dateStr, skipped: false, salesCount, totalSales, expenseCount, totalExpenses, purchaseCount, totalPurchases, depositCount, totalDeposits })
     }
 
     const processed = results.filter(r => !r.skipped)
@@ -290,6 +370,8 @@ export async function POST(request: NextRequest) {
       totalSales: processed.reduce((s, r) => s + r.totalSales, 0),
       totalExpenses: processed.reduce((s, r) => s + r.totalExpenses, 0),
       totalPurchases: processed.reduce((s, r) => s + r.totalPurchases, 0),
+      depositCount: results.reduce((s, r) => s + r.depositCount, 0),
+      totalDeposits: results.reduce((s, r) => s + r.totalDeposits, 0),
       sheetsError: sheetsError || undefined,
       details: results,
       unmatchedProducts: [...new Set(unmatchedProducts)],

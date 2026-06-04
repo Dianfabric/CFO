@@ -76,9 +76,12 @@ function formatPurchaseResult(json: Record<string, unknown>): { message: string;
     const unmatchedMsg = unmatched && unmatched.length > 0
       ? ` | ⚠️ 원가 미매칭 ${unmatched.length}건: ${unmatched.slice(0, 3).join(', ')}${unmatched.length > 3 ? ` 외 ${unmatched.length - 3}건` : ''}`
       : ''
+    const depCount = (json.depositCount as number) ?? 0
+    const depTotal = (json.totalDeposits as number) ?? 0
+    const depMsg = depCount > 0 ? ` | 💰 입금 ${depCount}건 ${formatKRW(depTotal)}` : ''
     return {
       message: `${json.processedDays}일치 업로드 완료${skippedMsg}`,
-      detail: `매출 ${formatKRW((json.totalSales as number) ?? 0)} | 경비 ${formatKRW((json.totalExpenses as number) ?? 0)} | 매입 ${formatKRW((json.totalPurchases as number) ?? 0)}${unmatchedMsg}`,
+      detail: `매출 ${formatKRW((json.totalSales as number) ?? 0)} | 경비 ${formatKRW((json.totalExpenses as number) ?? 0)} | 매입 ${formatKRW((json.totalPurchases as number) ?? 0)}${depMsg}${unmatchedMsg}`,
     }
   }
   return { message: '등록 완료' }
