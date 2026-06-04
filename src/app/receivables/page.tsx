@@ -278,6 +278,7 @@ export default function ReceivablesPage() {
                                 <option value="__custom__">기타 (직접 입력)</option>
                               </select>
                             )}
+                            <p className="font-bold text-red-600">+{formatKRW(row.ar.originalAmount)}</p>
                           </div>
                         </div>
 
