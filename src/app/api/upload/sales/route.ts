@@ -202,7 +202,9 @@ export async function POST(request: NextRequest) {
       for (const [, items] of saleGroups) {
         const clientName = items[0].client
         if (!clientName) continue
-        const totalAmount = items.reduce((s, i) => s + i.amount, 0)
+        const subtotal = items.reduce((s, i) => s + i.amount, 0)
+        const taxAmount = items.reduce((s, i) => s + i.vat, 0)
+        const totalAmount = subtotal + taxAmount  // 부가세 포함 총액
         if (totalAmount === 0) continue
 
         let client = await prisma.client.findFirst({ where: { name: clientName } })
@@ -215,7 +217,7 @@ export async function POST(request: NextRequest) {
             clientId: client.id,
             description: `일계표 매출 - ${clientName}`,
             totalAmount,
-            taxAmount: items.reduce((s, i) => s + i.vat, 0),
+            taxAmount,
             paymentMethod: 'CREDIT',
             paymentStatus: 'UNPAID',
             channel: 'B2B',
