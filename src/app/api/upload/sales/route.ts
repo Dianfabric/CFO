@@ -33,9 +33,30 @@ interface TxRow {
   voucherNo: string
 }
 
-// 입금 처리: 일계표 입금 행을 거래처별 미수금에 FIFO 적용
+// 거래처 단위 AR 잔액 재계산
+// 각 AR의 remainingAmount = max(0, originalAmount - 자기 AR의 payments 합)
+// 단순 1:1 매칭이라 overpaid 잔여는 거래처 단위 합산 시 자동 반영됨
+async function recalcClientArBalances(clientId: string) {
+  const ars = await prisma.accountsReceivable.findMany({
+    where: { clientId },
+    include: { payments: { select: { amount: true } } },
+  })
+  for (const ar of ars) {
+    const paid = ar.payments.reduce((s, p) => s + p.amount, 0)
+    const rem = Math.max(0, ar.originalAmount - paid)
+    const status = rem === 0 ? 'PAID' : paid > 0 ? 'PARTIAL' : 'OUTSTANDING'
+    if (rem !== ar.remainingAmount || status !== ar.status) {
+      await prisma.accountsReceivable.update({
+        where: { id: ar.id },
+        data: { remainingAmount: rem, status },
+      })
+    }
+  }
+}
+
+// 입금 처리: 일계표 입금 행 1건 = ArPayment 1건 (실제 입금액 그대로 기록)
 // - 거래처명은 일계표 그대로 (exact 매칭, 정규화 안 함)
-// - 매칭 안 되거나 미수금 없으면 skip (선수금 처리 안 함)
+// - AR이 없으면 skip (선수금 처리 안 함)
 // - 중복 방지: 같은 (clientId, 날짜) 에 '[일계표]' 마커 결제 이미 있으면 그 날짜 입금 skip
 async function processDeposits(txRows: TxRow[], txDate: Date, dateStr: string): Promise<{ count: number; total: number }> {
   const deposits = txRows.filter(r => r.account === '입금')
@@ -61,42 +82,29 @@ async function processDeposits(txRows: TxRow[], txDate: Date, dateStr: string): 
     })
     if (existed) continue // 이미 처리됨
 
-    // 미수금 FIFO (오래된 순)
-    let remaining = amount
-    const ars = await prisma.accountsReceivable.findMany({
-      where: { clientId: client.id, status: { in: ['OUTSTANDING', 'PARTIAL'] } },
+    // 입금 전액을 거래처의 가장 오래된 AR에 한 건 기록 (실제 입금액 보존)
+    // AR이 없으면 skip (선수금 처리 안 함)
+    const targetAr = await prisma.accountsReceivable.findFirst({
+      where: { clientId: client.id },
       orderBy: { createdAt: 'asc' },
     })
+    if (!targetAr) continue
 
-    for (const ar of ars) {
-      if (remaining <= 0) break
-      const apply = Math.min(remaining, ar.remainingAmount)
-      if (apply <= 0) continue
+    await prisma.arPayment.create({
+      data: {
+        receivableId: targetAr.id,
+        amount,
+        paymentDate: txDate,
+        paymentMethod: '입금',
+        notes: `[일계표] ${dateStr} | ${r.client}`,
+      },
+    })
 
-      await prisma.arPayment.create({
-        data: {
-          receivableId: ar.id,
-          amount: apply,
-          paymentDate: txDate,
-          paymentMethod: '입금',
-          notes: `[일계표] ${dateStr} | ${r.client}`,
-        },
-      })
+    // 거래처 단위 잔액 재계산 (모든 AR의 original - 모든 payment 합)
+    await recalcClientArBalances(client.id)
 
-      const newRem = ar.remainingAmount - apply
-      await prisma.accountsReceivable.update({
-        where: { id: ar.id },
-        data: {
-          remainingAmount: Math.max(0, newRem),
-          status: newRem <= 0 ? 'PAID' : 'PARTIAL',
-        },
-      })
-      remaining -= apply
-    }
-
-    // 적용된 금액 (남은 잔액은 무시 — 사용자 요청)
     count++
-    total += (amount - remaining)
+    total += amount
   }
 
   return { count, total }

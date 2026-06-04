@@ -5,11 +5,9 @@ import { differenceInDays } from 'date-fns'
 export async function GET(request: NextRequest) {
   try {
     const includeFullyPaid = new URL(request.url).searchParams.get('includeFullyPaid') === 'true'
-    const statusFilter = includeFullyPaid
-      ? undefined
-      : { status: { in: ['OUTSTANDING', 'PARTIAL', 'OVERDUE'] } }
+    // 항상 모든 AR 가져옴 — 거래처 잔액은 sum(orig) - sum(all payments) 로 계산
     const receivables = await prisma.accountsReceivable.findMany({
-      where: statusFilter,
+      where: undefined,
       include: {
         client: { select: { id: true, name: true, phone: true } },
         transaction: {
@@ -63,28 +61,38 @@ export async function GET(request: NextRequest) {
         }
       }
       const c = byClient[cid]
-      c.totalAmount += ar.remainingAmount
+      // 거래처 잔액은 sum(original) - sum(all payments) 로 별도 계산 (아래)
       c.count += 1
       const days = differenceInDays(now, ar.createdAt)
       if (days > c.oldestDays) c.oldestDays = days
       c.items.push(ar)
 
-      // 담당자별 집계
+      // 담당자별 집계는 매출 단위 (전체 매출 ar.originalAmount 기준)
       const person = ar.transaction.salesPerson
       if (person) {
         const existing = c.salesPersons.find(p => p.name === person)
-        if (existing) { existing.count++; existing.amount += ar.remainingAmount }
-        else c.salesPersons.push({ name: person, count: 1, amount: ar.remainingAmount })
+        if (existing) { existing.count++; existing.amount += ar.originalAmount }
+        else c.salesPersons.push({ name: person, count: 1, amount: ar.originalAmount })
       } else {
         c.unassignedCount++
-        c.unassignedAmount += ar.remainingAmount
+        c.unassignedAmount += ar.originalAmount
       }
     })
+
+    // 거래처 잔액 = sum(모든 AR 원금) - sum(모든 입금)
+    for (const c of Object.values(byClient)) {
+      const totalOrig = c.items.reduce((s, ar) => s + ar.originalAmount, 0)
+      const totalPaid = c.allPayments.reduce((s, p) => s + p.amount, 0)
+      c.totalAmount = Math.max(0, totalOrig - totalPaid)
+    }
 
     // 담당자별 정렬 (건수 내림차순)
     Object.values(byClient).forEach(c => c.salesPersons.sort((a, b) => b.count - a.count))
 
-    const summary = Object.values(byClient).sort((a, b) => b.totalAmount - a.totalAmount)
+    // includeFullyPaid=false 면 잔액 0 거래처 제외
+    const summary = Object.values(byClient)
+      .filter(c => includeFullyPaid || c.totalAmount > 0)
+      .sort((a, b) => b.totalAmount - a.totalAmount)
     const totalAR = summary.reduce((s, c) => s + c.totalAmount, 0)
     const overdueTotal = receivables
       .filter(ar => ar.status === 'OVERDUE' || differenceInDays(now, ar.createdAt) > 30)
