@@ -87,6 +87,7 @@ model Transaction {
   paymentStatus String   @default("PAID") @map("payment_status") // PAID, PARTIAL, UNPAID
   channel       String   @default("B2B") // B2B, B2C_OFFLINE, B2C_ONLINE
   notes         String?
+  salesPerson   String?  @map("sales_person")  // 영업 담당자 (마감 엑셀 매칭)
   createdById   String?  @map("created_by_id")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -101,6 +102,7 @@ model Transaction {
   @@index([type, date])
   @@index([clientId])
   @@index([paymentStatus])
+  @@index([salesPerson])
   @@map("transactions")
 }
 
@@ -116,6 +118,12 @@ model TransactionItem {
   unitPrice     Int     @default(0) @map("unit_price")
   amount        Int     @default(0)
   notes         String?
+
+  // 마감 엑셀 메타 (Phase 1)
+  industry        String?  @map("industry")          // 직군 (예: 인테리어/쇼파/커튼)
+  productCategory String?  @map("product_category")  // 제품 (소파/커튼/방석 등)
+  processFunction String?  @map("process_function")  // 가공·기능 (방염/발수 등)
+  material        String?  @map("material")          // 재료 (코튼/벨벳 등)
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   product     Product?    @relation(fields: [productId], references: [id])
