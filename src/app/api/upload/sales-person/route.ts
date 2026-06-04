@@ -43,7 +43,7 @@ function fuzzy(a: string, b: string): boolean {
 }
 
 interface MagamRow {
-  date: string
+  date: Date | null     // ← 행 자체 날짜
   company: string
   cKey: string
   product: string
@@ -56,6 +56,14 @@ interface MagamRow {
   productCategory: string
   processFunction: string
   material: string
+}
+
+// 일계표 productName ("원단명 [규격]") → product + spec 분리
+function splitItemName(productName: string): { product: string; spec: string } {
+  // 마지막 [...] 를 spec 으로 추출
+  const m = productName.match(/^(.*?)\s*\[([^\]]+)\]\s*$/)
+  if (m) return { product: m[1].trim(), spec: m[2].trim() }
+  return { product: productName.trim(), spec: '' }
 }
 
 function parseDateFromFilename(name: string): Date | null {
@@ -98,22 +106,24 @@ export async function POST(request: NextRequest) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
 
-    // 파일명 또는 첫 데이터행 날짜로 기준일 결정
-    const fileDate = parseDateFromFilename(file.name) || parseDateCell(rows[1]?.[0])
-    if (!fileDate) return NextResponse.json({ error: '마감 파일 날짜를 인식할 수 없습니다 (파일명 또는 A열)' }, { status: 400 })
-
-    // 마감 엑셀 파싱
+    // 마감 엑셀 파싱 — 행별 A열 날짜를 그대로 보관 (범위 파일 지원)
     const magamRows: MagamRow[] = []
     let lastCompany = ''
+    let lastDate: Date | null = null
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i]
+      // 날짜 (A열) — 빈 셀이면 위 행 날짜 유지
+      const cellDate = parseDateCell(r[0])
+      if (cellDate) lastDate = cellDate
+
+      // 업체명 (C열) — " 또는 빈값이면 위 행 업체 유지
       let company = String(r[2] ?? '').trim()
       if (company === '"' || company === '') company = lastCompany
       else lastCompany = company
       if (!company) continue
 
       magamRows.push({
-        date: String(r[0] ?? ''),
+        date: lastDate,
         company,
         cKey: normClient(company),
         product: String(r[3] ?? '').trim(),
@@ -131,9 +141,15 @@ export async function POST(request: NextRequest) {
 
     if (magamRows.length === 0) return NextResponse.json({ error: '마감 엑셀에 데이터 행이 없습니다' }, { status: 400 })
 
-    // 30일 소급: [fileDate - 30, fileDate] 기간의 SALE 거래 가져오기
-    const start = new Date(fileDate); start.setDate(start.getDate() - 30); start.setHours(0, 0, 0, 0)
-    const end = new Date(fileDate); end.setHours(23, 59, 59, 999)
+    // 행 날짜 범위 추출 — 한 파일에 여러 날짜 들어있어도 OK
+    const dates = magamRows.map(m => m.date).filter(Boolean) as Date[]
+    if (dates.length === 0) return NextResponse.json({ error: '날짜를 추출할 수 없습니다 (A열 또는 파일명)' }, { status: 400 })
+    const minDate = new Date(Math.min(...dates.map(d => d.getTime())))
+    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())))
+
+    // 거래 조회 범위: [최소 행 날짜 -30일, 최대 행 날짜]
+    const start = new Date(minDate); start.setDate(start.getDate() - 30); start.setHours(0, 0, 0, 0)
+    const end = new Date(maxDate); end.setHours(23, 59, 59, 999)
 
     const sales = await prisma.transaction.findMany({
       where: { type: 'SALE', date: { gte: start, lte: end } },
@@ -156,20 +172,29 @@ export async function POST(request: NextRequest) {
       const cKey = normClient(tx.client?.name ?? '')
       if (!cKey) continue
 
-      // 동일/부분일치 거래처의 마감 행
+      // 동일/부분일치 거래처의 마감 행 — 단, 거래 날짜와 마감행 날짜 차이가 30일 이내인 것만
       const candidates: MagamRow[] = []
-      for (const [k, list] of magamByClient) if (fuzzy(cKey, k)) candidates.push(...list)
+      for (const [k, list] of magamByClient) {
+        if (!fuzzy(cKey, k)) continue
+        for (const m of list) {
+          if (!m.date) continue
+          const diffDays = (m.date.getTime() - tx.date.getTime()) / 86400000
+          // 마감 행 날짜 >= 거래일 (출고가 매출보다 늦거나 같음) and within 30 days
+          if (diffDays >= -1 && diffDays <= 30) candidates.push(m)
+        }
+      }
       if (candidates.length === 0) continue
 
       let bestPersonScore = 0
       let bestPerson = ''
 
       for (const item of tx.items) {
+        // 일계표 productName 은 "원단명 [규격]" 형태 → 분리해서 매칭
+        const { product: itemProduct, spec: itemSpec } = splitItemName(item.productName)
+
         let best: { score: number; row: MagamRow | null } = { score: 0, row: null }
         for (const m of candidates) {
-          const s = scoreMatch(tx.client?.name ?? '', item.productName, '', item.quantity, m)
-          // item.productName에 [규격]이 포함되어 있을 수 있어 productName 그대로 + extractSpec 추가 시도
-          // 일계표에서는 productName = "원단명 [규격]" 형태로 저장됨
+          const s = scoreMatch(tx.client?.name ?? '', itemProduct, itemSpec, item.quantity, m)
           if (s.score > best.score) best = { score: s.score, row: m }
         }
         if (best.score >= 50 && best.row) {
@@ -215,7 +240,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       type: 'sales_person',
-      fileDate: fileDate.toISOString().slice(0, 10),
+      fileDate: `${minDate.toISOString().slice(0, 10)} ~ ${maxDate.toISOString().slice(0, 10)}`,
       totalMagamRows: magamRows.length,
       personUpdated,
       itemTagged,
