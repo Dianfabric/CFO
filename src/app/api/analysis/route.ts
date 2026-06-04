@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { EXCLUDE_BALANCE_CORRECTION } from '@/lib/sales-filter'
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,10 +16,10 @@ export async function GET(request: NextRequest) {
       const mEnd = endOfMonth(subMonths(now, i))
 
       const [salesAgg, expensesAgg, salesTx] = await Promise.all([
-        prisma.transaction.aggregate({ where: { type: 'SALE', date: { gte: mStart, lte: mEnd } }, _sum: { totalAmount: true }, _count: true }),
+        prisma.transaction.aggregate({ where: { type: 'SALE', date: { gte: mStart, lte: mEnd }, ...EXCLUDE_BALANCE_CORRECTION }, _sum: { totalAmount: true }, _count: true }),
         prisma.transaction.aggregate({ where: { type: 'EXPENSE', date: { gte: mStart, lte: mEnd } }, _sum: { totalAmount: true } }),
         prisma.transaction.findMany({
-          where: { type: 'SALE', date: { gte: mStart, lte: mEnd } },
+          where: { type: 'SALE', date: { gte: mStart, lte: mEnd }, ...EXCLUDE_BALANCE_CORRECTION },
           include: { items: { include: { product: true } } },
         }),
       ])
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     const startRange = startOfMonth(subMonths(now, months - 1))
     const productSales = await prisma.transactionItem.groupBy({
       by: ['productId'],
-      where: { transaction: { type: 'SALE', date: { gte: startRange } }, productId: { not: null } },
+      where: { transaction: { type: 'SALE', date: { gte: startRange }, ...EXCLUDE_BALANCE_CORRECTION }, productId: { not: null } },
       _sum: { amount: true, quantity: true },
       orderBy: { _sum: { amount: 'desc' } },
     })
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
     // 채널별 분석
     const channelSales = await prisma.transaction.groupBy({
       by: ['channel'],
-      where: { type: 'SALE', date: { gte: startRange } },
+      where: { type: 'SALE', date: { gte: startRange }, ...EXCLUDE_BALANCE_CORRECTION },
       _sum: { totalAmount: true },
       _count: true,
     })

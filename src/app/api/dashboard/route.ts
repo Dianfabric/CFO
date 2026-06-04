@@ -9,6 +9,7 @@ import {
   format,
   differenceInDays,
 } from 'date-fns'
+import { EXCLUDE_BALANCE_CORRECTION } from '@/lib/sales-filter'
 
 export async function GET() {
   try {
@@ -21,14 +22,14 @@ export async function GET() {
 
     // 오늘 매출
     const todaySales = await prisma.transaction.aggregate({
-      where: { type: 'SALE', date: { gte: todayStart } },
+      where: { type: 'SALE', date: { gte: todayStart }, ...EXCLUDE_BALANCE_CORRECTION },
       _sum: { totalAmount: true },
       _count: true,
     })
 
     // 이번 달 매출
     const monthSales = await prisma.transaction.aggregate({
-      where: { type: 'SALE', date: { gte: monthStart, lte: monthEnd } },
+      where: { type: 'SALE', date: { gte: monthStart, lte: monthEnd }, ...EXCLUDE_BALANCE_CORRECTION },
       _sum: { totalAmount: true },
     })
 
@@ -43,7 +44,7 @@ export async function GET() {
 
     // 전월 매출
     const prevMonthSales = await prisma.transaction.aggregate({
-      where: { type: 'SALE', date: { gte: prevMonthStart, lte: prevMonthEnd } },
+      where: { type: 'SALE', date: { gte: prevMonthStart, lte: prevMonthEnd }, ...EXCLUDE_BALANCE_CORRECTION },
       _sum: { totalAmount: true },
     })
 
@@ -81,7 +82,7 @@ export async function GET() {
       dayEnd.setHours(23, 59, 59, 999)
 
       const sales = await prisma.transaction.aggregate({
-        where: { type: 'SALE', date: { gte: dayStart, lte: dayEnd } },
+        where: { type: 'SALE', date: { gte: dayStart, lte: dayEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         _sum: { totalAmount: true },
       })
       const expenses = await prisma.transaction.aggregate({
@@ -104,7 +105,7 @@ export async function GET() {
     const productSales = await prisma.transactionItem.groupBy({
       by: ['productId'],
       where: {
-        transaction: { type: 'SALE', date: { gte: monthStart, lte: monthEnd } },
+        transaction: { type: 'SALE', date: { gte: monthStart, lte: monthEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         productId: { not: null },
       },
       _sum: { amount: true, quantity: true },

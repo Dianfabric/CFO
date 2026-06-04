@@ -13,8 +13,9 @@ import { formatKRW } from '@/lib/formatters'
 interface ARItem {
   id: string; remainingAmount: number; originalAmount: number; status: string; createdAt: string
   transaction: {
-    date: string; salesPerson: string | null; description?: string | null
+    id: string; date: string; salesPerson: string | null; description?: string | null; taxStatus?: string | null
     items: { productName: string; quantity: number; unitPrice: number; amount: number }[]
+    taxInvoices?: { id: string; totalAmount: number }[]
   }
   payments: { id: string; amount: number; paymentDate: string; paymentMethod: string; notes: string | null }[]
   transactionId: string
@@ -51,7 +52,7 @@ function MemoCell({ rowType, rowId, initial }: { rowType: string; rowId: string;
         onChange={e => setValue(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') save() }}
         placeholder="비고 입력…"
-        className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 bg-white hover:border-slate-300 focus:border-blue-400 focus:outline-none"
+        className="flex-1 min-w-[24rem] text-sm border border-slate-200 rounded px-3 py-1.5 bg-white hover:border-slate-300 focus:border-blue-400 focus:outline-none"
       />
       <button
         onClick={save}
@@ -67,6 +68,51 @@ function MemoCell({ rowType, rowId, initial }: { rowType: string; rowId: string;
         {state === 'saving' ? '...' : state === 'done' ? '✓ 저장' : '저장'}
       </button>
     </div>
+  )
+}
+
+function TaxStatusSelect({
+  transactionId, initial, matched, onChanged,
+}: { transactionId: string; initial: string | null | undefined; matched: boolean; onChanged: () => void }) {
+  // 자동 매칭된 세금계산서가 있으면 기본은 ISSUED, 사용자 오버라이드가 있으면 그 값 사용
+  const effective = initial ?? (matched ? 'ISSUED' : 'PENDING')
+  const [value, setValue] = useState(effective)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { setValue(initial ?? (matched ? 'ISSUED' : 'PENDING')) }, [initial, matched])
+
+  const handle = async (next: string) => {
+    setValue(next)
+    setSaving(true)
+    try {
+      await fetch('/api/tax-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactionId, status: next }),
+      })
+      onChanged()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const cls = value === 'COMPLETED'
+    ? 'bg-green-50 border-green-300 text-green-700'
+    : value === 'ISSUED'
+      ? 'bg-purple-50 border-purple-300 text-purple-700'
+      : 'bg-amber-50 border-amber-300 text-amber-700'
+
+  return (
+    <select
+      value={value}
+      disabled={saving}
+      onClick={e => e.stopPropagation()}
+      onChange={e => { e.stopPropagation(); handle(e.target.value) }}
+      className={`text-[10px] border rounded px-1.5 py-0.5 ${cls}`}
+    >
+      <option value="PENDING">⚠ 미발행</option>
+      <option value="ISSUED">📄 발행</option>
+      <option value="COMPLETED">✓ 완료</option>
+    </select>
   )
 }
 
@@ -111,6 +157,7 @@ export default function ReceivablesPage() {
   const [includeFullyPaid, setIncludeFullyPaid] = useState(false)
   const [dateFrom, setDateFrom] = useState('')  // YYYY-MM-DD, '' = 무제한
   const [dateTo, setDateTo] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchData = async () => {
     setLoading(true)
@@ -172,13 +219,16 @@ export default function ReceivablesPage() {
   const agingBadge = (days: number) =>
     days <= 30 ? 'secondary' as const : days <= 60 ? 'outline' as const : 'destructive' as const
 
-  // 필터 적용
+  // 필터 적용 — 담당자 + 거래처명 검색
   const filteredSummary = useMemo(() => {
     if (!data) return []
-    if (!filterPerson) return data.summary
-    if (filterPerson === 'UNASSIGNED') return data.summary.filter(c => c.unassignedCount > 0)
-    return data.summary.filter(c => c.salesPersons.some(p => p.name === filterPerson))
-  }, [data, filterPerson])
+    const q = searchQuery.trim().toLowerCase()
+    let list = data.summary
+    if (filterPerson === 'UNASSIGNED') list = list.filter(c => c.unassignedCount > 0)
+    else if (filterPerson) list = list.filter(c => c.salesPersons.some(p => p.name === filterPerson))
+    if (q) list = list.filter(c => c.clientName.toLowerCase().includes(q))
+    return list
+  }, [data, filterPerson, searchQuery])
 
   const filteredTotal = filteredSummary.reduce((s, c) => s + c.totalAmount, 0)
   const personList = useMemo(() => {
@@ -190,9 +240,28 @@ export default function ReceivablesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">미수금 관리</h1>
-        <p className="text-sm text-slate-500">거래처별 외상 미수금을 추적하고 회수를 기록합니다</p>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">미수금 관리</h1>
+          <p className="text-sm text-slate-500">거래처별 외상 미수금을 추적하고 회수를 기록합니다</p>
+        </div>
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="거래처 검색…"
+            className="w-72 text-sm border border-slate-300 rounded-lg px-3 py-2 pr-8 bg-white focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 요약 카드 */}
@@ -353,7 +422,7 @@ export default function ReceivablesPage() {
                           <th className="text-right py-1.5 font-normal w-32">통장 입금</th>
                           <th className="text-right py-1.5 font-normal w-32">세금계산서</th>
                           <th className="text-left py-1.5 font-normal pl-3">메모/담당자</th>
-                          <th className="text-left py-1.5 font-normal pl-3 w-80">비고</th>
+                          <th className="text-left py-1.5 font-normal pl-3 min-w-[28rem]">비고</th>
                           <th className="w-8"></th>
                         </tr>
                       </thead>
@@ -379,9 +448,13 @@ export default function ReceivablesPage() {
                                   <td></td><td></td><td></td>
                                   <td className="py-2 pl-3">
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      {!correction && (matched
-                                        ? <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-[10px] px-1.5">📄 발행</Badge>
-                                        : <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700 text-[10px] px-1.5">⚠ 미발행</Badge>
+                                      {!correction && (
+                                        <TaxStatusSelect
+                                          transactionId={row.ar.transactionId}
+                                          initial={row.ar.transaction.taxStatus}
+                                          matched={matched}
+                                          onChanged={fetchData}
+                                        />
                                       )}
                                       {row.ar.transaction.salesPerson ? (
                                         <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700 text-[10px] px-1.5">

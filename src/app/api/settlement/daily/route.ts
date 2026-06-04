@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { startOfDay, endOfDay, subDays, startOfMonth, format } from 'date-fns'
 import { getFabricPrices, findFabric } from '@/lib/googleSheets'
+import { EXCLUDE_BALANCE_CORRECTION } from '@/lib/sales-filter'
 
 function getBusinessDaysInMonth(date: Date): number {
   const year = date.getFullYear()
@@ -73,7 +74,13 @@ export async function GET(request: NextRequest) {
       lwAgg,
     ] = await Promise.all([
       prisma.transaction.findMany({
-        where: { date: { gte: rangeStart, lte: rangeEnd } },
+        where: {
+          date: { gte: rangeStart, lte: rangeEnd },
+          OR: [
+            { type: { not: 'SALE' } },
+            { AND: [{ type: 'SALE' }, EXCLUDE_BALANCE_CORRECTION] },
+          ],
+        },
         include: { items: { include: { product: true } }, client: { select: { name: true } } },
       }),
       getFabricPrices().catch(() => [] as Awaited<ReturnType<typeof getFabricPrices>>),
@@ -84,20 +91,20 @@ export async function GET(request: NextRequest) {
         include: { client: { select: { name: true } } },
       }),
       prisma.transaction.aggregate({
-        where: { type: 'SALE', date: { gte: prevPeriodStart, lte: prevPeriodEnd } },
+        where: { type: 'SALE', date: { gte: prevPeriodStart, lte: prevPeriodEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         _sum: { totalAmount: true }, _count: true,
       }),
       prisma.transaction.findMany({
-        where: { type: 'SALE', date: { gte: prevPeriodStart, lte: prevPeriodEnd } },
+        where: { type: 'SALE', date: { gte: prevPeriodStart, lte: prevPeriodEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         include: { items: { include: { product: true } } },
       }),
       prisma.transaction.findMany({
-        where: { type: 'SALE', date: { gte: monthStart, lte: rangeEnd } },
+        where: { type: 'SALE', date: { gte: monthStart, lte: rangeEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         include: { items: { include: { product: true } } },
       }),
       isSingleDay
         ? prisma.transaction.aggregate({
-            where: { type: 'SALE', date: { gte: startOfDay(lastWeekSameDay), lte: endOfDay(lastWeekSameDay) } },
+            where: { type: 'SALE', date: { gte: startOfDay(lastWeekSameDay), lte: endOfDay(lastWeekSameDay) }, ...EXCLUDE_BALANCE_CORRECTION },
             _sum: { totalAmount: true }, _count: true,
           })
         : Promise.resolve(null),

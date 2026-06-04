@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { chatWithAdvisor } from '@/lib/claude'
 import { startOfMonth, endOfMonth, subMonths, differenceInDays } from 'date-fns'
 import type { FinancialContext } from '@/lib/calculations'
+import { EXCLUDE_BALANCE_CORRECTION } from '@/lib/sales-filter'
 
 async function buildFinancialContext(): Promise<FinancialContext> {
   const now = new Date()
@@ -12,12 +13,12 @@ async function buildFinancialContext(): Promise<FinancialContext> {
   const prevEnd = endOfMonth(subMonths(now, 1))
 
   const [monthSales, monthExp, prevSales, totalAR, overdueAR, topProducts, productItems] = await Promise.all([
-    prisma.transaction.aggregate({ where: { type: 'SALE', date: { gte: monthStart, lte: monthEnd } }, _sum: { totalAmount: true }, _count: true }),
+    prisma.transaction.aggregate({ where: { type: 'SALE', date: { gte: monthStart, lte: monthEnd }, ...EXCLUDE_BALANCE_CORRECTION }, _sum: { totalAmount: true }, _count: true }),
     prisma.transaction.aggregate({ where: { type: { in: ['EXPENSE', 'PURCHASE'] }, date: { gte: monthStart, lte: monthEnd } }, _sum: { totalAmount: true } }),
-    prisma.transaction.aggregate({ where: { type: 'SALE', date: { gte: prevStart, lte: prevEnd } }, _sum: { totalAmount: true } }),
+    prisma.transaction.aggregate({ where: { type: 'SALE', date: { gte: prevStart, lte: prevEnd }, ...EXCLUDE_BALANCE_CORRECTION }, _sum: { totalAmount: true } }),
     prisma.accountsReceivable.aggregate({ where: { status: { in: ['OUTSTANDING', 'PARTIAL', 'OVERDUE'] } }, _sum: { remainingAmount: true } }),
     prisma.accountsReceivable.aggregate({ where: { status: 'OVERDUE' }, _sum: { remainingAmount: true } }),
-    prisma.transactionItem.groupBy({ by: ['productId'], where: { transaction: { type: 'SALE', date: { gte: monthStart } }, productId: { not: null } }, _sum: { amount: true, quantity: true }, orderBy: { _sum: { amount: 'desc' } }, take: 10 }),
+    prisma.transactionItem.groupBy({ by: ['productId'], where: { transaction: { type: 'SALE', date: { gte: monthStart }, ...EXCLUDE_BALANCE_CORRECTION }, productId: { not: null } }, _sum: { amount: true, quantity: true }, orderBy: { _sum: { amount: 'desc' } }, take: 10 }),
     prisma.product.findMany(),
   ])
 

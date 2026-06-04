@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { EXCLUDE_BALANCE_CORRECTION } from '@/lib/sales-filter'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     const totalSales = await prisma.transaction.aggregate({
-      where: { clientId: id, type: 'SALE' }, _sum: { totalAmount: true }, _count: true,
+      where: { clientId: id, type: 'SALE', ...EXCLUDE_BALANCE_CORRECTION }, _sum: { totalAmount: true }, _count: true,
     })
     const totalAR = await prisma.accountsReceivable.aggregate({
       where: { clientId: id, status: { in: ['OUTSTANDING', 'PARTIAL', 'OVERDUE'] } },

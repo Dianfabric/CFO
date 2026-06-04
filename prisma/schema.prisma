@@ -91,6 +91,7 @@ model Transaction {
   channel       String   @default("B2B") // B2B, B2C_OFFLINE, B2C_ONLINE
   notes         String?
   salesPerson   String?  @map("sales_person")  // 영업 담당자 (마감 엑셀 매칭)
+  taxStatus     String?  @map("tax_status")    // PENDING | ISSUED | COMPLETED (세금계산서 발행상태)
   createdById   String?  @map("created_by_id")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
