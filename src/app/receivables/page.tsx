@@ -20,12 +20,17 @@ interface ARItem {
   transactionId: string
 }
 
+interface PaymentEntry {
+  id: string; amount: number; paymentDate: string; paymentMethod: string; notes: string | null
+}
+
 interface ClientAR {
   clientId: string; clientName: string; phone: string | null
   totalAmount: number; count: number; oldestDays: number
   salesPersons: { name: string; count: number; amount: number }[]
   unassignedCount: number; unassignedAmount: number
   items: ARItem[]
+  allPayments: PaymentEntry[]
 }
 
 const DEFAULT_PERSONS = ['한태원', '한태종', '최현진', '유대현', '전새로미']
@@ -220,23 +225,39 @@ export default function ReceivablesPage() {
                   </div>
                 </div>
 
-                {expandedClient === client.clientId && (
+                {expandedClient === client.clientId && (() => {
+                  // 매출 AR + 입금 통합 시간순 (최신 먼저)
+                  type SaleRow = { kind: 'sale'; ts: number; ar: ARItem }
+                  type PayRow = { kind: 'pay'; ts: number; pay: PaymentEntry }
+                  const rows: (SaleRow | PayRow)[] = [
+                    ...client.items.map(ar => ({ kind: 'sale' as const, ts: new Date(ar.transaction.date).getTime(), ar })),
+                    ...client.allPayments.map(pay => ({ kind: 'pay' as const, ts: new Date(pay.paymentDate).getTime(), pay })),
+                  ].sort((a, b) => b.ts - a.ts)
+
+                  return (
                   <div className="mt-4 pt-4 border-t space-y-2">
-                    {client.items.map(ar => (
-                      <div key={ar.id} className="bg-slate-50 rounded-lg">
+                    {rows.map(row => row.kind === 'pay' ? (
+                      <div key={`pay-${row.pay.id}`} className="flex items-center justify-between p-2 bg-blue-50/40 rounded-lg">
+                        <div className="flex-1">
+                          <p className="text-sm text-slate-600">입금</p>
+                          <p className="text-xs text-slate-500">{new Date(row.pay.paymentDate).toLocaleDateString('ko-KR')}{row.pay.notes ? ` · ${row.pay.notes}` : ''}</p>
+                        </div>
+                        <p className="font-bold text-blue-600">+{formatKRW(row.pay.amount)}</p>
+                      </div>
+                    ) : (
+                      <div key={row.ar.id} className="bg-slate-50 rounded-lg">
                         <div
                           className="flex items-center justify-between p-2 cursor-pointer hover:bg-slate-100 rounded-lg"
-                          onClick={(e) => { e.stopPropagation(); setExpandedAr(expandedAr === ar.id ? null : ar.id) }}
+                          onClick={(e) => { e.stopPropagation(); setExpandedAr(expandedAr === row.ar.id ? null : row.ar.id) }}
                         >
                           <div className="flex-1">
-                            <p className="text-sm">원 금액: {formatKRW(ar.originalAmount)}</p>
-                            <p className="text-xs text-slate-500">{new Date(ar.transaction.date).toLocaleDateString('ko-KR')}</p>
+                            <p className="text-sm">원 금액: {formatKRW(row.ar.originalAmount)}</p>
+                            <p className="text-xs text-slate-500">{new Date(row.ar.transaction.date).toLocaleDateString('ko-KR')}</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            {/* 담당자 표시 / 선택 */}
-                            {ar.transaction.salesPerson ? (
+                            {row.ar.transaction.salesPerson ? (
                               <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
-                                <User className="w-3 h-3" />{ar.transaction.salesPerson}
+                                <User className="w-3 h-3" />{row.ar.transaction.salesPerson}
                               </Badge>
                             ) : (
                               <select
@@ -248,8 +269,8 @@ export default function ReceivablesPage() {
                                   const v = e.target.value
                                   if (v === '__custom__') {
                                     const name = prompt('담당자 이름 입력:')
-                                    if (name?.trim()) handleAssignPerson(ar.transactionId, name.trim())
-                                  } else if (v) handleAssignPerson(ar.transactionId, v)
+                                    if (name?.trim()) handleAssignPerson(row.ar.transactionId, name.trim())
+                                  } else if (v) handleAssignPerson(row.ar.transactionId, v)
                                 }}
                               >
                                 <option value="">담당자 선택</option>
@@ -257,78 +278,49 @@ export default function ReceivablesPage() {
                                 <option value="__custom__">기타 (직접 입력)</option>
                               </select>
                             )}
-                            <p className="font-bold text-red-600">{formatKRW(ar.remainingAmount)}</p>
+                            <p className="font-bold text-red-600">{formatKRW(row.ar.remainingAmount)}</p>
                             <Button size="sm" variant="outline" onClick={e => {
                               e.stopPropagation()
-                              setPayDialog({ arId: ar.id, clientName: client.clientName, remaining: ar.remainingAmount })
-                              setPayAmount(ar.remainingAmount)
+                              setPayDialog({ arId: row.ar.id, clientName: client.clientName, remaining: row.ar.remainingAmount })
+                              setPayAmount(row.ar.remainingAmount)
                             }}>회수</Button>
                           </div>
                         </div>
 
-                        {expandedAr === ar.id && (
-                          <div className="px-3 pb-3 pt-1 border-t border-slate-200 space-y-3">
-                            {/* 품목 */}
-                            <div>
-                              <p className="text-[11px] text-slate-500 font-medium mb-1 mt-2">품목</p>
-                              {ar.transaction.items.length === 0 ? (
-                                <p className="text-xs text-slate-400 py-1">품목 정보 없음</p>
-                              ) : (
-                                <table className="w-full text-xs">
-                                  <thead className="text-slate-500">
-                                    <tr className="border-b border-slate-200">
-                                      <th className="text-left py-1.5 font-normal">품목</th>
-                                      <th className="text-right py-1.5 font-normal w-20">수량</th>
-                                      <th className="text-right py-1.5 font-normal w-24">단가</th>
-                                      <th className="text-right py-1.5 font-normal w-28">금액</th>
+                        {expandedAr === row.ar.id && (
+                          <div className="px-3 pb-3 pt-1 border-t border-slate-200">
+                            <p className="text-[11px] text-slate-500 font-medium mb-1 mt-2">품목</p>
+                            {row.ar.transaction.items.length === 0 ? (
+                              <p className="text-xs text-slate-400 py-1">품목 정보 없음</p>
+                            ) : (
+                              <table className="w-full text-xs">
+                                <thead className="text-slate-500">
+                                  <tr className="border-b border-slate-200">
+                                    <th className="text-left py-1.5 font-normal">품목</th>
+                                    <th className="text-right py-1.5 font-normal w-20">수량</th>
+                                    <th className="text-right py-1.5 font-normal w-24">단가</th>
+                                    <th className="text-right py-1.5 font-normal w-28">금액</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {row.ar.transaction.items.map((it, i) => (
+                                    <tr key={i} className="border-b border-slate-100 last:border-0">
+                                      <td className="py-1.5 text-slate-700">{it.productName}</td>
+                                      <td className="py-1.5 text-right text-slate-600">{it.quantity.toLocaleString()}</td>
+                                      <td className="py-1.5 text-right text-slate-600">{formatKRW(it.unitPrice)}</td>
+                                      <td className="py-1.5 text-right font-medium text-slate-800">{formatKRW(it.amount)}</td>
                                     </tr>
-                                  </thead>
-                                  <tbody>
-                                    {ar.transaction.items.map((it, i) => (
-                                      <tr key={i} className="border-b border-slate-100 last:border-0">
-                                        <td className="py-1.5 text-slate-700">{it.productName}</td>
-                                        <td className="py-1.5 text-right text-slate-600">{it.quantity.toLocaleString()}</td>
-                                        <td className="py-1.5 text-right text-slate-600">{formatKRW(it.unitPrice)}</td>
-                                        <td className="py-1.5 text-right font-medium text-slate-800">{formatKRW(it.amount)}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-                            </div>
-
-                            {/* 입금 기록 */}
-                            <div>
-                              <p className="text-[11px] text-slate-500 font-medium mb-1">입금 기록</p>
-                              {ar.payments.length === 0 ? (
-                                <p className="text-xs text-slate-400 py-1">입금 내역 없음</p>
-                              ) : (
-                                <table className="w-full text-xs">
-                                  <thead className="text-slate-500">
-                                    <tr className="border-b border-slate-200">
-                                      <th className="text-left py-1.5 font-normal w-28">일자</th>
-                                      <th className="text-right py-1.5 font-normal w-28">금액</th>
-                                      <th className="text-left py-1.5 font-normal pl-3">메모</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {ar.payments.map(p => (
-                                      <tr key={p.id} className="border-b border-slate-100 last:border-0">
-                                        <td className="py-1.5 text-slate-700">{new Date(p.paymentDate).toLocaleDateString('ko-KR')}</td>
-                                        <td className="py-1.5 text-right font-medium text-green-700">+{formatKRW(p.amount)}</td>
-                                        <td className="py-1.5 text-slate-500 pl-3">{p.notes ?? '-'}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-                            </div>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
                           </div>
                         )}
                       </div>
                     ))}
                   </div>
-                )}
+                  )
+                })()}
               </CardContent>
             </Card>
           ))}

@@ -19,13 +19,28 @@ export async function GET() {
       orderBy: { createdAt: 'asc' },
     })
 
+    // 거래처별 전체 입금 (매출 매칭 무관 — 미수금 페이지에서 입금 이력 표시용)
+    const clientIds = Array.from(new Set(receivables.map(ar => ar.clientId)))
+    const allPaymentsRaw = clientIds.length === 0 ? [] : await prisma.arPayment.findMany({
+      where: { receivable: { clientId: { in: clientIds } } },
+      include: { receivable: { select: { clientId: true } } },
+      orderBy: { paymentDate: 'desc' },
+    })
+    const paymentsByClient = new Map<string, typeof allPaymentsRaw>()
+    for (const p of allPaymentsRaw) {
+      const cid = p.receivable.clientId
+      if (!paymentsByClient.has(cid)) paymentsByClient.set(cid, [])
+      paymentsByClient.get(cid)!.push(p)
+    }
+
     // 거래처별 집계
     const byClient: Record<string, {
       clientId: string; clientName: string; phone: string | null;
       totalAmount: number; count: number; oldestDays: number;
       salesPersons: { name: string; count: number; amount: number }[];
       unassignedCount: number; unassignedAmount: number;
-      items: typeof receivables
+      items: typeof receivables;
+      allPayments: { id: string; amount: number; paymentDate: Date; paymentMethod: string; notes: string | null }[];
     }> = {}
 
     const now = new Date()
@@ -37,6 +52,10 @@ export async function GET() {
           totalAmount: 0, count: 0, oldestDays: 0,
           salesPersons: [], unassignedCount: 0, unassignedAmount: 0,
           items: [],
+          allPayments: (paymentsByClient.get(cid) ?? []).map(p => ({
+            id: p.id, amount: p.amount, paymentDate: p.paymentDate,
+            paymentMethod: p.paymentMethod, notes: p.notes,
+          })),
         }
       }
       const c = byClient[cid]
