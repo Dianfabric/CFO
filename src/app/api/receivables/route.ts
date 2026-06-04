@@ -35,6 +35,32 @@ export async function GET(request: NextRequest) {
       paymentsByClient.get(cid)!.push(p)
     }
 
+    // 거래처별 세금계산서 + 통장 입금 (참고용 — 잔액 계산 X)
+    const [allTaxInvoices, allBankTxs] = clientIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+          prisma.taxInvoice.findMany({
+            where: { clientId: { in: clientIds } },
+            orderBy: { issueDate: 'desc' },
+          }),
+          prisma.bankTransaction.findMany({
+            where: { clientId: { in: clientIds }, type: 'IN' },
+            orderBy: { txDateTime: 'desc' },
+          }),
+        ])
+    const taxByClient = new Map<string, typeof allTaxInvoices>()
+    for (const t of allTaxInvoices) {
+      if (!t.clientId) continue
+      if (!taxByClient.has(t.clientId)) taxByClient.set(t.clientId, [])
+      taxByClient.get(t.clientId)!.push(t)
+    }
+    const bankByClient = new Map<string, typeof allBankTxs>()
+    for (const b of allBankTxs) {
+      if (!b.clientId) continue
+      if (!bankByClient.has(b.clientId)) bankByClient.set(b.clientId, [])
+      bankByClient.get(b.clientId)!.push(b)
+    }
+
     // 거래처별 집계
     const byClient: Record<string, {
       clientId: string; clientName: string; phone: string | null;
@@ -43,12 +69,25 @@ export async function GET(request: NextRequest) {
       unassignedCount: number; unassignedAmount: number;
       items: typeof receivables;
       allPayments: { id: string; amount: number; paymentDate: Date; paymentMethod: string; notes: string | null }[];
+      taxInvoices: { id: string; issueDate: Date; supplyAmount: number; taxAmount: number; totalAmount: number; itemName: string | null; matchedTransactionId: string | null }[];
+      bankIns: { id: string; txDateTime: Date; amount: number; rawDescription: string; rawCounterparty: string; matchedPaymentId: string | null }[];
+      taxSum: number;
+      bankInSum: number;
     }> = {}
 
     const now = new Date()
     receivables.forEach(ar => {
       const cid = ar.clientId
       if (!byClient[cid]) {
+        const taxList = (taxByClient.get(cid) ?? []).map(t => ({
+          id: t.id, issueDate: t.issueDate, supplyAmount: t.supplyAmount, taxAmount: t.taxAmount,
+          totalAmount: t.totalAmount, itemName: t.itemName, matchedTransactionId: t.matchedTransactionId,
+        }))
+        const bankList = (bankByClient.get(cid) ?? []).map(b => ({
+          id: b.id, txDateTime: b.txDateTime, amount: b.amount,
+          rawDescription: b.rawDescription, rawCounterparty: b.rawCounterparty,
+          matchedPaymentId: b.matchedPaymentId,
+        }))
         byClient[cid] = {
           clientId: cid, clientName: ar.client.name, phone: ar.client.phone,
           totalAmount: 0, count: 0, oldestDays: 0,
@@ -58,6 +97,10 @@ export async function GET(request: NextRequest) {
             id: p.id, amount: p.amount, paymentDate: p.paymentDate,
             paymentMethod: p.paymentMethod, notes: p.notes,
           })),
+          taxInvoices: taxList,
+          bankIns: bankList,
+          taxSum: taxList.reduce((s, t) => s + t.totalAmount, 0),
+          bankInSum: bankList.reduce((s, b) => s + b.amount, 0),
         }
       }
       const c = byClient[cid]

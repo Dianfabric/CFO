@@ -24,6 +24,13 @@ interface PaymentEntry {
   id: string; amount: number; paymentDate: string; paymentMethod: string; notes: string | null
 }
 
+interface TaxInvoiceEntry {
+  id: string; issueDate: string; supplyAmount: number; taxAmount: number; totalAmount: number; itemName: string | null; matchedTransactionId: string | null
+}
+interface BankInEntry {
+  id: string; txDateTime: string; amount: number; rawDescription: string; rawCounterparty: string; matchedPaymentId: string | null
+}
+
 interface ClientAR {
   clientId: string; clientName: string; phone: string | null
   totalAmount: number; count: number; oldestDays: number
@@ -31,6 +38,10 @@ interface ClientAR {
   unassignedCount: number; unassignedAmount: number
   items: ARItem[]
   allPayments: PaymentEntry[]
+  taxInvoices: TaxInvoiceEntry[]
+  bankIns: BankInEntry[]
+  taxSum: number
+  bankInSum: number
 }
 
 const DEFAULT_PERSONS = ['한태원', '한태종', '최현진', '유대현', '전새로미']
@@ -204,6 +215,28 @@ export default function ReceivablesPage() {
                       {client.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>}
                       <span>{client.count}건</span>
                       <Badge variant={agingBadge(client.oldestDays)}>최장 {client.oldestDays}일</Badge>
+                      {(() => {
+                        // 매출 합 vs 세금계산서 합 — 미발행 ₩X
+                        const saleSum = client.items.reduce((s, ar) => s + ar.originalAmount, 0)
+                        const uninvoiced = saleSum - (client.taxSum ?? 0)
+                        if (uninvoiced > 0 && (client.taxSum ?? 0) > 0) {
+                          return <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">📄 미발행 {formatKRW(uninvoiced)}</Badge>
+                        }
+                        if ((client.taxSum ?? 0) === 0 && saleSum > 0) {
+                          return <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">📄 세금계산서 없음</Badge>
+                        }
+                        return null
+                      })()}
+                      {(() => {
+                        // 일계표 입금 vs 통장 입금 비교
+                        const payTotal = client.allPayments.reduce((s, p) => s + p.amount, 0)
+                        const bankTotal = client.bankInSum ?? 0
+                        if (bankTotal === 0 && payTotal > 0) return null  // 통장 없으면 표시 안 함
+                        if (bankTotal === 0 && payTotal === 0) return null
+                        const diff = bankTotal - payTotal
+                        if (Math.abs(diff) < 100) return <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">🟢 통장 일치</Badge>
+                        return <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700">⚠ 통장 차이 {diff > 0 ? '+' : ''}{formatKRW(diff)}</Badge>
+                      })()}
                     </div>
                     {/* 담당자 뱃지 */}
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
@@ -241,12 +274,16 @@ export default function ReceivablesPage() {
                 </div>
 
                 {expandedClient === client.clientId && (() => {
-                  // 매출 AR + 입금 통합 시간순 (최신 먼저)
+                  // 매출 AR + 일계표 입금 + 세금계산서(보라) + 통장 입금(초록) 시간순 (최신 먼저)
                   type SaleRow = { kind: 'sale'; ts: number; ar: ARItem }
                   type PayRow = { kind: 'pay'; ts: number; pay: PaymentEntry }
-                  const rows: (SaleRow | PayRow)[] = [
+                  type TaxRow = { kind: 'tax'; ts: number; tax: TaxInvoiceEntry }
+                  type BankRow = { kind: 'bank'; ts: number; bank: BankInEntry }
+                  const rows: (SaleRow | PayRow | TaxRow | BankRow)[] = [
                     ...client.items.map(ar => ({ kind: 'sale' as const, ts: new Date(ar.transaction.date).getTime(), ar })),
                     ...client.allPayments.map(pay => ({ kind: 'pay' as const, ts: new Date(pay.paymentDate).getTime(), pay })),
+                    ...(client.taxInvoices ?? []).map(tax => ({ kind: 'tax' as const, ts: new Date(tax.issueDate).getTime(), tax })),
+                    ...(client.bankIns ?? []).map(bank => ({ kind: 'bank' as const, ts: new Date(bank.txDateTime).getTime(), bank })),
                   ].sort((a, b) => b.ts - a.ts)
 
                   return (
@@ -254,10 +291,26 @@ export default function ReceivablesPage() {
                     {rows.map(row => row.kind === 'pay' ? (
                       <div key={`pay-${row.pay.id}`} className="flex items-center justify-between p-2 bg-blue-50/40 rounded-lg">
                         <div className="flex-1">
-                          <p className="text-sm text-slate-600">입금</p>
+                          <p className="text-sm text-slate-600">일계표 입금</p>
                           <p className="text-xs text-slate-500">{new Date(row.pay.paymentDate).toLocaleDateString('ko-KR')}{row.pay.notes ? ` · ${row.pay.notes}` : ''}</p>
                         </div>
                         <p className="font-bold text-blue-600">+{formatKRW(row.pay.amount)}</p>
+                      </div>
+                    ) : row.kind === 'tax' ? (
+                      <div key={`tax-${row.tax.id}`} className="flex items-center justify-between p-2 bg-purple-50/40 rounded-lg">
+                        <div className="flex-1">
+                          <p className="text-sm text-slate-600">📄 세금계산서</p>
+                          <p className="text-xs text-slate-500">{new Date(row.tax.issueDate).toLocaleDateString('ko-KR')}{row.tax.itemName ? ` · ${row.tax.itemName}` : ''} · 공급가 {formatKRW(row.tax.supplyAmount)}</p>
+                        </div>
+                        <p className="font-bold text-purple-600">{formatKRW(row.tax.totalAmount)}</p>
+                      </div>
+                    ) : row.kind === 'bank' ? (
+                      <div key={`bank-${row.bank.id}`} className="flex items-center justify-between p-2 bg-green-50/40 rounded-lg">
+                        <div className="flex-1">
+                          <p className="text-sm text-slate-600">🟢 통장 입금</p>
+                          <p className="text-xs text-slate-500">{new Date(row.bank.txDateTime).toLocaleDateString('ko-KR')} · {row.bank.rawCounterparty || row.bank.rawDescription}</p>
+                        </div>
+                        <p className="font-bold text-green-600">+{formatKRW(row.bank.amount)}</p>
                       </div>
                     ) : (
                       <div key={row.ar.id} className="bg-slate-50 rounded-lg">
@@ -270,6 +323,11 @@ export default function ReceivablesPage() {
                             <p className="text-xs text-slate-500">{new Date(row.ar.transaction.date).toLocaleDateString('ko-KR')}</p>
                           </div>
                           <div className="flex items-center gap-2">
+                            {(() => {
+                              const matched = (client.taxInvoices ?? []).some(t => t.matchedTransactionId === row.ar.transactionId)
+                              if (matched) return <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-[10px] px-1.5">📄 발행</Badge>
+                              return <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700 text-[10px] px-1.5">⚠ 미발행</Badge>
+                            })()}
                             {row.ar.transaction.salesPerson ? (
                               <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
                                 <User className="w-3 h-3" />{row.ar.transaction.salesPerson}

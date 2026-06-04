@@ -69,6 +69,18 @@ function formatPurchaseResult(json: Record<string, unknown>): { message: string;
       detail: `세액 ${formatKRW((json.totalAmount as number) ?? 0)}`,
     }
   }
+  if (type === 'tax_invoice') {
+    return {
+      message: `매출 세금계산서 ${(json.created as number) ?? 0}건 등록`,
+      detail: `매칭 ${(json.matched as number) ?? 0}건 | 미매칭 ${(json.unmatched as number) ?? 0}건 | 중복 ${(json.duplicate as number) ?? 0}건 | 총 ${formatKRW((json.totalAmount as number) ?? 0)}`,
+    }
+  }
+  if (type === 'bank') {
+    return {
+      message: `통장내역 ${(json.created as number) ?? 0}건 등록`,
+      detail: `입금 ${formatKRW((json.totalIn as number) ?? 0)} / 출금 ${formatKRW((json.totalOut as number) ?? 0)} | 거래처 매칭 ${(json.matchedClient as number) ?? 0}건 | 입금 매칭 ${(json.matchedPay as number) ?? 0}건 | 중복 ${(json.duplicate as number) ?? 0}건`,
+    }
+  }
   // 일계표
   if (json.sheetsTotal !== undefined || json.processedDays !== undefined) {
     const skippedMsg = (json.skippedDays as number) > 0 ? ` (${json.skippedDays}일 중복 스킵)` : ''
@@ -92,11 +104,17 @@ async function processFile(item: FileItem): Promise<{ message: string; detail?: 
   const name = item.file.name
   const isExcel = /\.xlsx?$/i.test(name)
   const isMagam = /디안[_ ]?마감|디안마감/i.test(name)
+  const isTaxInvoice = /세금계산서/.test(name)
+  const isBank = /통장|거래내역조회/.test(name)
   // 파일 종류 자동 라우팅:
+  // - 세금계산서 → /api/upload/tax-invoice
+  // - 통장내역 → /api/upload/bank
   // - "디안_마감_*.xlsx" → 담당자 마감 엑셀
   // - 다른 .xls/.xlsx → 일계표
   // - .pdf 등 → 매입 PDF
-  const endpoint = isMagam ? '/api/upload/sales-person'
+  const endpoint = isTaxInvoice ? '/api/upload/tax-invoice'
+    : isBank ? '/api/upload/bank'
+    : isMagam ? '/api/upload/sales-person'
     : isExcel ? '/api/upload/sales'
     : '/api/upload/purchase'
   form.append('file', item.file)

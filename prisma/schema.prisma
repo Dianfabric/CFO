@@ -45,6 +45,9 @@ model Client {
 
   transactions       Transaction[]
   accountsReceivable AccountsReceivable[]
+  taxInvoices        TaxInvoice[]
+  bankTransactions   BankTransaction[]
+  aliases            ClientAlias[]
 
   @@map("clients")
 }
@@ -97,6 +100,7 @@ model Transaction {
 
   items              TransactionItem[]
   accountsReceivable AccountsReceivable[]
+  taxInvoices        TaxInvoice[]
 
   @@index([date])
   @@index([type, date])
@@ -169,7 +173,8 @@ model ArPayment {
   notes         String?
   createdAt     DateTime @default(now()) @map("created_at")
 
-  receivable AccountsReceivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  receivable       AccountsReceivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  bankTransactions BankTransaction[]
 
   @@map("ar_payments")
 }
@@ -319,4 +324,71 @@ model OfficialDocument {
   @@index([type, createdAt])
   @@index([documentNumber])
   @@map("official_documents")
+}
+
+// ============================================
+// 매출 세금계산서 (Tax Invoices) - 참고 데이터, 잔액 영향 없음
+// ============================================
+model TaxInvoice {
+  id              String   @id @default(cuid())
+  approvalNumber  String   @unique @map("approval_number")
+  issueDate       DateTime @map("issue_date")
+  clientId        String?  @map("client_id")
+  clientNameRaw   String   @map("client_name_raw")
+  businessNumber  String?  @map("business_number")
+  supplyAmount    Int      @map("supply_amount")
+  taxAmount       Int      @map("tax_amount")
+  totalAmount     Int      @map("total_amount")
+  itemName        String?  @map("item_name")
+  matchedTransactionId String? @map("matched_transaction_id")
+  status          String   @default("UNMATCHED") // MATCHED | UNMATCHED | EXTRA
+  rawNotes        String?  @map("raw_notes")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  client      Client?      @relation(fields: [clientId], references: [id])
+  transaction Transaction? @relation(fields: [matchedTransactionId], references: [id])
+
+  @@index([clientId, issueDate])
+  @@index([businessNumber])
+  @@map("tax_invoices")
+}
+
+// ============================================
+// 통장 거래내역 (Bank Transactions) - 참고 데이터, 잔액 영향 없음
+// ============================================
+model BankTransaction {
+  id               String   @id @default(cuid())
+  txDateTime       DateTime @map("tx_date_time")
+  type             String   // IN | OUT
+  amount           Int
+  rawDescription   String   @map("raw_description")
+  rawCounterparty  String   @map("raw_counterparty")
+  bank             String?
+  txCategory       String?  @map("tx_category")
+  clientId         String?  @map("client_id")
+  matchedPaymentId String?  @map("matched_payment_id")
+  status           String   @default("UNMATCHED") // MATCHED | UNMATCHED | INTERNAL | NON_AR
+  dedupKey         String   @unique @map("dedup_key")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  client  Client?    @relation(fields: [clientId], references: [id])
+  payment ArPayment? @relation(fields: [matchedPaymentId], references: [id])
+
+  @@index([clientId, txDateTime])
+  @@index([type, txDateTime])
+  @@map("bank_transactions")
+}
+
+// ============================================
+// 거래처 별칭 (Client Aliases) - 통장 입금자명 ↔ 거래처 매핑
+// ============================================
+model ClientAlias {
+  id        String   @id @default(cuid())
+  alias     String   @unique
+  clientId  String   @map("client_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_aliases")
 }
