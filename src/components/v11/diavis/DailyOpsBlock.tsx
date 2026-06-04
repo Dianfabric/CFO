@@ -39,7 +39,6 @@ import { calculateCycleProgress, daysUntilNextMonday } from '@/lib/v11-cycle'
 import { formatKRW } from '@/lib/formatters'
 import { CLIENT_TIER_COLOR, CLIENT_TIER_LABEL } from '@/lib/v11-labels'
 import { cn } from '@/lib/utils'
-import CycleDashboardSummary from '@/components/v11/cycle/CycleDashboardSummary'
 
 /* 일일 운영 블록 — server component, 두 페이지에서 재사용
  *   /          (DIAVIS 메인) hero 직후
@@ -804,8 +803,7 @@ export default async function DailyOpsBlock() {
         </p>
       </div>
 
-      {/* 12주 사이클 — 직원별 진행률 + 큰 목표/사이클 정보 인라인 편집 */}
-      <CycleDashboardSummary />
+      {/* 12주 사이클 위젯은 제거됨 — 전용 페이지 (/finance/cycle) 에서만 표시 */}
 
       {/* 긴급 미수금 — 연체 있을 때만 표시 (없으면 위 KPI 카드만으로 충분) */}
       {data.topOverdue.length > 0 && (

@@ -75,7 +75,6 @@ export const v10MenuItems: MenuItem[] = [
 ]
 
 export const v11MenuItems: MenuItem[] = [
-  { href: '/finance/daily', label: '일일 운영', icon: Sun },
   { href: '/finance/briefing', label: '모닝 브리핑 (AI)', icon: Brain },
   { href: '/finance/consult', label: '라이브 컨설팅 (AI)', icon: MessageSquare },
   { href: '/finance', label: '재무 메인 (v1.1)', icon: PieChart },
@@ -117,7 +116,6 @@ export const menuGroups: MenuGroup[] = [
     label: 'Daily',
     icon: Sun,
     items: [
-      { href: '/finance/daily', label: '일일 운영', icon: Sun },
       { href: '/settlement', label: '일일 결산', icon: CalendarCheck },
       { href: '/finance/briefing', label: '모닝 브리핑 (AI)', icon: Brain },
     ],
