@@ -13,12 +13,17 @@ import { formatKRW } from '@/lib/formatters'
 interface ARItem {
   id: string; remainingAmount: number; originalAmount: number; status: string; createdAt: string
   transaction: {
-    date: string; salesPerson: string | null
+    date: string; salesPerson: string | null; description?: string | null
     items: { productName: string; quantity: number; unitPrice: number; amount: number }[]
   }
   payments: { id: string; amount: number; paymentDate: string; paymentMethod: string; notes: string | null }[]
   transactionId: string
 }
+
+const isCorrectionSale = (desc?: string | null) =>
+  !!desc && (desc.startsWith('이월 매출 보정') || desc.startsWith('이월 매출 -'))
+const isCorrectionPay = (notes?: string | null) =>
+  !!notes && (notes.startsWith('[수동 보정]') || notes.startsWith('[이월]'))
 
 interface PaymentEntry {
   id: string; amount: number; paymentDate: string; paymentMethod: string; notes: string | null
@@ -289,13 +294,23 @@ export default function ReceivablesPage() {
                   return (
                   <div className="mt-4 pt-4 border-t space-y-2">
                     {rows.map(row => row.kind === 'pay' ? (
-                      <div key={`pay-${row.pay.id}`} className="flex items-center justify-between p-2 bg-blue-50/40 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm text-slate-600">일계표 입금</p>
-                          <p className="text-xs text-slate-500">{new Date(row.pay.paymentDate).toLocaleDateString('ko-KR')}{row.pay.notes ? ` · ${row.pay.notes}` : ''}</p>
+                      isCorrectionPay(row.pay.notes) ? (
+                        <div key={`pay-${row.pay.id}`} className="flex items-center justify-between p-2 bg-slate-100/60 rounded-lg">
+                          <div className="flex-1">
+                            <p className="text-sm text-slate-500">⚙️ 잔액 조정</p>
+                            <p className="text-xs text-slate-400">{new Date(row.pay.paymentDate).toLocaleDateString('ko-KR')} · {row.pay.notes ?? ''}</p>
+                          </div>
+                          <p className="font-bold text-slate-500">+{formatKRW(row.pay.amount)}</p>
                         </div>
-                        <p className="font-bold text-blue-600">+{formatKRW(row.pay.amount)}</p>
-                      </div>
+                      ) : (
+                        <div key={`pay-${row.pay.id}`} className="flex items-center justify-between p-2 bg-blue-50/40 rounded-lg">
+                          <div className="flex-1">
+                            <p className="text-sm text-slate-600">일계표 입금</p>
+                            <p className="text-xs text-slate-500">{new Date(row.pay.paymentDate).toLocaleDateString('ko-KR')}{row.pay.notes ? ` · ${row.pay.notes}` : ''}</p>
+                          </div>
+                          <p className="font-bold text-blue-600">+{formatKRW(row.pay.amount)}</p>
+                        </div>
+                      )
                     ) : row.kind === 'tax' ? (
                       <div key={`tax-${row.tax.id}`} className="flex items-center justify-between p-2 bg-purple-50/40 rounded-lg">
                         <div className="flex-1">
@@ -313,17 +328,19 @@ export default function ReceivablesPage() {
                         <p className="font-bold text-green-600">+{formatKRW(row.bank.amount)}</p>
                       </div>
                     ) : (
-                      <div key={row.ar.id} className="bg-slate-50 rounded-lg">
+                      <div key={row.ar.id} className={isCorrectionSale(row.ar.transaction.description) ? 'bg-slate-100/60 rounded-lg' : 'bg-slate-50 rounded-lg'}>
                         <div
                           className="flex items-center justify-between p-2 cursor-pointer hover:bg-slate-100 rounded-lg"
                           onClick={(e) => { e.stopPropagation(); setExpandedAr(expandedAr === row.ar.id ? null : row.ar.id) }}
                         >
                           <div className="flex-1">
-                            <p className="text-sm">원 금액: {formatKRW(row.ar.originalAmount)}</p>
+                            <p className={`text-sm ${isCorrectionSale(row.ar.transaction.description) ? 'text-slate-500' : ''}`}>
+                              {isCorrectionSale(row.ar.transaction.description) ? '⚙️ 이월 조정: ' : '매출: '}{formatKRW(row.ar.originalAmount)}
+                            </p>
                             <p className="text-xs text-slate-500">{new Date(row.ar.transaction.date).toLocaleDateString('ko-KR')}</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            {(() => {
+                            {!isCorrectionSale(row.ar.transaction.description) && (() => {
                               const matched = (client.taxInvoices ?? []).some(t => t.matchedTransactionId === row.ar.transactionId)
                               if (matched) return <Badge variant="outline" className="bg-purple-50 border-purple-200 text-purple-700 text-[10px] px-1.5">📄 발행</Badge>
                               return <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700 text-[10px] px-1.5">⚠ 미발행</Badge>

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
         client: { select: { id: true, name: true, phone: true } },
         transaction: {
           select: {
-            date: true, channel: true, salesPerson: true,
+            date: true, channel: true, salesPerson: true, description: true,
             items: { select: { productName: true, quantity: true, unitPrice: true, amount: true } },
           },
         },
