@@ -25,6 +25,35 @@ const isCorrectionSale = (desc?: string | null) =>
 const isCorrectionPay = (notes?: string | null) =>
   !!notes && (notes.startsWith('[수동 보정]') || notes.startsWith('[이월]'))
 
+function MemoCell({ rowType, rowId, initial, onSaved }: { rowType: string; rowId: string; initial: string; onSaved: (text: string) => void }) {
+  const [value, setValue] = useState(initial)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { setValue(initial) }, [initial])
+  const save = async () => {
+    if (value === initial) return
+    setSaving(true)
+    await fetch('/api/row-memo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rowType, rowId, text: value }),
+    })
+    setSaving(false)
+    onSaved(value)
+  }
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      onClick={e => e.stopPropagation()}
+      placeholder="비고…"
+      className={`w-full text-[11px] border border-slate-200 rounded px-1.5 py-0.5 bg-white hover:border-slate-300 focus:border-blue-400 focus:outline-none ${saving ? 'opacity-50' : ''}`}
+    />
+  )
+}
+
 interface PaymentEntry {
   id: string; amount: number; paymentDate: string; paymentMethod: string; notes: string | null
 }
@@ -47,6 +76,7 @@ interface ClientAR {
   bankIns: BankInEntry[]
   taxSum: number
   bankInSum: number
+  memos: Record<string, string>
 }
 
 const DEFAULT_PERSONS = ['한태원', '한태종', '최현진', '유대현', '전새로미']
@@ -237,10 +267,11 @@ export default function ReceivablesPage() {
                 <div className="flex items-start justify-between cursor-pointer" onClick={() => setExpandedClient(expandedClient === client.clientId ? null : client.clientId)}>
                   <div className="flex-1">
                     <h3 className="font-semibold text-slate-900">{client.clientName}</h3>
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-                      {client.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>}
-                      <span>{client.count}건</span>
-                    </div>
+                    {client.phone && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                        <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>
+                      </div>
+                    )}
                     {/* 담당자 뱃지 */}
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       {client.salesPersons.map(p => (
@@ -306,12 +337,13 @@ export default function ReceivablesPage() {
                           <th className="text-right py-1.5 font-normal w-32">통장 입금</th>
                           <th className="text-right py-1.5 font-normal w-32">세금계산서</th>
                           <th className="text-left py-1.5 font-normal pl-3">메모/담당자</th>
+                          <th className="text-left py-1.5 font-normal pl-3 w-48">비고</th>
                           <th className="w-8"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {rows.length === 0 && (
-                          <tr><td colSpan={7} className="py-4 text-center text-slate-400">표시할 항목이 없습니다 (필터 확인)</td></tr>
+                          <tr><td colSpan={8} className="py-4 text-center text-slate-400">표시할 항목이 없습니다 (필터 확인)</td></tr>
                         )}
                         {rows.map(row => {
                           if (row.kind === 'sale') {
@@ -360,11 +392,14 @@ export default function ReceivablesPage() {
                                       )}
                                     </div>
                                   </td>
+                                  <td className="py-2 pl-3" onClick={e => e.stopPropagation()}>
+                                    <MemoCell rowType="SALE" rowId={row.ar.id} initial={client.memos?.[`SALE__${row.ar.id}`] ?? ''} onSaved={() => {}} />
+                                  </td>
                                   <td className="text-center text-slate-400">{expandedAr === row.ar.id ? '▼' : '▶'}</td>
                                 </tr>
                                 {expandedAr === row.ar.id && (
                                   <tr key={`s-d-${row.ar.id}`} className="bg-slate-50/60">
-                                    <td colSpan={7} className="px-3 py-2">
+                                    <td colSpan={8} className="px-3 py-2">
                                       <p className="text-[11px] text-slate-500 font-medium mb-1">품목</p>
                                       {row.ar.transaction.items.length === 0 ? (
                                         <p className="text-xs text-slate-400 py-1">품목 정보 없음</p>
@@ -407,6 +442,9 @@ export default function ReceivablesPage() {
                                 </td>
                                 <td></td><td></td>
                                 <td className="py-2 pl-3 text-slate-500 text-[11px]">{correction ? '잔액 조정' : row.pay.notes ?? '일계표 입금'}</td>
+                                <td className="py-2 pl-3">
+                                  <MemoCell rowType="PAYMENT" rowId={row.pay.id} initial={client.memos?.[`PAYMENT__${row.pay.id}`] ?? ''} onSaved={() => {}} />
+                                </td>
                                 <td></td>
                               </tr>
                             )
@@ -419,6 +457,9 @@ export default function ReceivablesPage() {
                                 <td className="py-2 text-right font-bold text-green-600">+{formatKRW(row.bank.amount)}</td>
                                 <td></td>
                                 <td className="py-2 pl-3 text-slate-500 text-[11px]">🟢 {row.bank.rawCounterparty || row.bank.rawDescription}</td>
+                                <td className="py-2 pl-3">
+                                  <MemoCell rowType="BANK" rowId={row.bank.id} initial={client.memos?.[`BANK__${row.bank.id}`] ?? ''} onSaved={() => {}} />
+                                </td>
                                 <td></td>
                               </tr>
                             )
@@ -430,6 +471,9 @@ export default function ReceivablesPage() {
                               <td></td><td></td><td></td>
                               <td className="py-2 text-right font-bold text-purple-600">{formatKRW(row.tax.totalAmount)}</td>
                               <td className="py-2 pl-3 text-slate-500 text-[11px]">📄 {row.tax.itemName ?? ''} · 공급가 {formatKRW(row.tax.supplyAmount)}</td>
+                              <td className="py-2 pl-3">
+                                <MemoCell rowType="TAX" rowId={row.tax.id} initial={client.memos?.[`TAX__${row.tax.id}`] ?? ''} onSaved={() => {}} />
+                              </td>
                               <td></td>
                             </tr>
                           )

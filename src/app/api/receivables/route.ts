@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 거래처별 세금계산서 + 통장 입금 (참고용 — 잔액 계산 X)
-    const [allTaxInvoices, allBankTxs] = clientIds.length === 0
-      ? [[], []]
+    const [allTaxInvoices, allBankTxs, allMemos] = clientIds.length === 0
+      ? [[], [], []]
       : await Promise.all([
           prisma.taxInvoice.findMany({
             where: { clientId: { in: clientIds } },
@@ -47,7 +47,10 @@ export async function GET(request: NextRequest) {
             where: { clientId: { in: clientIds }, type: 'IN' },
             orderBy: { txDateTime: 'desc' },
           }),
+          prisma.rowMemo.findMany(),
         ])
+    const memoMap = new Map<string, string>()
+    for (const m of allMemos) memoMap.set(`${m.rowType}__${m.rowId}`, m.text)
     const taxByClient = new Map<string, typeof allTaxInvoices>()
     for (const t of allTaxInvoices) {
       if (!t.clientId) continue
@@ -73,6 +76,7 @@ export async function GET(request: NextRequest) {
       bankIns: { id: string; txDateTime: Date; amount: number; rawDescription: string; rawCounterparty: string; matchedPaymentId: string | null }[];
       taxSum: number;
       bankInSum: number;
+      memos: Record<string, string>;  // "TYPE__id" → text
     }> = {}
 
     const now = new Date()
@@ -101,6 +105,7 @@ export async function GET(request: NextRequest) {
           bankIns: bankList,
           taxSum: taxList.reduce((s, t) => s + t.totalAmount, 0),
           bankInSum: bankList.reduce((s, b) => s + b.amount, 0),
+          memos: Object.fromEntries(allMemos.map(m => [`${m.rowType}__${m.rowId}`, m.text])),
         }
       }
       const c = byClient[cid]

@@ -380,6 +380,21 @@ model BankTransaction {
 }
 
 // ============================================
+// 행별 비고 메모 (Row Memos) - 미수금 페이지 행별 자유 메모
+// ============================================
+model RowMemo {
+  id        String   @id @default(cuid())
+  rowType   String   @map("row_type") // SALE | PAYMENT | BANK | TAX
+  rowId     String   @map("row_id")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([rowType, rowId])
+  @@map("row_memos")
+}
+
+// ============================================
 // 거래처 별칭 (Client Aliases) - 통장 입금자명 ↔ 거래처 매핑
 // ============================================
 model ClientAlias {
