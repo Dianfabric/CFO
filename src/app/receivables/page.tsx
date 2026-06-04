@@ -12,7 +12,11 @@ import { formatKRW } from '@/lib/formatters'
 
 interface ARItem {
   id: string; remainingAmount: number; originalAmount: number; status: string; createdAt: string
-  transaction: { date: string; salesPerson: string | null }
+  transaction: {
+    date: string; salesPerson: string | null
+    items: { productName: string; quantity: number; unitPrice: number; amount: number }[]
+  }
+  payments: { id: string; amount: number; paymentDate: string; paymentMethod: string; notes: string | null }[]
   transactionId: string
 }
 
@@ -36,6 +40,7 @@ export default function ReceivablesPage() {
   const [bulkDialog, setBulkDialog] = useState<{ clientId: string; clientName: string; unassignedIds: string[] } | null>(null)
   const [bulkPerson, setBulkPerson] = useState('')
   const [bulkCustom, setBulkCustom] = useState('')
+  const [expandedAr, setExpandedAr] = useState<string | null>(null)
 
   const fetchData = async () => {
     setLoading(true)
@@ -218,43 +223,108 @@ export default function ReceivablesPage() {
                 {expandedClient === client.clientId && (
                   <div className="mt-4 pt-4 border-t space-y-2">
                     {client.items.map(ar => (
-                      <div key={ar.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm">원 금액: {formatKRW(ar.originalAmount)}</p>
-                          <p className="text-xs text-slate-500">{new Date(ar.createdAt).toLocaleDateString('ko-KR')}</p>
+                      <div key={ar.id} className="bg-slate-50 rounded-lg">
+                        <div
+                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-slate-100 rounded-lg"
+                          onClick={(e) => { e.stopPropagation(); setExpandedAr(expandedAr === ar.id ? null : ar.id) }}
+                        >
+                          <div className="flex-1">
+                            <p className="text-sm">원 금액: {formatKRW(ar.originalAmount)}</p>
+                            <p className="text-xs text-slate-500">{new Date(ar.transaction.date).toLocaleDateString('ko-KR')}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {/* 담당자 표시 / 선택 */}
+                            {ar.transaction.salesPerson ? (
+                              <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
+                                <User className="w-3 h-3" />{ar.transaction.salesPerson}
+                              </Badge>
+                            ) : (
+                              <select
+                                className="text-xs border rounded px-1.5 py-0.5 bg-amber-50 border-amber-300 text-amber-700"
+                                defaultValue=""
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => {
+                                  e.stopPropagation()
+                                  const v = e.target.value
+                                  if (v === '__custom__') {
+                                    const name = prompt('담당자 이름 입력:')
+                                    if (name?.trim()) handleAssignPerson(ar.transactionId, name.trim())
+                                  } else if (v) handleAssignPerson(ar.transactionId, v)
+                                }}
+                              >
+                                <option value="">담당자 선택</option>
+                                {personList.map(p => <option key={p} value={p}>{p}</option>)}
+                                <option value="__custom__">기타 (직접 입력)</option>
+                              </select>
+                            )}
+                            <p className="font-bold text-red-600">{formatKRW(ar.remainingAmount)}</p>
+                            <Button size="sm" variant="outline" onClick={e => {
+                              e.stopPropagation()
+                              setPayDialog({ arId: ar.id, clientName: client.clientName, remaining: ar.remainingAmount })
+                              setPayAmount(ar.remainingAmount)
+                            }}>회수</Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {/* 담당자 표시 / 선택 */}
-                          {ar.transaction.salesPerson ? (
-                            <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
-                              <User className="w-3 h-3" />{ar.transaction.salesPerson}
-                            </Badge>
-                          ) : (
-                            <select
-                              className="text-xs border rounded px-1.5 py-0.5 bg-amber-50 border-amber-300 text-amber-700"
-                              defaultValue=""
-                              onClick={e => e.stopPropagation()}
-                              onChange={e => {
-                                e.stopPropagation()
-                                const v = e.target.value
-                                if (v === '__custom__') {
-                                  const name = prompt('담당자 이름 입력:')
-                                  if (name?.trim()) handleAssignPerson(ar.transactionId, name.trim())
-                                } else if (v) handleAssignPerson(ar.transactionId, v)
-                              }}
-                            >
-                              <option value="">담당자 선택</option>
-                              {personList.map(p => <option key={p} value={p}>{p}</option>)}
-                              <option value="__custom__">기타 (직접 입력)</option>
-                            </select>
-                          )}
-                          <p className="font-bold text-red-600">{formatKRW(ar.remainingAmount)}</p>
-                          <Button size="sm" variant="outline" onClick={e => {
-                            e.stopPropagation()
-                            setPayDialog({ arId: ar.id, clientName: client.clientName, remaining: ar.remainingAmount })
-                            setPayAmount(ar.remainingAmount)
-                          }}>회수</Button>
-                        </div>
+
+                        {expandedAr === ar.id && (
+                          <div className="px-3 pb-3 pt-1 border-t border-slate-200 space-y-3">
+                            {/* 품목 */}
+                            <div>
+                              <p className="text-[11px] text-slate-500 font-medium mb-1 mt-2">품목</p>
+                              {ar.transaction.items.length === 0 ? (
+                                <p className="text-xs text-slate-400 py-1">품목 정보 없음</p>
+                              ) : (
+                                <table className="w-full text-xs">
+                                  <thead className="text-slate-500">
+                                    <tr className="border-b border-slate-200">
+                                      <th className="text-left py-1.5 font-normal">품목</th>
+                                      <th className="text-right py-1.5 font-normal w-20">수량</th>
+                                      <th className="text-right py-1.5 font-normal w-24">단가</th>
+                                      <th className="text-right py-1.5 font-normal w-28">금액</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {ar.transaction.items.map((it, i) => (
+                                      <tr key={i} className="border-b border-slate-100 last:border-0">
+                                        <td className="py-1.5 text-slate-700">{it.productName}</td>
+                                        <td className="py-1.5 text-right text-slate-600">{it.quantity.toLocaleString()}</td>
+                                        <td className="py-1.5 text-right text-slate-600">{formatKRW(it.unitPrice)}</td>
+                                        <td className="py-1.5 text-right font-medium text-slate-800">{formatKRW(it.amount)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+
+                            {/* 입금 기록 */}
+                            <div>
+                              <p className="text-[11px] text-slate-500 font-medium mb-1">입금 기록</p>
+                              {ar.payments.length === 0 ? (
+                                <p className="text-xs text-slate-400 py-1">입금 내역 없음</p>
+                              ) : (
+                                <table className="w-full text-xs">
+                                  <thead className="text-slate-500">
+                                    <tr className="border-b border-slate-200">
+                                      <th className="text-left py-1.5 font-normal w-28">일자</th>
+                                      <th className="text-right py-1.5 font-normal w-28">금액</th>
+                                      <th className="text-left py-1.5 font-normal pl-3">메모</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {ar.payments.map(p => (
+                                      <tr key={p.id} className="border-b border-slate-100 last:border-0">
+                                        <td className="py-1.5 text-slate-700">{new Date(p.paymentDate).toLocaleDateString('ko-KR')}</td>
+                                        <td className="py-1.5 text-right font-medium text-green-700">+{formatKRW(p.amount)}</td>
+                                        <td className="py-1.5 text-slate-500 pl-3">{p.notes ?? '-'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

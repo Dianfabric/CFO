@@ -11,10 +11,18 @@ export const runtime = 'nodejs'
 const PERSON_MAP: Record<string, string> = {
   HTW: '한태원', HTJ: '한태종', CHJ: '최현진', YDH: '유대현', SR: '전새로미',
 }
+const ALLOWED_PERSONS = new Set(Object.values(PERSON_MAP))
 
 function mapPerson(code: string): string {
-  const u = String(code ?? '').trim().toUpperCase()
-  return u ? (PERSON_MAP[u] ?? u) : ''
+  const raw = String(code ?? '').trim()
+  if (!raw) return ''
+  // 영문 코드 → 한글 이름
+  const mapped = PERSON_MAP[raw.toUpperCase()]
+  if (mapped) return mapped
+  // 이미 한글 이름이면 화이트리스트 검증
+  if (ALLOWED_PERSONS.has(raw)) return raw
+  // 그 외 (숫자, 계산식, 따옴표 등) — 무시
+  return ''
 }
 
 function normClient(name: string): string {

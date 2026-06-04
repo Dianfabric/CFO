@@ -8,7 +8,12 @@ export async function GET() {
       where: { status: { in: ['OUTSTANDING', 'PARTIAL', 'OVERDUE'] } },
       include: {
         client: { select: { id: true, name: true, phone: true } },
-        transaction: { select: { date: true, channel: true, salesPerson: true } },
+        transaction: {
+          select: {
+            date: true, channel: true, salesPerson: true,
+            items: { select: { productName: true, quantity: true, unitPrice: true, amount: true } },
+          },
+        },
         payments: { orderBy: { paymentDate: 'desc' } },
       },
       orderBy: { createdAt: 'asc' },
