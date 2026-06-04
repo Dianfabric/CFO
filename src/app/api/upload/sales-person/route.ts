@@ -83,7 +83,24 @@ function parseDateFromFilename(name: string): Date | null {
 
 function parseDateCell(val: unknown): Date | null {
   if (val instanceof Date) return val
+  // 엑셀 시리얼 숫자 (예: 46177 = 2026-06-04)
+  if (typeof val === 'number' && val > 1000 && val < 100000) {
+    // 엑셀 epoch: 1899-12-30 (윤년 버그 포함)
+    const ms = (val - 25569) * 86400 * 1000
+    const d = new Date(ms)
+    d.setHours(12, 0, 0, 0)
+    return isNaN(d.getTime()) ? null : d
+  }
   const s = String(val ?? '').trim()
+  // 숫자 문자열도 시리얼로 시도
+  if (/^\d{4,5}(\.\d+)?$/.test(s)) {
+    const n = parseFloat(s)
+    if (n > 1000 && n < 100000) {
+      const ms = (n - 25569) * 86400 * 1000
+      const d = new Date(ms); d.setHours(12, 0, 0, 0)
+      return isNaN(d.getTime()) ? null : d
+    }
+  }
   const m = s.match(/(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/)
   if (!m) return null
   return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]), 12, 0, 0)
