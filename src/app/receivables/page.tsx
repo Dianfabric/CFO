@@ -46,11 +46,12 @@ export default function ReceivablesPage() {
   const [bulkPerson, setBulkPerson] = useState('')
   const [bulkCustom, setBulkCustom] = useState('')
   const [expandedAr, setExpandedAr] = useState<string | null>(null)
+  const [includeFullyPaid, setIncludeFullyPaid] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/receivables')
+      const res = await fetch(`/api/receivables${includeFullyPaid ? '?includeFullyPaid=true' : ''}`)
       const json = await res.json()
       if (!res.ok || !json?.summary) {
         console.error('[receivables fetch]', json)
@@ -64,7 +65,7 @@ export default function ReceivablesPage() {
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData() }, [includeFullyPaid])
 
   const handlePayment = async () => {
     if (!payDialog || payAmount <= 0) return
@@ -176,6 +177,15 @@ export default function ReceivablesPage() {
           {filterPerson && (
             <span className="text-xs text-slate-500 ml-auto">필터 합계: <strong className="text-slate-700">{formatKRW(filteredTotal)}</strong></span>
           )}
+          <label className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${filterPerson ? '' : 'ml-auto'} text-slate-600 hover:text-slate-900`}>
+            <input
+              type="checkbox"
+              checked={includeFullyPaid}
+              onChange={e => setIncludeFullyPaid(e.target.checked)}
+              className="w-3.5 h-3.5 accent-slate-600"
+            />
+            완납 거래처 보기
+          </label>
         </CardContent>
       </Card>
 

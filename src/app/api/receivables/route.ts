@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { differenceInDays } from 'date-fns'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const includeFullyPaid = new URL(request.url).searchParams.get('includeFullyPaid') === 'true'
+    const statusFilter = includeFullyPaid
+      ? undefined
+      : { status: { in: ['OUTSTANDING', 'PARTIAL', 'OVERDUE'] } }
     const receivables = await prisma.accountsReceivable.findMany({
-      where: { status: { in: ['OUTSTANDING', 'PARTIAL', 'OVERDUE'] } },
+      where: statusFilter,
       include: {
         client: { select: { id: true, name: true, phone: true } },
         transaction: {
