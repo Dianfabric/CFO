@@ -438,48 +438,50 @@ export default function ReceivablesPage() {
                               <>
                                 <tr
                                   key={`s-${row.ar.id}`}
-                                  className={`border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${correction ? 'bg-slate-50/50' : ''}`}
+                                  className={`border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${correction ? 'bg-slate-100/70' : ''}`}
                                   onClick={(e) => { e.stopPropagation(); setExpandedAr(expandedAr === row.ar.id ? null : row.ar.id) }}
                                 >
-                                  <td className="py-2 text-slate-600">{fmtDate(row.ts)}</td>
-                                  <td className={`py-2 text-right font-bold ${correction ? 'text-slate-500' : 'text-red-600'}`}>
+                                  <td className={`py-2 ${correction ? 'text-slate-400' : 'text-slate-600'}`}>{fmtDate(row.ts)}</td>
+                                  <td className={`py-2 text-right font-bold ${correction ? 'text-slate-400 font-normal' : 'text-red-600'}`}>
                                     {correction ? '⚙️ ' : '+'}{formatKRW(row.ar.originalAmount)}
                                   </td>
                                   <td></td><td></td><td></td>
                                   <td className="py-2 pl-3">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      {!correction && (
+                                    {correction ? (
+                                      <span className="text-[11px] text-slate-400 italic">금액조정</span>
+                                    ) : (
+                                      <div className="flex items-center gap-1.5 flex-wrap">
                                         <TaxStatusSelect
                                           transactionId={row.ar.transactionId}
                                           initial={row.ar.transaction.taxStatus}
                                           matched={matched}
                                           onChanged={fetchData}
                                         />
-                                      )}
-                                      {row.ar.transaction.salesPerson ? (
-                                        <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700 text-[10px] px-1.5">
-                                          <User className="w-3 h-3" />{row.ar.transaction.salesPerson}
-                                        </Badge>
-                                      ) : !correction && (
-                                        <select
-                                          className="text-[10px] border rounded px-1 py-0.5 bg-amber-50 border-amber-300 text-amber-700"
-                                          defaultValue=""
-                                          onClick={e => e.stopPropagation()}
-                                          onChange={e => {
-                                            e.stopPropagation()
-                                            const v = e.target.value
-                                            if (v === '__custom__') {
-                                              const name = prompt('담당자 이름 입력:')
-                                              if (name?.trim()) handleAssignPerson(row.ar.transactionId, name.trim())
-                                            } else if (v) handleAssignPerson(row.ar.transactionId, v)
-                                          }}
-                                        >
-                                          <option value="">담당자</option>
-                                          {personList.map(p => <option key={p} value={p}>{p}</option>)}
-                                          <option value="__custom__">기타</option>
-                                        </select>
-                                      )}
-                                    </div>
+                                        {row.ar.transaction.salesPerson ? (
+                                          <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700 text-[10px] px-1.5">
+                                            <User className="w-3 h-3" />{row.ar.transaction.salesPerson}
+                                          </Badge>
+                                        ) : (
+                                          <select
+                                            className="text-[10px] border rounded px-1 py-0.5 bg-amber-50 border-amber-300 text-amber-700"
+                                            defaultValue=""
+                                            onClick={e => e.stopPropagation()}
+                                            onChange={e => {
+                                              e.stopPropagation()
+                                              const v = e.target.value
+                                              if (v === '__custom__') {
+                                                const name = prompt('담당자 이름 입력:')
+                                                if (name?.trim()) handleAssignPerson(row.ar.transactionId, name.trim())
+                                              } else if (v) handleAssignPerson(row.ar.transactionId, v)
+                                            }}
+                                          >
+                                            <option value="">담당자</option>
+                                            {personList.map(p => <option key={p} value={p}>{p}</option>)}
+                                            <option value="__custom__">기타</option>
+                                          </select>
+                                        )}
+                                      </div>
+                                    )}
                                   </td>
                                   <td className="py-2 pl-3" onClick={e => e.stopPropagation()}>
                                     <MemoCell rowType="SALE" rowId={row.ar.id} initial={client.memos?.[`SALE__${row.ar.id}`] ?? ''} />
