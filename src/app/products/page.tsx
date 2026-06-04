@@ -55,7 +55,14 @@ export default function ProductsPage() {
     setLoading(true)
     try {
       const res = await fetch('/api/products')
-      setProducts(await res.json())
+      const data = await res.json()
+      // API 가 array 가 아닌 응답(예: {products:[...]} 또는 {error:...})을 반환해도 안전하게 처리
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { products?: unknown }).products)
+          ? ((data as { products: Product[] }).products)
+          : []
+      setProducts(list)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
@@ -95,7 +102,8 @@ export default function ProductsPage() {
     setDialogOpen(true)
   }
 
-  const filtered = products.filter(p => {
+  // products 가 외부 요인으로 array 가 아니어도 안전하게 (defensive)
+  const filtered = (Array.isArray(products) ? products : []).filter(p => {
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
     if (filterCategory && p.category !== filterCategory) return false
     return true
