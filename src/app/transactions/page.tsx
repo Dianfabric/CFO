@@ -212,6 +212,11 @@ export default function TransactionsPage() {
       />
       <div className="flex items-center justify-end">
         <div className="flex gap-2">
+          <a href="/transactions/unassigned">
+            <Button variant="outline" size="sm" className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50">
+              ⚠ 담당자 미지정
+            </Button>
+          </a>
           <Button variant="outline" size="sm" className="gap-1.5"
             onClick={() => { setShippingOpen(true); setShippingState('idle'); setShippingItems([]); setShippingError('') }}>
             <Ship className="w-4 h-4" />해외운송비 PDF

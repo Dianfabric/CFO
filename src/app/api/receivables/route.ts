@@ -8,7 +8,7 @@ export async function GET() {
       where: { status: { in: ['OUTSTANDING', 'PARTIAL', 'OVERDUE'] } },
       include: {
         client: { select: { id: true, name: true, phone: true } },
-        transaction: { select: { date: true, channel: true } },
+        transaction: { select: { date: true, channel: true, salesPerson: true } },
         payments: { orderBy: { paymentDate: 'desc' } },
       },
       orderBy: { createdAt: 'asc' },
@@ -18,6 +18,8 @@ export async function GET() {
     const byClient: Record<string, {
       clientId: string; clientName: string; phone: string | null;
       totalAmount: number; count: number; oldestDays: number;
+      salesPersons: { name: string; count: number; amount: number }[];
+      unassignedCount: number; unassignedAmount: number;
       items: typeof receivables
     }> = {}
 
@@ -27,15 +29,32 @@ export async function GET() {
       if (!byClient[cid]) {
         byClient[cid] = {
           clientId: cid, clientName: ar.client.name, phone: ar.client.phone,
-          totalAmount: 0, count: 0, oldestDays: 0, items: [],
+          totalAmount: 0, count: 0, oldestDays: 0,
+          salesPersons: [], unassignedCount: 0, unassignedAmount: 0,
+          items: [],
         }
       }
-      byClient[cid].totalAmount += ar.remainingAmount
-      byClient[cid].count += 1
+      const c = byClient[cid]
+      c.totalAmount += ar.remainingAmount
+      c.count += 1
       const days = differenceInDays(now, ar.createdAt)
-      if (days > byClient[cid].oldestDays) byClient[cid].oldestDays = days
-      byClient[cid].items.push(ar)
+      if (days > c.oldestDays) c.oldestDays = days
+      c.items.push(ar)
+
+      // 담당자별 집계
+      const person = ar.transaction.salesPerson
+      if (person) {
+        const existing = c.salesPersons.find(p => p.name === person)
+        if (existing) { existing.count++; existing.amount += ar.remainingAmount }
+        else c.salesPersons.push({ name: person, count: 1, amount: ar.remainingAmount })
+      } else {
+        c.unassignedCount++
+        c.unassignedAmount += ar.remainingAmount
+      }
     })
+
+    // 담당자별 정렬 (건수 내림차순)
+    Object.values(byClient).forEach(c => c.salesPersons.sort((a, b) => b.count - a.count))
 
     const summary = Object.values(byClient).sort((a, b) => b.totalAmount - a.totalAmount)
     const totalAR = summary.reduce((s, c) => s + c.totalAmount, 0)
@@ -43,7 +62,12 @@ export async function GET() {
       .filter(ar => ar.status === 'OVERDUE' || differenceInDays(now, ar.createdAt) > 30)
       .reduce((s, ar) => s + ar.remainingAmount, 0)
 
-    return NextResponse.json({ summary, totalAR, overdueTotal, totalCount: receivables.length })
+    // 전체 담당자 목록 (필터용)
+    const allPersons = Array.from(new Set(
+      receivables.map(ar => ar.transaction.salesPerson).filter(Boolean) as string[],
+    )).sort()
+
+    return NextResponse.json({ summary, totalAR, overdueTotal, totalCount: receivables.length, allPersons })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Failed' }, { status: 500 })
