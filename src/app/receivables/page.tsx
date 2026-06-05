@@ -276,6 +276,19 @@ export default function ReceivablesPage() {
       const inRange = (ts: number) => ts >= fromTs && ts <= toTs
       const fmtDate = (d: string | Date) => new Date(d).toLocaleDateString('ko-KR')
 
+      // 지정한 컬럼들에 천단위 콤마 포맷 적용 (헤더 행 제외)
+      const applyMoneyFormat = (ws: Record<string, unknown> & { '!ref'?: string }, cols: number[]) => {
+        if (!ws['!ref']) return
+        const range = XLSX.utils.decode_range(ws['!ref'])
+        for (let R = range.s.r + 1; R <= range.e.r; R++) {
+          for (const C of cols) {
+            const addr = XLSX.utils.encode_cell({ r: R, c: C })
+            const cell = ws[addr] as { v?: unknown; z?: string } | undefined
+            if (cell && typeof cell.v === 'number') cell.z = '#,##0'
+          }
+        }
+      }
+
       const wb = XLSX.utils.book_new()
 
       // 시트 1: 거래처 요약
@@ -289,6 +302,7 @@ export default function ReceivablesPage() {
       }))
       const ws1 = XLSX.utils.json_to_sheet(summaryRows)
       ws1['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 16 }]
+      applyMoneyFormat(ws1, [2])  // 잔액(원)
       XLSX.utils.book_append_sheet(wb, ws1, '거래처 요약')
 
       // 시트 2: 매출
@@ -313,6 +327,7 @@ export default function ReceivablesPage() {
       saleRows.sort((a, b) => String(b['날짜']).localeCompare(String(a['날짜'])))
       const ws2 = XLSX.utils.json_to_sheet(saleRows)
       ws2['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 14 }, { wch: 40 }, { wch: 30 }, { wch: 10 }]
+      applyMoneyFormat(ws2, [3])  // 금액(원)
       XLSX.utils.book_append_sheet(wb, ws2, '매출')
 
       // 시트 3: 입금 (일계표 + 통장)
@@ -346,6 +361,7 @@ export default function ReceivablesPage() {
       payRows.sort((a, b) => String(b['날짜']).localeCompare(String(a['날짜'])))
       const ws3 = XLSX.utils.json_to_sheet(payRows)
       ws3['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 40 }]
+      applyMoneyFormat(ws3, [3])  // 금액(원)
       XLSX.utils.book_append_sheet(wb, ws3, '입금')
 
       // 시트 4: 세금계산서
@@ -368,6 +384,7 @@ export default function ReceivablesPage() {
       taxRows.sort((a, b) => String(b['발행일']).localeCompare(String(a['발행일'])))
       const ws4 = XLSX.utils.json_to_sheet(taxRows)
       ws4['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 30 }, { wch: 10 }]
+      applyMoneyFormat(ws4, [2, 3, 4])  // 공급가/부가세/합계
       XLSX.utils.book_append_sheet(wb, ws4, '세금계산서')
 
       // 파일명 — 필터 정보 반영
