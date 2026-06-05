@@ -158,6 +158,22 @@ export default function ReceivablesPage() {
   const [dateFrom, setDateFrom] = useState('')  // YYYY-MM-DD, '' = 무제한
   const [dateTo, setDateTo] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [cols, setCols] = useState(1)  // 카드 그리드 컬럼 수 (반응형)
+
+  // 화면 너비에 따라 그리드 컬럼 수 결정
+  useEffect(() => {
+    const compute = () => {
+      const w = window.innerWidth
+      if (w >= 1280) return 4
+      if (w >= 1024) return 3
+      if (w >= 640) return 2
+      return 1
+    }
+    const update = () => setCols(compute())
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
 
   const fetchData = async () => {
     setLoading(true)
@@ -235,6 +251,15 @@ export default function ReceivablesPage() {
     const set = new Set([...DEFAULT_PERSONS, ...(data?.allPersons ?? [])])
     return Array.from(set).sort()
   }, [data])
+
+  // 그리드 row 단위로 chunk — 펼침 패널을 row 다음에 삽입하기 위함
+  const chunked = useMemo(() => {
+    const result: ClientAR[][] = []
+    for (let i = 0; i < filteredSummary.length; i += cols) {
+      result.push(filteredSummary.slice(i, i + cols))
+    }
+    return result
+  }, [filteredSummary, cols])
 
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
 
@@ -341,58 +366,110 @@ export default function ReceivablesPage() {
         </CardContent>
       </Card>
 
-      {/* 거래처별 미수금 목록 */}
+      {/* 거래처별 미수금 목록 — 카드 그리드 (최대 4열) */}
       {!filteredSummary.length ? (
         <Card><CardContent className="py-16 text-center"><CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" /><p className="text-slate-500">{filterPerson ? '해당 담당자의 미수금이 없습니다' : '미수금이 없습니다'}</p></CardContent></Card>
       ) : (
-        <div className="space-y-3">
-          {filteredSummary.map(client => (
-            <Card key={client.clientId} className={client.oldestDays > 60 ? 'border-red-200' : ''}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between cursor-pointer" onClick={() => setExpandedClient(expandedClient === client.clientId ? null : client.clientId)}>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900">{client.clientName}</h3>
-                    {client.phone && (
-                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                        <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>
-                      </div>
-                    )}
-                    {/* 담당자 뱃지 */}
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      {client.salesPersons.map(p => (
-                        <Badge key={p.name} variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
-                          <User className="w-3 h-3" />{p.name} ({p.count}건)
-                        </Badge>
-                      ))}
-                      {client.unassignedCount > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const ids = client.items.filter(ar => !ar.transaction.salesPerson).map(ar => ar.transactionId)
-                            setBulkDialog({ clientId: client.clientId, clientName: client.clientName, unassignedIds: ids })
-                          }}
-                          className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                          title="미지정 거래에 담당자 일괄 지정"
-                        >
-                          <UserPlus className="w-3 h-3" />미지정 {client.unassignedCount}건 일괄 지정
-                        </button>
-                      )}
-                      {client.salesPersons.length === 0 && client.unassignedCount === 0 && (
-                        <span className="text-[11px] text-slate-300">담당자 정보 없음</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right ml-3">
-                    <p className={`text-xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
-                      {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
-                    </p>
-                    {client.totalAmount < 0 && (
-                      <p className="text-[10px] text-blue-500 mt-0.5">입금 초과</p>
-                    )}
-                  </div>
+        <div className="space-y-4">
+          {chunked.map((rowClients, rowIdx) => {
+            const expandedInRow = rowClients.find(c => c.clientId === expandedClient)
+            return (
+              <div key={rowIdx} className="space-y-4">
+                <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+                  {rowClients.map(client => {
+                    const isSelected = expandedClient === client.clientId
+                    return (
+                      <Card
+                        key={client.clientId}
+                        onClick={() => setExpandedClient(isSelected ? null : client.clientId)}
+                        className={`cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-2 border-blue-400 shadow-lg ring-2 ring-blue-100'
+                            : client.oldestDays > 60
+                              ? 'border border-red-200 hover:shadow-md hover:border-red-300'
+                              : 'border border-slate-200 hover:shadow-md hover:border-slate-300'
+                        }`}
+                      >
+                        <CardContent className="p-4 flex flex-col items-center text-center gap-2 min-h-[140px] justify-between">
+                          <h3 className="font-semibold text-slate-900 text-sm truncate w-full" title={client.clientName}>
+                            {client.clientName}
+                          </h3>
+                          <div className="flex flex-col items-center">
+                            <p className={`text-xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
+                              {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
+                            </p>
+                            {client.totalAmount < 0 && (
+                              <p className="text-[10px] text-blue-500 mt-0.5">입금 초과</p>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 truncate w-full">
+                            {client.salesPersons.length > 0 ? (
+                              client.salesPersons.map(p => p.name).join(' · ')
+                            ) : client.unassignedCount > 0 ? (
+                              <span className="text-amber-600">⚠ 미지정 {client.unassignedCount}건</span>
+                            ) : (
+                              <span className="text-slate-300">담당자 미지정</span>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
 
-                {expandedClient === client.clientId && (() => {
+                {/* 펼침 패널 — 이 row 에 선택된 카드가 있으면 전체 폭으로 표시 */}
+                {expandedInRow && (() => {
+                  const client = expandedInRow
+                  return (
+                    <Card className="border-2 border-blue-300 shadow-md">
+                      <CardContent className="p-5">
+                        {/* 펼침 헤더 — 거래처 정보 풀버전 */}
+                        <div className="flex items-start justify-between mb-4 pb-4 border-b border-slate-200">
+                          <div className="flex-1">
+                            <h3 className="font-bold text-lg text-slate-900">{client.clientName}</h3>
+                            {client.phone && (
+                              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                              {client.salesPersons.map(p => (
+                                <Badge key={p.name} variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
+                                  <User className="w-3 h-3" />{p.name} ({p.count}건)
+                                </Badge>
+                              ))}
+                              {client.unassignedCount > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    const ids = client.items.filter(ar => !ar.transaction.salesPerson).map(ar => ar.transactionId)
+                                    setBulkDialog({ clientId: client.clientId, clientName: client.clientName, unassignedIds: ids })
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                  title="미지정 거래에 담당자 일괄 지정"
+                                >
+                                  <UserPlus className="w-3 h-3" />미지정 {client.unassignedCount}건 일괄 지정
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right ml-3">
+                            <p className={`text-2xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
+                              {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
+                            </p>
+                            {client.totalAmount < 0 && (
+                              <p className="text-[10px] text-blue-500 mt-0.5">입금 초과</p>
+                            )}
+                            <button
+                              onClick={() => setExpandedClient(null)}
+                              className="mt-2 text-xs text-slate-400 hover:text-slate-700"
+                            >
+                              ✕ 닫기
+                            </button>
+                          </div>
+                        </div>
+
+                        {(() => {
                   // 4종 데이터를 행으로 합쳐서 시간순 정렬, 컬럼 테이블로 표시
                   type Row =
                     | { kind: 'sale'; ts: number; ar: ARItem }
@@ -573,10 +650,14 @@ export default function ReceivablesPage() {
                     </table>
                   </div>
                   )
+                        })()}
+                      </CardContent>
+                    </Card>
+                  )
                 })()}
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            )
+          })}
         </div>
       )}
 
