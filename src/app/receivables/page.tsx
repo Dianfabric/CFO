@@ -264,6 +264,136 @@ export default function ReceivablesPage() {
     return Array.from(set).sort()
   }, [data])
 
+  // 엑셀 다운로드 — 현재 필터(담당자/검색어/날짜/완납포함)가 적용된 결과를 4시트로 출력
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    if (!filteredSummary.length) { alert('다운로드할 거래처가 없습니다'); return }
+    setExporting(true)
+    try {
+      const XLSX = await import('xlsx')
+      const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : -Infinity
+      const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : Infinity
+      const inRange = (ts: number) => ts >= fromTs && ts <= toTs
+      const fmtDate = (d: string | Date) => new Date(d).toLocaleDateString('ko-KR')
+
+      const wb = XLSX.utils.book_new()
+
+      // 시트 1: 거래처 요약
+      const summaryRows = filteredSummary.map(c => ({
+        '거래처': c.clientName,
+        '담당자': c.salesPersons.map(p => p.name).join(' · ') || (c.unassignedCount > 0 ? `미지정 ${c.unassignedCount}건` : '미지정'),
+        '잔액(원)': c.totalAmount,
+        '미수 건수': c.count,
+        '연체 일수': c.oldestDays,
+        '전화번호': c.phone ?? '',
+      }))
+      const ws1 = XLSX.utils.json_to_sheet(summaryRows)
+      ws1['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 16 }]
+      XLSX.utils.book_append_sheet(wb, ws1, '거래처 요약')
+
+      // 시트 2: 매출
+      const saleRows: Record<string, string | number>[] = []
+      filteredSummary.forEach(c => {
+        c.items.forEach(ar => {
+          const ts = new Date(ar.transaction.date).getTime()
+          if (!inRange(ts)) return
+          saleRows.push({
+            '날짜': fmtDate(ar.transaction.date),
+            '거래처': c.clientName,
+            '담당자': ar.transaction.salesPerson ?? '미지정',
+            '금액(원)': ar.originalAmount,
+            '품목': ar.transaction.items.map(i => `${i.productName} ${i.quantity}@${i.unitPrice}`).join(' / '),
+            '비고': ar.transaction.description ?? '',
+            '세금계산서': ar.transaction.taxStatus === 'COMPLETED' ? '완료'
+              : ar.transaction.taxStatus === 'ISSUED' ? '발행'
+              : (ar.transaction.taxInvoices?.length ? '발행' : '미발행'),
+          })
+        })
+      })
+      saleRows.sort((a, b) => String(b['날짜']).localeCompare(String(a['날짜'])))
+      const ws2 = XLSX.utils.json_to_sheet(saleRows)
+      ws2['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 14 }, { wch: 40 }, { wch: 30 }, { wch: 10 }]
+      XLSX.utils.book_append_sheet(wb, ws2, '매출')
+
+      // 시트 3: 입금 (일계표 + 통장)
+      const payRows: Record<string, string | number>[] = []
+      filteredSummary.forEach(c => {
+        c.allPayments.forEach(p => {
+          const ts = new Date(p.paymentDate).getTime()
+          if (!inRange(ts)) return
+          payRows.push({
+            '날짜': fmtDate(p.paymentDate),
+            '거래처': c.clientName,
+            '구분': '일계표',
+            '금액(원)': p.amount,
+            '결제수단': p.paymentMethod,
+            '메모': p.notes ?? '',
+          })
+        })
+        c.bankIns.forEach(b => {
+          const ts = new Date(b.txDateTime).getTime()
+          if (!inRange(ts)) return
+          payRows.push({
+            '날짜': fmtDate(b.txDateTime),
+            '거래처': c.clientName,
+            '구분': '통장',
+            '금액(원)': b.amount,
+            '결제수단': 'TRANSFER',
+            '메모': `${b.rawCounterparty || b.rawDescription}`,
+          })
+        })
+      })
+      payRows.sort((a, b) => String(b['날짜']).localeCompare(String(a['날짜'])))
+      const ws3 = XLSX.utils.json_to_sheet(payRows)
+      ws3['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 40 }]
+      XLSX.utils.book_append_sheet(wb, ws3, '입금')
+
+      // 시트 4: 세금계산서
+      const taxRows: Record<string, string | number>[] = []
+      filteredSummary.forEach(c => {
+        c.taxInvoices.forEach(t => {
+          const ts = new Date(t.issueDate).getTime()
+          if (!inRange(ts)) return
+          taxRows.push({
+            '발행일': fmtDate(t.issueDate),
+            '거래처': c.clientName,
+            '공급가(원)': t.supplyAmount,
+            '부가세(원)': t.taxAmount,
+            '합계(원)': t.totalAmount,
+            '품목': t.itemName ?? '',
+            '매칭 거래': t.matchedTransactionId ? '매칭됨' : '미매칭',
+          })
+        })
+      })
+      taxRows.sort((a, b) => String(b['발행일']).localeCompare(String(a['발행일'])))
+      const ws4 = XLSX.utils.json_to_sheet(taxRows)
+      ws4['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 30 }, { wch: 10 }]
+      XLSX.utils.book_append_sheet(wb, ws4, '세금계산서')
+
+      // 파일명 — 필터 정보 반영
+      const today = new Date().toISOString().slice(0, 10)
+      const parts = ['미수금', today]
+      if (filterPerson && filterPerson !== 'UNASSIGNED') parts.push(filterPerson)
+      else if (filterPerson === 'UNASSIGNED') parts.push('미지정')
+      if (dateFrom || dateTo) parts.push(`${dateFrom || '전체'}~${dateTo || '전체'}`)
+      const filename = parts.join('_') + '.xlsx'
+
+      const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) {
+      console.error('[export]', err)
+      alert('엑셀 다운로드 중 오류: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // 리스트 뷰는 1열 고정, 카드 뷰는 반응형
   const effectiveCols = viewMode === 'list' ? 1 : cols
 
@@ -309,6 +439,15 @@ export default function ReceivablesPage() {
               📋 리스트형
             </button>
           </div>
+          {/* 엑셀 다운로드 */}
+          <button
+            onClick={handleExport}
+            disabled={exporting || !filteredSummary.length}
+            className="px-3 py-2 text-sm border border-emerald-300 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="현재 필터가 적용된 결과를 엑셀로 다운로드"
+          >
+            {exporting ? '⏳ 생성 중…' : '📥 엑셀 다운로드'}
+          </button>
           {/* 거래처 검색 */}
           <div className="relative">
             <input
