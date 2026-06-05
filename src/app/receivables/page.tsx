@@ -159,6 +159,18 @@ export default function ReceivablesPage() {
   const [dateTo, setDateTo] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [cols, setCols] = useState(1)  // 카드 그리드 컬럼 수 (반응형)
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card')
+
+  // 뷰 모드 localStorage 동기화
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('dian:receivables:viewMode')
+      if (saved === 'card' || saved === 'list') setViewMode(saved)
+    } catch { /* ignore */ }
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem('dian:receivables:viewMode', viewMode) } catch { /* ignore */ }
+  }, [viewMode])
 
   // 화면 너비에 따라 그리드 컬럼 수 결정
   useEffect(() => {
@@ -230,7 +242,7 @@ export default function ReceivablesPage() {
   }
 
   const agingColor = (days: number) =>
-    days <= 30 ? 'text-green-600' : days <= 60 ? 'text-yellow-600' : days <= 90 ? 'text-orange-600' : 'text-red-600'
+    days <= 30 ? 'text-orange-500' : days <= 60 ? 'text-orange-600' : days <= 90 ? 'text-orange-700' : 'text-red-600'
 
   const agingBadge = (days: number) =>
     days <= 30 ? 'secondary' as const : days <= 60 ? 'outline' as const : 'destructive' as const
@@ -252,14 +264,17 @@ export default function ReceivablesPage() {
     return Array.from(set).sort()
   }, [data])
 
+  // 리스트 뷰는 1열 고정, 카드 뷰는 반응형
+  const effectiveCols = viewMode === 'list' ? 1 : cols
+
   // 그리드 row 단위로 chunk — 펼침 패널을 row 다음에 삽입하기 위함
   const chunked = useMemo(() => {
     const result: ClientAR[][] = []
-    for (let i = 0; i < filteredSummary.length; i += cols) {
-      result.push(filteredSummary.slice(i, i + cols))
+    for (let i = 0; i < filteredSummary.length; i += effectiveCols) {
+      result.push(filteredSummary.slice(i, i + effectiveCols))
     }
     return result
-  }, [filteredSummary, cols])
+  }, [filteredSummary, effectiveCols])
 
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
 
@@ -270,22 +285,48 @@ export default function ReceivablesPage() {
           <h1 className="text-2xl font-bold text-slate-900">미수금 관리</h1>
           <p className="text-sm text-slate-500">거래처별 외상 미수금을 추적하고 회수를 기록합니다</p>
         </div>
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="거래처 검색…"
-            className="w-72 text-sm border border-slate-300 rounded-lg px-3 py-2 pr-8 bg-white focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          />
-          {searchQuery && (
+        <div className="flex items-center gap-3">
+          {/* 뷰 토글 */}
+          <div className="inline-flex border border-slate-300 rounded-lg overflow-hidden text-sm">
             <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm"
+              onClick={() => setViewMode('card')}
+              className={`px-3 py-2 transition-colors ${
+                viewMode === 'card'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
             >
-              ✕
+              📇 카드형
             </button>
-          )}
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-2 transition-colors border-l border-slate-300 ${
+                viewMode === 'list'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              📋 리스트형
+            </button>
+          </div>
+          {/* 거래처 검색 */}
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="거래처 검색…"
+              className="w-72 text-sm border border-slate-300 rounded-lg px-3 py-2 pr-8 bg-white focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -371,38 +412,88 @@ export default function ReceivablesPage() {
         <Card><CardContent className="py-16 text-center"><CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" /><p className="text-slate-500">{filterPerson ? '해당 담당자의 미수금이 없습니다' : '미수금이 없습니다'}</p></CardContent></Card>
       ) : (
         <div className="space-y-4">
+          {/* 리스트뷰 헤더 */}
+          {viewMode === 'list' && (
+            <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-2 text-xs text-slate-500 font-medium bg-slate-50 rounded-t-lg border border-slate-200">
+              <div className="col-span-5">거래처</div>
+              <div className="col-span-3">담당자</div>
+              <div className="col-span-2 text-right">잔액</div>
+              <div className="col-span-1 text-center">연체</div>
+              <div className="col-span-1"></div>
+            </div>
+          )}
           {chunked.map((rowClients, rowIdx) => {
             const expandedInRow = rowClients.find(c => c.clientId === expandedClient)
             return (
-              <div key={rowIdx} className="space-y-4">
-                <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-                  {rowClients.map(client => {
-                    const isSelected = expandedClient === client.clientId
-                    return (
-                      <Card
-                        key={client.clientId}
-                        onClick={() => setExpandedClient(isSelected ? null : client.clientId)}
-                        className={`cursor-pointer transition-all ${
-                          isSelected
-                            ? 'border-2 border-blue-400 shadow-lg ring-2 ring-blue-100'
-                            : client.oldestDays > 60
-                              ? 'border border-red-200 hover:shadow-md hover:border-red-300'
-                              : 'border border-slate-200 hover:shadow-md hover:border-slate-300'
-                        }`}
-                      >
-                        <CardContent className="p-4 flex flex-col items-center text-center gap-2 min-h-[140px] justify-between">
-                          <h3 className="font-semibold text-slate-900 text-sm truncate w-full" title={client.clientName}>
-                            {client.clientName}
-                          </h3>
-                          <div className="flex flex-col items-center">
-                            <p className={`text-xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
-                              {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
-                            </p>
-                            {client.totalAmount < 0 && (
-                              <p className="text-[10px] text-blue-500 mt-0.5">입금 초과</p>
+              <div key={rowIdx} className={viewMode === 'list' ? 'space-y-1' : 'space-y-4'}>
+                {viewMode === 'card' ? (
+                  <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+                    {rowClients.map(client => {
+                      const isSelected = expandedClient === client.clientId
+                      return (
+                        <Card
+                          key={client.clientId}
+                          onClick={() => setExpandedClient(isSelected ? null : client.clientId)}
+                          className={`cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-2 border-blue-400 shadow-lg ring-2 ring-blue-100'
+                              : client.oldestDays > 60
+                                ? 'border border-red-200 hover:shadow-md hover:border-red-300'
+                                : 'border border-slate-200 hover:shadow-md hover:border-slate-300'
+                          }`}
+                        >
+                          <CardContent className="p-4 flex flex-col items-center text-center gap-2 min-h-[140px] justify-between">
+                            <h3 className="font-semibold text-slate-900 text-sm truncate w-full" title={client.clientName}>
+                              {client.clientName}
+                            </h3>
+                            <div className="flex flex-col items-center">
+                              <p className={`text-xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
+                                {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
+                              </p>
+                              {client.totalAmount < 0 && (
+                                <p className="text-[10px] text-blue-500 mt-0.5">입금 초과</p>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 truncate w-full">
+                              {client.salesPersons.length > 0 ? (
+                                client.salesPersons.map(p => p.name).join(' · ')
+                              ) : client.unassignedCount > 0 ? (
+                                <span className="text-amber-600">⚠ 미지정 {client.unassignedCount}건</span>
+                              ) : (
+                                <span className="text-slate-300">담당자 미지정</span>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  // 리스트뷰: 한 행씩 가로 정렬
+                  <div>
+                    {rowClients.map(client => {
+                      const isSelected = expandedClient === client.clientId
+                      return (
+                        <div
+                          key={client.clientId}
+                          onClick={() => setExpandedClient(isSelected ? null : client.clientId)}
+                          className={`grid grid-cols-12 gap-3 px-4 py-3 items-center cursor-pointer transition-colors border ${
+                            isSelected
+                              ? 'border-blue-400 bg-blue-50/40 shadow-sm'
+                              : client.oldestDays > 60
+                                ? 'border-red-200 bg-white hover:bg-red-50/30'
+                                : 'border-slate-200 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="col-span-5">
+                            <div className="font-medium text-sm text-slate-900 truncate" title={client.clientName}>
+                              {client.clientName}
+                            </div>
+                            {client.phone && (
+                              <div className="text-[11px] text-slate-400 mt-0.5">{client.phone}</div>
                             )}
                           </div>
-                          <div className="text-xs text-slate-500 truncate w-full">
+                          <div className="col-span-3 text-xs text-slate-600 truncate">
                             {client.salesPersons.length > 0 ? (
                               client.salesPersons.map(p => p.name).join(' · ')
                             ) : client.unassignedCount > 0 ? (
@@ -411,11 +502,22 @@ export default function ReceivablesPage() {
                               <span className="text-slate-300">담당자 미지정</span>
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
+                          <div className={`col-span-2 text-right font-bold text-base ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
+                            {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
+                          </div>
+                          <div className="col-span-1 text-center text-xs">
+                            {client.oldestDays > 0 && (
+                              <span className={agingColor(client.oldestDays)}>{client.oldestDays}일</span>
+                            )}
+                          </div>
+                          <div className="col-span-1 text-right text-slate-400">
+                            {isSelected ? '▼' : '▶'}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
 
                 {/* 펼침 패널 — 이 row 에 선택된 카드가 있으면 전체 폭으로 표시 */}
                 {expandedInRow && (() => {
