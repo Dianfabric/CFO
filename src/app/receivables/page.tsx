@@ -187,8 +187,9 @@ export default function ReceivablesPage() {
     return () => window.removeEventListener('resize', update)
   }, [])
 
-  const fetchData = async () => {
-    setLoading(true)
+  // silent=true 면 spinner 안 띄움 (펼침 상태/스크롤 위치 유지)
+  const fetchData = async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const res = await fetch(`/api/receivables${includeFullyPaid ? '?includeFullyPaid=true' : ''}`)
       const json = await res.json()
@@ -201,7 +202,7 @@ export default function ReceivablesPage() {
     } catch (err) {
       console.error(err)
       setData({ summary: [], totalAR: 0, overdueTotal: 0, totalCount: 0, allPersons: [] })
-    } finally { setLoading(false) }
+    } finally { if (!silent) setLoading(false) }
   }
 
   useEffect(() => { fetchData() }, [includeFullyPaid])
@@ -213,7 +214,7 @@ export default function ReceivablesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ receivableId: payDialog.arId, amount: payAmount, paymentMethod: 'TRANSFER' }),
     })
-    setPayDialog(null); setPayAmount(0); fetchData()
+    setPayDialog(null); setPayAmount(0); fetchData(true)
   }
 
   // 행별 담당자 지정
@@ -224,7 +225,7 @@ export default function ReceivablesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ salesPerson: person }),
     })
-    fetchData()
+    fetchData(true)
   }
 
   // 거래처 일괄 지정
@@ -238,7 +239,7 @@ export default function ReceivablesPage() {
       body: JSON.stringify({ transactionIds: bulkDialog.unassignedIds, salesPerson: person }),
     })
     setBulkDialog(null); setBulkPerson(''); setBulkCustom('')
-    fetchData()
+    fetchData(true)
   }
 
   const agingColor = (days: number) =>
@@ -790,7 +791,7 @@ export default function ReceivablesPage() {
                                           transactionId={row.ar.transactionId}
                                           initial={row.ar.transaction.taxStatus}
                                           matched={matched}
-                                          onChanged={fetchData}
+                                          onChanged={() => fetchData(true)}
                                         />
                                         {row.ar.transaction.salesPerson ? (
                                           <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700 text-[10px] px-1.5">
