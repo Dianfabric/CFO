@@ -154,6 +154,7 @@ export default function ReceivablesPage() {
   const [bulkPerson, setBulkPerson] = useState('')
   const [bulkCustom, setBulkCustom] = useState('')
   const [expandedAr, setExpandedAr] = useState<string | null>(null)
+  const [editingPersonTx, setEditingPersonTx] = useState<string | null>(null)  // 담당자 인라인 편집 중인 transactionId
   const [includeFullyPaid, setIncludeFullyPaid] = useState(false)
   const [dateFrom, setDateFrom] = useState('')  // YYYY-MM-DD, '' = 무제한
   const [dateTo, setDateTo] = useState('')
@@ -793,28 +794,42 @@ export default function ReceivablesPage() {
                                           matched={matched}
                                           onChanged={() => fetchData(true)}
                                         />
-                                        {row.ar.transaction.salesPerson ? (
-                                          <Badge variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700 text-[10px] px-1.5">
-                                            <User className="w-3 h-3" />{row.ar.transaction.salesPerson}
-                                          </Badge>
-                                        ) : (
+                                        {editingPersonTx === row.ar.transactionId || !row.ar.transaction.salesPerson ? (
                                           <select
-                                            className="text-[10px] border rounded px-1 py-0.5 bg-amber-50 border-amber-300 text-amber-700"
-                                            defaultValue=""
+                                            autoFocus={editingPersonTx === row.ar.transactionId}
+                                            className={`text-[10px] border rounded px-1 py-0.5 ${
+                                              row.ar.transaction.salesPerson
+                                                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                                : 'bg-amber-50 border-amber-300 text-amber-700'
+                                            }`}
+                                            defaultValue={row.ar.transaction.salesPerson ?? ''}
                                             onClick={e => e.stopPropagation()}
+                                            onBlur={() => setEditingPersonTx(null)}
                                             onChange={e => {
                                               e.stopPropagation()
                                               const v = e.target.value
+                                              setEditingPersonTx(null)
                                               if (v === '__custom__') {
                                                 const name = prompt('담당자 이름 입력:')
                                                 if (name?.trim()) handleAssignPerson(row.ar.transactionId, name.trim())
-                                              } else if (v) handleAssignPerson(row.ar.transactionId, v)
+                                              } else if (v && v !== row.ar.transaction.salesPerson) {
+                                                handleAssignPerson(row.ar.transactionId, v)
+                                              }
                                             }}
                                           >
                                             <option value="">담당자</option>
                                             {personList.map(p => <option key={p} value={p}>{p}</option>)}
                                             <option value="__custom__">기타</option>
                                           </select>
+                                        ) : (
+                                          <Badge
+                                            variant="outline"
+                                            onClick={e => { e.stopPropagation(); setEditingPersonTx(row.ar.transactionId) }}
+                                            className="gap-1 bg-blue-50 border-blue-200 text-blue-700 text-[10px] px-1.5 cursor-pointer hover:bg-blue-100 transition-colors"
+                                            title="클릭해서 담당자 변경"
+                                          >
+                                            <User className="w-3 h-3" />{row.ar.transaction.salesPerson}
+                                          </Badge>
                                         )}
                                       </div>
                                     )}
