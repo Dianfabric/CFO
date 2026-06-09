@@ -156,11 +156,12 @@ export async function POST(request: NextRequest) {
         color: String(r[4] ?? '').trim(),
         colorKey: normItem(String(r[4] ?? '')),
         qty: parseFloat(String(r[5] ?? '').replace(/,/g, '')) || 0,
-        person: mapPerson(String(r[13] ?? '')),
-        industry: String(r[14] ?? '').trim(),          // O열: 직군
-        productCategory: String(r[15] ?? '').trim(),   // P열: 제품
-        processFunction: String(r[16] ?? '').trim(),   // Q열: 가공·기능
-        material: String(r[17] ?? '').trim(),          // R열: 재료
+        person: mapPerson(String(r[13] ?? '')),         // N열: 담당자
+        // O열(인덱스 14)은 ✓ 체크 컬럼 — 사용 안 함
+        industry: String(r[15] ?? '').trim(),           // P열: 직군
+        productCategory: String(r[16] ?? '').trim(),    // Q열: 제품
+        processFunction: String(r[17] ?? '').trim(),    // R열: 가공·기능
+        material: String(r[18] ?? '').trim(),           // S열: 재료
       })
     }
 
