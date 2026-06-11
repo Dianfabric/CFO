@@ -8,6 +8,7 @@ import {
   Loader2, RefreshCw, Ship, X,
 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import LedgerSyncDialog from './LedgerSyncDialog'
 
 type FileStatus = 'pending' | 'processing' | 'success' | 'error'
 
@@ -187,10 +188,21 @@ function RecalculateButton({ onSuccess }: { onSuccess?: () => void }) {
 export default function UploadSection({ onUploadSuccess }: { onUploadSuccess?: () => void }) {
   const [files, setFiles] = useState<FileItem[]>([])
   const [dragging, setDragging] = useState(false)
+  const [syncFile, setSyncFile] = useState<File | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const addFiles = useCallback(async (newFiles: File[]) => {
-    const items: FileItem[] = newFiles.map(f => ({
+    // 일계표 파일은 sync 다이얼로그로 분리 (한 번에 하나만)
+    const ledgerFile = newFiles.find(f => /일계표/.test(f.name))
+    const otherFiles = newFiles.filter(f => !/일계표/.test(f.name))
+
+    if (ledgerFile) {
+      setSyncFile(ledgerFile)  // 다이얼로그 트리거
+    }
+
+    if (otherFiles.length === 0) return
+
+    const items: FileItem[] = otherFiles.map(f => ({
       id: `${f.name}-${Date.now()}-${Math.random()}`,
       file: f,
       status: 'pending' as FileStatus,
@@ -297,6 +309,14 @@ export default function UploadSection({ onUploadSuccess }: { onUploadSuccess?: (
         {/* 원가 재계산 */}
         <RecalculateButton onSuccess={onUploadSuccess} />
       </CardContent>
+
+      {/* 일계표 동기화 다이얼로그 */}
+      <LedgerSyncDialog
+        file={syncFile}
+        open={!!syncFile}
+        onClose={() => setSyncFile(null)}
+        onComplete={() => onUploadSuccess?.()}
+      />
     </Card>
   )
 }
