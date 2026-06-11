@@ -49,7 +49,7 @@ function extractTxRows(rows: unknown[][]): TxRow[] {
       qty: parseSigned(r[6]),
       unitPrice: parseNum(r[7]),
       amount: parseSigned(r[8]),
-      vat: parseNum(r[9]),
+      vat: parseSigned(r[9]),   // 할인 행의 음수 VAT 유지 (절대값 처리 시 매출 부풀림 버그)
       voucherNo: String(r[11] ?? '').trim(),
     })
   }
