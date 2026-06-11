@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
 import { getFabricPrices, findFabricCost, getUSDtoKRW } from '@/lib/googleSheets'
+import { findOrCreateClient, ensureClientAr } from '@/lib/client-matcher'
 
 // 일계표(리스트) 형식 업로드
 // 계정: 외출=매출, 현비=경비, 외입=매입, 입금/출금=스킵
@@ -67,28 +68,25 @@ async function processDeposits(txRows: TxRow[], txDate: Date, dateStr: string): 
     const amount = Math.abs(r.amount)
     if (!r.client || amount === 0) continue
 
-    // 거래처 (exact match)
-    const client = await prisma.client.findFirst({ where: { name: r.client } })
+    // 거래처 매칭 — exact → alias → fuzzy(정규화) → 신규 생성
+    const { client } = await findOrCreateClient(r.client, { autoCreate: true, clientType: 'CUSTOMER' })
     if (!client) continue
 
-    // 같은 날짜에 일계표 입금이 이미 적용됐는지 확인
+    // 같은 날짜에 일계표 입금이 이미 적용됐는지 확인 (그 거래처 + 그 금액)
     const dayStart = new Date(txDate); dayStart.setHours(0, 0, 0, 0)
     const dayEnd = new Date(txDate); dayEnd.setHours(23, 59, 59, 999)
     const existed = await prisma.arPayment.findFirst({
       where: {
         paymentDate: { gte: dayStart, lte: dayEnd },
-        notes: { startsWith: `[일계표] ${dateStr} | ${r.client}` },
+        amount,
+        receivable: { clientId: client.id },
+        notes: { startsWith: '[일계표]' },
       },
     })
     if (existed) continue // 이미 처리됨
 
-    // 입금 전액을 거래처의 가장 오래된 AR에 한 건 기록 (실제 입금액 보존)
-    // AR이 없으면 skip (선수금 처리 안 함)
-    const targetAr = await prisma.accountsReceivable.findFirst({
-      where: { clientId: client.id },
-      orderBy: { createdAt: 'asc' },
-    })
-    if (!targetAr) continue
+    // AR 보장 — 없으면 0원 placeholder AR 자동 생성 (선수금 처리)
+    const targetAr = await ensureClientAr(client.id)
 
     await prisma.arPayment.create({
       data: {
@@ -100,7 +98,7 @@ async function processDeposits(txRows: TxRow[], txDate: Date, dateStr: string): 
       },
     })
 
-    // 거래처 단위 잔액 재계산 (모든 AR의 original - 모든 payment 합)
+    // 거래처 단위 잔액 재계산
     await recalcClientArBalances(client.id)
 
     count++
