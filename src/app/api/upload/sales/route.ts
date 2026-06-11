@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
       expenseCount: number; totalExpenses: number
       purchaseCount: number; totalPurchases: number
       depositCount: number; totalDeposits: number
+      salesSkipped?: number; expenseSkipped?: number; purchaseSkipped?: number
     }[] = []
     const unmatchedProducts: string[] = []
 
@@ -180,24 +181,13 @@ export async function POST(request: NextRequest) {
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]
       const txRows = extractTxRows(rows)
 
-      // SALE 중복 확인 — 매출은 이미 있으면 입금만 처리하고 매출/경비/매입은 스킵
-      const existingSale = await prisma.transaction.findFirst({
-        where: { date: { gte: dayStart, lte: dayEnd }, type: 'SALE', description: { startsWith: '일계표' } }
-      })
-      const skipMain = !!existingSale
-
+      // dedup 단위: 하루 전체 → 그룹별로 변경 (SALE/EXPENSE/PURCHASE 각각)
+      // 같은 (날짜+거래처+금액) 조합이 이미 있으면 그 그룹만 skip, 다른 새 매출은 정상 추가됨
       let salesCount = 0, totalSales = 0
       let expenseCount = 0, totalExpenses = 0
       let purchaseCount = 0, totalPurchases = 0
       let depositCount = 0, totalDeposits = 0
-
-      if (skipMain) {
-        // 매출/경비/매입은 이미 등록됨. 입금만 처리.
-        const dep = await processDeposits(txRows, txDate, dateStr)
-        depositCount = dep.count; totalDeposits = dep.total
-        results.push({ date: dateStr, skipped: false, skipReason: depositCount > 0 ? `매출 중복 — 입금 ${depositCount}건만 적용` : '이미 업로드된 날짜', salesCount: 0, totalSales: 0, expenseCount: 0, totalExpenses: 0, purchaseCount: 0, totalPurchases: 0, depositCount, totalDeposits })
-        continue
-      }
+      let salesSkipped = 0, expenseSkipped = 0, purchaseSkipped = 0
 
       // ── 외출 (SALE): 전표No 기준 그룹핑 ──────────────────
       const saleGroups = new Map<string, TxRow[]>()
@@ -217,6 +207,18 @@ export async function POST(request: NextRequest) {
 
         let client = await prisma.client.findFirst({ where: { name: clientName } })
         if (!client) client = await prisma.client.create({ data: { name: clientName, type: 'CUSTOMER' } })
+
+        // 그룹별 dedup — 같은 (날짜+거래처+금액) 매출이 이미 있으면 그 그룹만 skip
+        const existingGroup = await prisma.transaction.findFirst({
+          where: {
+            date: { gte: dayStart, lte: dayEnd },
+            type: 'SALE',
+            clientId: client.id,
+            totalAmount,
+            description: { startsWith: '일계표 매출' },
+          },
+        })
+        if (existingGroup) { salesSkipped++; continue }
 
         const saleTx = await prisma.transaction.create({
           data: {
@@ -241,14 +243,15 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        if (totalAmount > 0) {
+        // 음수 매출(단수정리/환불 등)도 AR 생성 — 미수금 잔액에 정확히 반영
+        if (totalAmount !== 0) {
           await prisma.accountsReceivable.create({
             data: {
               clientId: client.id,
               transactionId: saleTx.id,
               originalAmount: totalAmount,
               remainingAmount: totalAmount,
-              status: 'OUTSTANDING',
+              status: totalAmount > 0 ? 'OUTSTANDING' : 'PAID',  // 음수면 PAID 처리 (회수 대상 아님)
             }
           })
         }
@@ -305,11 +308,25 @@ export async function POST(request: NextRequest) {
       for (const r of expenseRows) {
         const amount = parseNum(r.amount)
         if (amount === 0) continue
+        const desc = r.productName || r.memo || '경비'
+
+        // 행별 dedup — 같은 (날짜+description+amount+taxAmount) 이미 있으면 skip
+        const existingExp = await prisma.transaction.findFirst({
+          where: {
+            date: { gte: dayStart, lte: dayEnd },
+            type: 'EXPENSE',
+            description: desc,
+            totalAmount: amount,
+            taxAmount: r.vat,
+          },
+        })
+        if (existingExp) { expenseSkipped++; continue }
+
         await prisma.transaction.create({
           data: {
             date: txDate,
             type: 'EXPENSE',
-            description: r.productName || r.memo || '경비',
+            description: desc,
             totalAmount: amount,
             taxAmount: r.vat,
             paymentMethod: 'CASH',
@@ -336,6 +353,18 @@ export async function POST(request: NextRequest) {
 
         let client = await prisma.client.findFirst({ where: { name: clientName } })
         if (!client) client = await prisma.client.create({ data: { name: clientName, type: 'SUPPLIER' } })
+
+        // 그룹별 dedup
+        const existingPur = await prisma.transaction.findFirst({
+          where: {
+            date: { gte: dayStart, lte: dayEnd },
+            type: 'PURCHASE',
+            clientId: client.id,
+            totalAmount,
+            description: { startsWith: '매입' },
+          },
+        })
+        if (existingPur) { purchaseSkipped++; continue }
 
         await prisma.transaction.create({
           data: {
@@ -368,7 +397,12 @@ export async function POST(request: NextRequest) {
 
       // 출금은 사용하지 않음 (사용자 요청)
 
-      results.push({ date: dateStr, skipped: false, salesCount, totalSales, expenseCount, totalExpenses, purchaseCount, totalPurchases, depositCount, totalDeposits })
+      results.push({
+        date: dateStr, skipped: false,
+        salesCount, totalSales, expenseCount, totalExpenses, purchaseCount, totalPurchases,
+        depositCount, totalDeposits,
+        salesSkipped, expenseSkipped, purchaseSkipped,
+      })
     }
 
     const processed = results.filter(r => !r.skipped)
