@@ -1,0 +1,1330 @@
+[
+  {
+    "id": "cmq8rspib001tj5za59h3aqqn",
+    "paymentDate": "2026-06-10",
+    "clientName": "에토프(etoffe)",
+    "amount": 215000,
+    "notes": "[일계표] 2026-06-10 | 에토프(etoffe)",
+    "createdAt": "2026-06-11"
+  },
+  {
+    "id": "cmq8ut4n000e36dtlmi1x9dux",
+    "paymentDate": "2026-06-10",
+    "clientName": "예림쇼파(서울)",
+    "amount": 81400,
+    "notes": "[일계표] 2026-06-10 | 예림쇼파(서울)",
+    "createdAt": "2026-06-11"
+  },
+  {
+    "id": "cmq7hcvuo000uxxbq2yqeasl6",
+    "paymentDate": "2026-06-10",
+    "clientName": "엘지커텐",
+    "amount": 80000,
+    "notes": "[일계표] 2026-06-10 | 엘지커텐",
+    "createdAt": "2026-06-10"
+  },
+  {
+    "id": "cmq8rspew001pj5zax8dfz9e9",
+    "paymentDate": "2026-06-10",
+    "clientName": "백송쇼파",
+    "amount": 146300,
+    "notes": "[일계표] 2026-06-10 | 백송쇼파",
+    "createdAt": "2026-06-11"
+  },
+  {
+    "id": "cmq7hcvo1000jxxbqesdi0muu",
+    "paymentDate": "2026-06-09",
+    "clientName": "지. 제이텍스타일",
+    "amount": 115500,
+    "notes": "[일계표] 2026-06-09 | 지. 제이텍스타일",
+    "createdAt": "2026-06-10"
+  },
+  {
+    "id": "cmq7hcvkf000fxxbqg93bym4s",
+    "paymentDate": "2026-06-09",
+    "clientName": "(주)테마포커스",
+    "amount": 101750,
+    "notes": "[일계표] 2026-06-09 | (주)테마포커스",
+    "createdAt": "2026-06-10"
+  },
+  {
+    "id": "cmq7hcvp9000lxxbq0ia7t3fy",
+    "paymentDate": "2026-06-09",
+    "clientName": "타바키",
+    "amount": 425150,
+    "notes": "[일계표] 2026-06-09 | 타바키",
+    "createdAt": "2026-06-10"
+  },
+  {
+    "id": "cmq5w9h68004cv0o5q7zws357",
+    "paymentDate": "2026-06-08",
+    "clientName": "피콕서울 PICOK SEOUL",
+    "amount": 948200,
+    "notes": "[일계표] 2026-06-08 | 피콕서울 PICOK SEOUL",
+    "createdAt": "2026-06-09"
+  },
+  {
+    "id": "cmq4idtxn00531afnh3sqbf06",
+    "paymentDate": "2026-06-05",
+    "clientName": "명석쇼파",
+    "amount": 792000,
+    "notes": "[일계표] 2026-06-05 | 명석쇼파",
+    "createdAt": "2026-06-08"
+  },
+  {
+    "id": "cmq4idtog004r1afn5hetev7n",
+    "paymentDate": "2026-06-05",
+    "clientName": "에이치그리다(H.greeda)",
+    "amount": 238700,
+    "notes": "[일계표] 2026-06-05 | 에이치그리다(H.greeda)",
+    "createdAt": "2026-06-08"
+  },
+  {
+    "id": "cmq4idtl3004n1afnh7d0s0xi",
+    "paymentDate": "2026-06-05",
+    "clientName": "디안몰",
+    "amount": 15000,
+    "notes": "[일계표] 2026-06-05 | 디안몰",
+    "createdAt": "2026-06-08"
+  },
+  {
+    "id": "cmpz8ztik000y14fg0937n530",
+    "paymentDate": "2026-06-04",
+    "clientName": "(주)인휴",
+    "amount": 1740000,
+    "notes": "[일계표] 2026-06-04 | (주)인휴",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09bt800dz2tctk08han0t",
+    "paymentDate": "2026-06-02",
+    "clientName": "모던갤러리 앤 다빈치",
+    "amount": 96800,
+    "notes": "[일계표] 2026-06-02 | 모던갤러리 앤 다빈치",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09bx300e72tctmoca7sa3",
+    "paymentDate": "2026-06-02",
+    "clientName": "명석쇼파",
+    "amount": 2025375,
+    "notes": "[일계표] 2026-06-02 | 명석쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09bj800dh2tctpz01zvo2",
+    "paymentDate": "2026-06-01",
+    "clientName": "찬소하우즈",
+    "amount": 752400,
+    "notes": "[일계표] 2026-06-01 | 찬소하우즈",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09bri00dx2tctywvwsdch",
+    "paymentDate": "2026-06-01",
+    "clientName": "이소디자인(EESO)",
+    "amount": 161700,
+    "notes": "[일계표] 2026-06-01 | 이소디자인(EESO)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09bqf00dv2tctfk36u4hp",
+    "paymentDate": "2026-06-01",
+    "clientName": "드림쇼파",
+    "amount": 66000,
+    "notes": "[일계표] 2026-06-01 | 드림쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09bd800d72tctydgw9bi4",
+    "paymentDate": "2026-05-29",
+    "clientName": "디자인파트너 소유",
+    "amount": 125400,
+    "notes": "[일계표] 2026-05-29 | 디자인파트너 소유",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09bg600dd2tctkgslrz4w",
+    "paymentDate": "2026-05-29",
+    "clientName": "eote(이오테)",
+    "amount": 460900,
+    "notes": "[일계표] 2026-05-29 | eote(이오테)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09be800d92tct1qb49d9p",
+    "paymentDate": "2026-05-29",
+    "clientName": "디플랜",
+    "amount": 107800,
+    "notes": "[일계표] 2026-05-29 | 디플랜",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09baa00d12tctmcwpb2gr",
+    "paymentDate": "2026-05-29",
+    "clientName": "예원인테리어",
+    "amount": 70000,
+    "notes": "[일계표] 2026-05-29 | 예원인테리어",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09b9a00cz2tctqssih3wh",
+    "paymentDate": "2026-05-29",
+    "clientName": "태성가구",
+    "amount": 1020800,
+    "notes": "[일계표] 2026-05-29 | 태성가구",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09b8d00cx2tctxjzdns0t",
+    "paymentDate": "2026-05-29",
+    "clientName": "하은쇼파공장",
+    "amount": 437800,
+    "notes": "[일계표] 2026-05-29 | 하은쇼파공장",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09b7h00cv2tcto1npbx93",
+    "paymentDate": "2026-05-29",
+    "clientName": "우림상사",
+    "amount": 199100,
+    "notes": "[일계표] 2026-05-29 | 우림상사",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09b2k00cl2tctjyl0to2q",
+    "paymentDate": "2026-05-29",
+    "clientName": "바치",
+    "amount": 1268300,
+    "notes": "[일계표] 2026-05-29 | 바치",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09b0q00ch2tctgcrtztnq",
+    "paymentDate": "2026-05-29",
+    "clientName": "동성사무기기",
+    "amount": 150700,
+    "notes": "[일계표] 2026-05-29 | 동성사무기기",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09bbb00d32tct1w8l343k",
+    "paymentDate": "2026-05-29",
+    "clientName": "타바키",
+    "amount": 311300,
+    "notes": "[일계표] 2026-05-29 | 타바키",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09att00c52tctuv5jcae3",
+    "paymentDate": "2026-05-28",
+    "clientName": "주식회사 엘엑스하우시스",
+    "amount": 128700,
+    "notes": "[일계표] 2026-05-28 | 주식회사 엘엑스하우시스",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09asl00c32tctir75xqau",
+    "paymentDate": "2026-05-28",
+    "clientName": "공간데코",
+    "amount": 161700,
+    "notes": "[일계표] 2026-05-28 | 공간데코",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09aur00c72tcthnes7vkz",
+    "paymentDate": "2026-05-28",
+    "clientName": "헬로양갱(hello.yanggang)",
+    "amount": 338800,
+    "notes": "[일계표] 2026-05-28 | 헬로양갱(hello.yanggang)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09ard00c12tctt6wzh3a1",
+    "paymentDate": "2026-05-27",
+    "clientName": "티씨티씨",
+    "amount": 126500,
+    "notes": "[일계표] 2026-05-27 | 티씨티씨",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09ao200bv2tctnvp3wkfx",
+    "paymentDate": "2026-05-26",
+    "clientName": "쿠코",
+    "amount": 353650,
+    "notes": "[일계표] 2026-05-26 | 쿠코",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09aiw00bl2tctrrus0awv",
+    "paymentDate": "2026-05-26",
+    "clientName": "아름다운인테리어",
+    "amount": 438900,
+    "notes": "[일계표] 2026-05-26 | 아름다운인테리어",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09al100bp2tctxcqvgn19",
+    "paymentDate": "2026-05-26",
+    "clientName": "꾸밈방",
+    "amount": 16500,
+    "notes": "[일계표] 2026-05-26 | 꾸밈방",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09a7u00b12tctu7fooeab",
+    "paymentDate": "2026-05-21",
+    "clientName": "지. 제이텍스타일",
+    "amount": 304150,
+    "notes": "[일계표] 2026-05-21 | 지. 제이텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09a9q00b52tct9f5b62w5",
+    "paymentDate": "2026-05-21",
+    "clientName": "eote(이오테)",
+    "amount": 689700,
+    "notes": "[일계표] 2026-05-21 | eote(이오테)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz099zw00al2tctq6q9wzxb",
+    "paymentDate": "2026-05-20",
+    "clientName": "믿음쇼파",
+    "amount": 36300,
+    "notes": "[일계표] 2026-05-20 | 믿음쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09a0r00an2tctryynknum",
+    "paymentDate": "2026-05-20",
+    "clientName": "디안몰",
+    "amount": 267000,
+    "notes": "[일계표] 2026-05-20 | 디안몰",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz099xd00ah2tctl2107ime",
+    "paymentDate": "2026-05-19",
+    "clientName": "이현D&C",
+    "amount": 3386620,
+    "notes": "[일계표] 2026-05-19 | 이현D&C",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz099w700af2tctyd6n22zq",
+    "paymentDate": "2026-05-19",
+    "clientName": "꾸밈방",
+    "amount": 55000,
+    "notes": "[일계표] 2026-05-19 | 꾸밈방",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz099uf00ad2tctulkonn1s",
+    "paymentDate": "2026-05-18",
+    "clientName": "드라마티크(Dramatique)",
+    "amount": 150700,
+    "notes": "[일계표] 2026-05-18 | 드라마티크(Dramatique)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz099sl00a92tct5jllsmkn",
+    "paymentDate": "2026-05-18",
+    "clientName": "대진쇼파(김포)",
+    "amount": 38500,
+    "notes": "[일계표] 2026-05-18 | 대진쇼파(김포)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz099p600a32tct39pove02",
+    "paymentDate": "2026-05-14",
+    "clientName": "공간데코",
+    "amount": 2040000,
+    "notes": "[일계표] 2026-05-14 | 공간데코",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz099n8009z2tcthzdpup1i",
+    "paymentDate": "2026-05-14",
+    "clientName": "대진쇼파(김포)",
+    "amount": 440550,
+    "notes": "[일계표] 2026-05-14 | 대진쇼파(김포)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz099kn009v2tctrkchitfc",
+    "paymentDate": "2026-05-13",
+    "clientName": "디자인 미르쇼파",
+    "amount": 236775,
+    "notes": "[일계표] 2026-05-13 | 디자인 미르쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098xc008p2tctvfyrq176",
+    "paymentDate": "2026-05-11",
+    "clientName": "고아(GOA)",
+    "amount": 115500,
+    "notes": "[일계표] 2026-05-11 | 고아(GOA)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0990c008v2tctp8nk4dd1",
+    "paymentDate": "2026-05-11",
+    "clientName": "지. 제이텍스타일",
+    "amount": 64900,
+    "notes": "[일계표] 2026-05-11 | 지. 제이텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0993j00912tcth7xr6vhz",
+    "paymentDate": "2026-05-11",
+    "clientName": "(주)아이앤티텍스타일",
+    "amount": 53900,
+    "notes": "[일계표] 2026-05-11 | (주)아이앤티텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0994q00932tct6lmrljk9",
+    "paymentDate": "2026-05-11",
+    "clientName": "그린쇼파가구(군산)",
+    "amount": 153725,
+    "notes": "[일계표] 2026-05-11 | 그린쇼파가구(군산)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098qb008b2tcts6vjyooy",
+    "paymentDate": "2026-05-08",
+    "clientName": "찬소하우즈",
+    "amount": 128975,
+    "notes": "[일계표] 2026-05-08 | 찬소하우즈",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098rb008d2tctjl25l2h3",
+    "paymentDate": "2026-05-08",
+    "clientName": "국민쇼파",
+    "amount": 544500,
+    "notes": "[일계표] 2026-05-08 | 국민쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098sc008f2tct88327axi",
+    "paymentDate": "2026-05-08",
+    "clientName": "주식회사 엘엑스하우시스",
+    "amount": 38500,
+    "notes": "[일계표] 2026-05-08 | 주식회사 엘엑스하우시스",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098t6008h2tctxx6dcs32",
+    "paymentDate": "2026-05-08",
+    "clientName": "모자이크무드",
+    "amount": 108900,
+    "notes": "[일계표] 2026-05-08 | 모자이크무드",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098n300852tctaj1d74nz",
+    "paymentDate": "2026-05-07",
+    "clientName": "편한쇼파(천갈이공장)",
+    "amount": 455400,
+    "notes": "[일계표] 2026-05-07 | 편한쇼파(천갈이공장)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098p100892tct4ztloyqp",
+    "paymentDate": "2026-05-07",
+    "clientName": "eote(이오테)",
+    "amount": 831050,
+    "notes": "[일계표] 2026-05-07 | eote(이오테)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098fp007r2tctquq8uj1q",
+    "paymentDate": "2026-05-06",
+    "clientName": "디안몰",
+    "amount": 126000,
+    "notes": "[일계표] 2026-05-06 | 디안몰",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098ip007x2tctrnv4fkyn",
+    "paymentDate": "2026-05-06",
+    "clientName": "바치",
+    "amount": 114400,
+    "notes": "[일계표] 2026-05-06 | 바치",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098jr007z2tcth5hnps55",
+    "paymentDate": "2026-05-06",
+    "clientName": "부흥쇼파",
+    "amount": 196350,
+    "notes": "[일계표] 2026-05-06 | 부흥쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098kr00812tctg4f0mpzq",
+    "paymentDate": "2026-05-06",
+    "clientName": "알비 데코레이터",
+    "amount": 481250,
+    "notes": "[일계표] 2026-05-06 | 알비 데코레이터",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0989e007f2tctkznz9m9m",
+    "paymentDate": "2026-05-06",
+    "clientName": "서호디자인가구",
+    "amount": 244200,
+    "notes": "[일계표] 2026-05-06 | 서호디자인가구",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098cp007l2tctal5ap02d",
+    "paymentDate": "2026-05-06",
+    "clientName": "(주)인휴",
+    "amount": 1700000,
+    "notes": "[일계표] 2026-05-06 | (주)인휴",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz098ds007n2tctl4fs0m6l",
+    "paymentDate": "2026-05-06",
+    "clientName": "믿음쇼파",
+    "amount": 57200,
+    "notes": "[일계표] 2026-05-06 | 믿음쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0984f00752tctd3x6vyxt",
+    "paymentDate": "2026-05-04",
+    "clientName": "믿음쇼파",
+    "amount": 84700,
+    "notes": "[일계표] 2026-05-04 | 믿음쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097vh006n2tctborjny82",
+    "paymentDate": "2026-05-04",
+    "clientName": "하은쇼파공장",
+    "amount": 108900,
+    "notes": "[일계표] 2026-05-04 | 하은쇼파공장",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097xh006r2tct13otebj2",
+    "paymentDate": "2026-05-04",
+    "clientName": "현진상사",
+    "amount": 229900,
+    "notes": "[일계표] 2026-05-04 | 현진상사",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0982k00712tcttdpyiiei",
+    "paymentDate": "2026-05-04",
+    "clientName": "주식회사 엘엑스하우시스",
+    "amount": 232100,
+    "notes": "[일계표] 2026-05-04 | 주식회사 엘엑스하우시스",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0980h006x2tctc8ksgdjf",
+    "paymentDate": "2026-05-04",
+    "clientName": "더 스위트 엠(The sweet M)",
+    "amount": 78100,
+    "notes": "[일계표] 2026-05-04 | 더 스위트 엠(The sweet M)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097yj006t2tct359t75bs",
+    "paymentDate": "2026-05-04",
+    "clientName": "지. 제이텍스타일",
+    "amount": 862400,
+    "notes": "[일계표] 2026-05-04 | 지. 제이텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmq5w9el4000yv0o5zwf253cy",
+    "paymentDate": "2026-05-02",
+    "clientName": "(주)인휴",
+    "amount": 3200000,
+    "notes": "[일계표] 2026-05-02 | (주)인휴",
+    "createdAt": "2026-06-09"
+  },
+  {
+    "id": "cmpz097u2006l2tctugrn55pf",
+    "paymentDate": "2026-05-01",
+    "clientName": "주식회사 제네스스페이스",
+    "amount": 4660000,
+    "notes": "[일계표] 2026-05-01 | 주식회사 제네스스페이스",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097le00652tctn1h0myux",
+    "paymentDate": "2026-04-30",
+    "clientName": "태성가구",
+    "amount": 123200,
+    "notes": "[일계표] 2026-04-30 | 태성가구",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0974x005b2tctyehabv0g",
+    "paymentDate": "2026-04-30",
+    "clientName": "에스에이(SA)",
+    "amount": 345950,
+    "notes": "[일계표] 2026-04-30 | 에스에이(SA)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097bg005n2tct1e2u79zv",
+    "paymentDate": "2026-04-30",
+    "clientName": "세기커튼",
+    "amount": 54450,
+    "notes": "[일계표] 2026-04-30 | 세기커튼",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097j200612tctx09qnjwc",
+    "paymentDate": "2026-04-30",
+    "clientName": "우림상사",
+    "amount": 967450,
+    "notes": "[일계표] 2026-04-30 | 우림상사",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097ps006d2tctutyq9jhk",
+    "paymentDate": "2026-04-30",
+    "clientName": "쇼파의 정석",
+    "amount": 142450,
+    "notes": "[일계표] 2026-04-30 | 쇼파의 정석",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097qv006f2tctkhyv7td2",
+    "paymentDate": "2026-04-30",
+    "clientName": "삼신퍼니처",
+    "amount": 181500,
+    "notes": "[일계표] 2026-04-30 | 삼신퍼니처",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz097sv006j2tctec3uzqlz",
+    "paymentDate": "2026-04-30",
+    "clientName": "시우인터내셔널",
+    "amount": 831600,
+    "notes": "[일계표] 2026-04-30 | 시우인터내셔널",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0971400552tct1qngfxvc",
+    "paymentDate": "2026-04-29",
+    "clientName": "꾸밈방",
+    "amount": 156200,
+    "notes": "[일계표] 2026-04-29 | 꾸밈방",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096vp004v2tct712ijp5k",
+    "paymentDate": "2026-04-28",
+    "clientName": "명석쇼파",
+    "amount": 1119800,
+    "notes": "[일계표] 2026-04-28 | 명석쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096s0004p2tctw56fdmkn",
+    "paymentDate": "2026-04-27",
+    "clientName": "성진쇼파",
+    "amount": 71500,
+    "notes": "[일계표] 2026-04-27 | 성진쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096t2004r2tcto9cowc4j",
+    "paymentDate": "2026-04-27",
+    "clientName": "믿음쇼파",
+    "amount": 286000,
+    "notes": "[일계표] 2026-04-27 | 믿음쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096kr004c2tctxluuzx32",
+    "paymentDate": "2026-04-24",
+    "clientName": "메리트가구",
+    "amount": 187000,
+    "notes": "[일계표] 2026-04-24 | 메리트가구",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096ii00482tcty10dxx6d",
+    "paymentDate": "2026-04-24",
+    "clientName": "짐탐슨",
+    "amount": 91300,
+    "notes": "[일계표] 2026-04-24 | 짐탐슨",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096p3004k2tctpd7vl00z",
+    "paymentDate": "2026-04-24",
+    "clientName": "세기커튼",
+    "amount": 3960000,
+    "notes": "[일계표] 2026-04-24 | 세기커튼",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096g600442tct3eo0qfz0",
+    "paymentDate": "2026-04-23",
+    "clientName": "피콕서울 PICOK SEOUL",
+    "amount": 847000,
+    "notes": "[일계표] 2026-04-23 | 피콕서울 PICOK SEOUL",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096ct003y2tct18imwv2q",
+    "paymentDate": "2026-04-22",
+    "clientName": "코스모스벽지",
+    "amount": 36300,
+    "notes": "[일계표] 2026-04-22 | 코스모스벽지",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz096at003u2tct2z0xjtn7",
+    "paymentDate": "2026-04-22",
+    "clientName": "한일커텐",
+    "amount": 352000,
+    "notes": "[일계표] 2026-04-22 | 한일커텐",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0968c003q2tctnna40d7z",
+    "paymentDate": "2026-04-21",
+    "clientName": "디안몰",
+    "amount": 4000,
+    "notes": "[일계표] 2026-04-21 | 디안몰",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0967a003o2tct96wzpoh7",
+    "paymentDate": "2026-04-21",
+    "clientName": "디셈버원 인테리어",
+    "amount": 646250,
+    "notes": "[일계표] 2026-04-21 | 디셈버원 인테리어",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0962n003g2tctk8wsb70x",
+    "paymentDate": "2026-04-20",
+    "clientName": "(주)현대리바트",
+    "amount": 22862400,
+    "notes": "[일계표] 2026-04-20 | (주)현대리바트",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0961m003e2tctzgti9wwh",
+    "paymentDate": "2026-04-20",
+    "clientName": "주식회사 디자인쉐어랩",
+    "amount": 679000,
+    "notes": "[일계표] 2026-04-20 | 주식회사 디자인쉐어랩",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz095sb002y2tct98b2rheu",
+    "paymentDate": "2026-04-16",
+    "clientName": "데코조이",
+    "amount": 467000,
+    "notes": "[일계표] 2026-04-16 | 데코조이",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz095ti00302tcturye5563",
+    "paymentDate": "2026-04-16",
+    "clientName": "대림쇼파",
+    "amount": 65450,
+    "notes": "[일계표] 2026-04-16 | 대림쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz095ul00322tct9qtyr87k",
+    "paymentDate": "2026-04-16",
+    "clientName": "드림패브릭",
+    "amount": 88550,
+    "notes": "[일계표] 2026-04-16 | 드림패브릭",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz095qv002w2tctrf8u8qis",
+    "paymentDate": "2026-04-15",
+    "clientName": "디자인 엘림",
+    "amount": 816200,
+    "notes": "[일계표] 2026-04-15 | 디자인 엘림",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz095jc002i2tctvhuj7eac",
+    "paymentDate": "2026-04-14",
+    "clientName": "한일커텐",
+    "amount": 524000,
+    "notes": "[일계표] 2026-04-14 | 한일커텐",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz095gy002e2tct9zfq4a8o",
+    "paymentDate": "2026-04-13",
+    "clientName": "서림쇼파",
+    "amount": 1201750,
+    "notes": "[일계표] 2026-04-13 | 서림쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0958q00202tctjy6rs5a9",
+    "paymentDate": "2026-04-10",
+    "clientName": "디자인 대지(대지커텐)",
+    "amount": 221100,
+    "notes": "[일계표] 2026-04-10 | 디자인 대지(대지커텐)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz095b100242tct56yaz6sh",
+    "paymentDate": "2026-04-10",
+    "clientName": "이현D&C",
+    "amount": 501870,
+    "notes": "[일계표] 2026-04-10 | 이현D&C",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0959t00222tctqv75lhfs",
+    "paymentDate": "2026-04-10",
+    "clientName": "엘지커텐",
+    "amount": 710000,
+    "notes": "[일계표] 2026-04-10 | 엘지커텐",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0956l001w2tctnyrm2lr7",
+    "paymentDate": "2026-04-10",
+    "clientName": "태성가구",
+    "amount": 1824900,
+    "notes": "[일계표] 2026-04-10 | 태성가구",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09526001o2tctpg5es10i",
+    "paymentDate": "2026-04-09",
+    "clientName": "파운드디",
+    "amount": 1589500,
+    "notes": "[일계표] 2026-04-09 | 파운드디",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz094yp001i2tctivppl8c5",
+    "paymentDate": "2026-04-08",
+    "clientName": "지. 제이텍스타일",
+    "amount": 192500,
+    "notes": "[일계표] 2026-04-08 | 지. 제이텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz094w8001e2tctjuz7h54j",
+    "paymentDate": "2026-04-08",
+    "clientName": "믿음쇼파",
+    "amount": 91000,
+    "notes": "[일계표] 2026-04-08 | 믿음쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz094fl000n2tctnevr5jra",
+    "paymentDate": "2026-04-02",
+    "clientName": "명석쇼파",
+    "amount": 730400,
+    "notes": "[일계표] 2026-04-02 | 명석쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0946s00072tctm335c94t",
+    "paymentDate": "2026-04-02",
+    "clientName": "퍼니플렉스",
+    "amount": 418000,
+    "notes": "[일계표] 2026-04-02 | 퍼니플렉스",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz094dh000j2tct5ygrgq06",
+    "paymentDate": "2026-04-02",
+    "clientName": "아뜰리에에스제이",
+    "amount": 1098900,
+    "notes": "[일계표] 2026-04-02 | 아뜰리에에스제이",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz0943y00032tctxiazgueu",
+    "paymentDate": "2026-04-01",
+    "clientName": "명석쇼파",
+    "amount": 83600,
+    "notes": "[일계표] 2026-04-01 | 명석쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09ggw00l82tctd0g2ezjy",
+    "paymentDate": "2026-03-31",
+    "clientName": "페이스펄",
+    "amount": 574750,
+    "notes": "[일계표] 2026-03-31 | 페이스펄",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09gg000l62tct733yxiuo",
+    "paymentDate": "2026-03-31",
+    "clientName": "알비 데코레이터",
+    "amount": 303600,
+    "notes": "[일계표] 2026-03-31 | 알비 데코레이터",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09gf500l42tctmy33vulh",
+    "paymentDate": "2026-03-31",
+    "clientName": "현진상사",
+    "amount": 55000,
+    "notes": "[일계표] 2026-03-31 | 현진상사",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09gce00ky2tctyd6121x7",
+    "paymentDate": "2026-03-31",
+    "clientName": "장성 인테리어",
+    "amount": 685300,
+    "notes": "[일계표] 2026-03-31 | 장성 인테리어",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09ga900ku2tct5rludcl2",
+    "paymentDate": "2026-03-31",
+    "clientName": "명석쇼파",
+    "amount": 1233650,
+    "notes": "[일계표] 2026-03-31 | 명석쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09g5n00kk2tctmmx5rou4",
+    "paymentDate": "2026-03-31",
+    "clientName": "(주)인휴",
+    "amount": 634700,
+    "notes": "[일계표] 2026-03-31 | (주)인휴",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09g4m00ki2tctf4u2v4vw",
+    "paymentDate": "2026-03-31",
+    "clientName": "아르떼디자인",
+    "amount": 164450,
+    "notes": "[일계표] 2026-03-31 | 아르떼디자인",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09g3p00kg2tctg8wqzt0t",
+    "paymentDate": "2026-03-31",
+    "clientName": "아라디자인",
+    "amount": 159500,
+    "notes": "[일계표] 2026-03-31 | 아라디자인",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09g2m00ke2tctqqwqtxkq",
+    "paymentDate": "2026-03-31",
+    "clientName": "지. 제이텍스타일",
+    "amount": 79200,
+    "notes": "[일계표] 2026-03-31 | 지. 제이텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09g0j00ka2tct6pnpppz7",
+    "paymentDate": "2026-03-31",
+    "clientName": "(주)아델하임",
+    "amount": 59950,
+    "notes": "[일계표] 2026-03-31 | (주)아델하임",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fyf00k62tctqh9n4uvd",
+    "paymentDate": "2026-03-31",
+    "clientName": "우림상사",
+    "amount": 815100,
+    "notes": "[일계표] 2026-03-31 | 우림상사",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09gbc00kw2tcts6m2pnll",
+    "paymentDate": "2026-03-31",
+    "clientName": "대성의자",
+    "amount": 24200,
+    "notes": "[일계표] 2026-03-31 | 대성의자",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09giy00lc2tctjji5bexh",
+    "paymentDate": "2026-03-31",
+    "clientName": "프레야(Freya)",
+    "amount": 556600,
+    "notes": "[일계표] 2026-03-31 | 프레야(Freya)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fsh00ju2tctghuaadoa",
+    "paymentDate": "2026-03-30",
+    "clientName": "디플랜",
+    "amount": 566500,
+    "notes": "[일계표] 2026-03-30 | 디플랜",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fpv00jq2tct0v9bbfap",
+    "paymentDate": "2026-03-30",
+    "clientName": "바치",
+    "amount": 121550,
+    "notes": "[일계표] 2026-03-30 | 바치",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fmo00jk2tctbmazlc0x",
+    "paymentDate": "2026-03-27",
+    "clientName": "백송쇼파",
+    "amount": 110550,
+    "notes": "[일계표] 2026-03-27 | 백송쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fln00ji2tct7vo5a0p5",
+    "paymentDate": "2026-03-27",
+    "clientName": "장수커텐",
+    "amount": 110825,
+    "notes": "[일계표] 2026-03-27 | 장수커텐",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fkm00jg2tcty54sngsd",
+    "paymentDate": "2026-03-27",
+    "clientName": "보통스튜디오",
+    "amount": 165000,
+    "notes": "[일계표] 2026-03-27 | 보통스튜디오",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fjk00je2tctl5wxxwlk",
+    "paymentDate": "2026-03-27",
+    "clientName": "토마스 디자인",
+    "amount": 197450,
+    "notes": "[일계표] 2026-03-27 | 토마스 디자인",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fie00jc2tctiszd9n0q",
+    "paymentDate": "2026-03-26",
+    "clientName": "삼신퍼니처",
+    "amount": 986150,
+    "notes": "[일계표] 2026-03-26 | 삼신퍼니처",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fhd00ja2tctgpf1hhds",
+    "paymentDate": "2026-03-26",
+    "clientName": "서광쇼파",
+    "amount": 502150,
+    "notes": "[일계표] 2026-03-26 | 서광쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09few00j62tctw1d5loqr",
+    "paymentDate": "2026-03-25",
+    "clientName": "동키스튜디오",
+    "amount": 182000,
+    "notes": "[일계표] 2026-03-25 | 동키스튜디오",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fck00j22tctpvsvg8p4",
+    "paymentDate": "2026-03-25",
+    "clientName": "컬렉션오브",
+    "amount": 134200,
+    "notes": "[일계표] 2026-03-25 | 컬렉션오브",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09fdq00j42tctaiqi6t64",
+    "paymentDate": "2026-03-25",
+    "clientName": "(주)신세계까사",
+    "amount": 130000,
+    "notes": "[일계표] 2026-03-25 | (주)신세계까사",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09eyg00ic2tcte9nu5mm4",
+    "paymentDate": "2026-03-23",
+    "clientName": "한길쇼파(크로바)",
+    "amount": 440000,
+    "notes": "[일계표] 2026-03-23 | 한길쇼파(크로바)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09ewr00i92tctdmskbbed",
+    "paymentDate": "2026-03-20",
+    "clientName": "주식회사 유니온디자인",
+    "amount": 264550,
+    "notes": "[일계표] 2026-03-20 | 주식회사 유니온디자인",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09euo00i52tctk1hcfptk",
+    "paymentDate": "2026-03-20",
+    "clientName": "드림",
+    "amount": 421300,
+    "notes": "[일계표] 2026-03-20 | 드림",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09etr00i32tcteab87ep4",
+    "paymentDate": "2026-03-20",
+    "clientName": "eote(이오테)",
+    "amount": 4500100,
+    "notes": "[일계표] 2026-03-20 | eote(이오테)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09erl00hz2tctdibxg7ic",
+    "paymentDate": "2026-03-20",
+    "clientName": "디안몰",
+    "amount": 8000,
+    "notes": "[일계표] 2026-03-20 | 디안몰",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09eo600ht2tcthuydw3wm",
+    "paymentDate": "2026-03-19",
+    "clientName": "(주)현대리바트",
+    "amount": 23097800,
+    "notes": "[일계표] 2026-03-19 | (주)현대리바트",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09en300hr2tctkqnz92af",
+    "paymentDate": "2026-03-19",
+    "clientName": "플로라펜션",
+    "amount": 118250,
+    "notes": "[일계표] 2026-03-19 | 플로라펜션",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09ejr00hl2tctnr7nvkbf",
+    "paymentDate": "2026-03-18",
+    "clientName": "디안몰",
+    "amount": 130000,
+    "notes": "[일계표] 2026-03-18 | 디안몰",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09eiw00hj2tctu32hg2no",
+    "paymentDate": "2026-03-18",
+    "clientName": "지. 제이텍스타일",
+    "amount": 193600,
+    "notes": "[일계표] 2026-03-18 | 지. 제이텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09ehg00hh2tcta6kx10ta",
+    "paymentDate": "2026-03-17",
+    "clientName": "아라디자인",
+    "amount": 1128875,
+    "notes": "[일계표] 2026-03-17 | 아라디자인",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09eff00hd2tctnu6zxpk6",
+    "paymentDate": "2026-03-16",
+    "clientName": "시우인터내셔널",
+    "amount": 2420000,
+    "notes": "[일계표] 2026-03-16 | 시우인터내셔널",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09edh00h92tctw7htniyy",
+    "paymentDate": "2026-03-16",
+    "clientName": "백송쇼파",
+    "amount": 200200,
+    "notes": "[일계표] 2026-03-16 | 백송쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09eae00h32tct0f1vgmhh",
+    "paymentDate": "2026-03-13",
+    "clientName": "세기커튼",
+    "amount": 3960000,
+    "notes": "[일계표] 2026-03-13 | 세기커튼",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09e7i00gx2tctwodakd52",
+    "paymentDate": "2026-03-12",
+    "clientName": "꾸밈방",
+    "amount": 69000,
+    "notes": "[일계표] 2026-03-12 | 꾸밈방",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09e5b00gt2tctsi61qp7t",
+    "paymentDate": "2026-03-11",
+    "clientName": "믿음쇼파",
+    "amount": 57200,
+    "notes": "[일계표] 2026-03-11 | 믿음쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09e4500gr2tct51kqxyi7",
+    "paymentDate": "2026-03-11",
+    "clientName": "이망치 스튜디오",
+    "amount": 235400,
+    "notes": "[일계표] 2026-03-11 | 이망치 스튜디오",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09e3800gp2tctm8av7ltb",
+    "paymentDate": "2026-03-11",
+    "clientName": "지. 제이텍스타일",
+    "amount": 113300,
+    "notes": "[일계표] 2026-03-11 | 지. 제이텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09e2c00gn2tctbq13zjl8",
+    "paymentDate": "2026-03-11",
+    "clientName": "피콕서울 PICOK SEOUL",
+    "amount": 122100,
+    "notes": "[일계표] 2026-03-11 | 피콕서울 PICOK SEOUL",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09dvw00gb2tctidzwj7in",
+    "paymentDate": "2026-03-09",
+    "clientName": "리프레시모먼트",
+    "amount": 385000,
+    "notes": "[일계표] 2026-03-09 | 리프레시모먼트",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09dsr00g52tct6zzixe7m",
+    "paymentDate": "2026-03-09",
+    "clientName": "주식회사 다나애프앤아이(Dana F&I Co.,LTD)",
+    "amount": 354200,
+    "notes": "[일계표] 2026-03-09 | 주식회사 다나애프앤아이(Dana F&I Co.,LTD)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09dqe00g12tctt8zen8xh",
+    "paymentDate": "2026-03-06",
+    "clientName": "태성가구",
+    "amount": 1000000,
+    "notes": "[일계표] 2026-03-06 | 태성가구",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09doo00fx2tct8bw6xn7l",
+    "paymentDate": "2026-03-06",
+    "clientName": "드림패브릭",
+    "amount": 61600,
+    "notes": "[일계표] 2026-03-06 | 드림패브릭",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09dng00fv2tctkcy3rtjv",
+    "paymentDate": "2026-03-06",
+    "clientName": "유소쇼파(부천)",
+    "amount": 148500,
+    "notes": "[일계표] 2026-03-06 | 유소쇼파(부천)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09di100fl2tctn82eykol",
+    "paymentDate": "2026-03-05",
+    "clientName": "삼신퍼니처",
+    "amount": 157300,
+    "notes": "[일계표] 2026-03-05 | 삼신퍼니처",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09dh500fj2tctnvfp4gzr",
+    "paymentDate": "2026-03-05",
+    "clientName": "디자인몬스터",
+    "amount": 272800,
+    "notes": "[일계표] 2026-03-05 | 디자인몬스터",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09de600fd2tctpnwtp52m",
+    "paymentDate": "2026-03-05",
+    "clientName": "성당방석",
+    "amount": 40000,
+    "notes": "[일계표] 2026-03-05 | 성당방석",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09db900f72tctqrklod2h",
+    "paymentDate": "2026-03-04",
+    "clientName": "현진상사",
+    "amount": 228470,
+    "notes": "[일계표] 2026-03-04 | 현진상사",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09d8f00f12tctr34jsp87",
+    "paymentDate": "2026-03-04",
+    "clientName": "명석쇼파",
+    "amount": 431200,
+    "notes": "[일계표] 2026-03-04 | 명석쇼파",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09d7600ez2tctoe2h6fb6",
+    "paymentDate": "2026-03-04",
+    "clientName": "빌라주디자인랩",
+    "amount": 4807000,
+    "notes": "[일계표] 2026-03-04 | 빌라주디자인랩",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09d4w00ev2tcthzxmjzoe",
+    "paymentDate": "2026-03-04",
+    "clientName": "스튜디오이에스씨(Studio ESC)",
+    "amount": 173800,
+    "notes": "[일계표] 2026-03-04 | 스튜디오이에스씨(Studio ESC)",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09d2b00er2tctmezbkdgq",
+    "paymentDate": "2026-03-03",
+    "clientName": "블랙스톤디자인",
+    "amount": 110000,
+    "notes": "[일계표] 2026-03-03 | 블랙스톤디자인",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09d0y00ep2tctnu8sb1p5",
+    "paymentDate": "2026-03-03",
+    "clientName": "디안몰",
+    "amount": 10000,
+    "notes": "[일계표] 2026-03-03 | 디안몰",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09czw00en2tcts4fp7qa5",
+    "paymentDate": "2026-03-03",
+    "clientName": "지. 제이텍스타일",
+    "amount": 99000,
+    "notes": "[일계표] 2026-03-03 | 지. 제이텍스타일",
+    "createdAt": "2026-06-04"
+  },
+  {
+    "id": "cmpz09cvp00ef2tctzh7vrxa3",
+    "paymentDate": "2026-03-03",
+    "clientName": "에스에이(SA)",
+    "amount": 383350,
+    "notes": "[일계표] 2026-03-03 | 에스에이(SA)",
+    "createdAt": "2026-06-04"
+  }
+]
