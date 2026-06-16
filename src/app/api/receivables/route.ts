@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const receivables = await prisma.accountsReceivable.findMany({
       where: undefined,
       include: {
-        client: { select: { id: true, name: true, phone: true } },
+        client: { select: { id: true, name: true, phone: true, notes: true } },
         transaction: {
           select: {
             id: true, date: true, channel: true, salesPerson: true, description: true, taxStatus: true,
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     // 거래처별 집계
     const byClient: Record<string, {
-      clientId: string; clientName: string; phone: string | null;
+      clientId: string; clientName: string; phone: string | null; clientNotes: string | null;
       totalAmount: number; count: number; oldestDays: number;
       salesPersons: { name: string; count: number; amount: number }[];
       unassignedCount: number; unassignedAmount: number;
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
           matchedPaymentId: b.matchedPaymentId,
         }))
         byClient[cid] = {
-          clientId: cid, clientName: ar.client.name, phone: ar.client.phone,
+          clientId: cid, clientName: ar.client.name, phone: ar.client.phone, clientNotes: ar.client.notes,
           totalAmount: 0, count: 0, oldestDays: 0,
           salesPersons: [], unassignedCount: 0, unassignedAmount: 0,
           items: [],

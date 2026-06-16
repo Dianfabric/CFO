@@ -71,6 +71,58 @@ function MemoCell({ rowType, rowId, initial }: { rowType: string; rowId: string;
   )
 }
 
+function ClientNoteCell({
+  clientId, initial, onSaved,
+}: { clientId: string; initial: string | null; onSaved: (text: string) => void }) {
+  const [value, setValue] = useState(initial ?? '')
+  const [saved, setSaved] = useState(initial ?? '')
+  const [state, setState] = useState<'idle' | 'saving' | 'done'>('idle')
+  useEffect(() => { setValue(initial ?? ''); setSaved(initial ?? '') }, [initial])
+  const dirty = value !== saved
+  const save = async () => {
+    if (!dirty) return
+    setState('saving')
+    try {
+      await fetch(`/api/clients/${clientId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: value || null }),
+      })
+      setSaved(value)
+      setState('done')
+      onSaved(value)
+      setTimeout(() => setState('idle'), 1500)
+    } catch {
+      setState('idle')
+    }
+  }
+  return (
+    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+      <input
+        type="text"
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save() }}
+        placeholder="거래처 비고 (회수 약속/연락사항 등)"
+        className="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white hover:border-slate-400 focus:border-blue-400 focus:outline-none"
+      />
+      <button
+        onClick={save}
+        disabled={!dirty || state === 'saving'}
+        className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
+          state === 'done'
+            ? 'bg-green-50 border-green-300 text-green-700'
+            : dirty
+              ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+              : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+        }`}
+      >
+        {state === 'saving' ? '...' : state === 'done' ? '✓ 저장' : '저장'}
+      </button>
+    </div>
+  )
+}
+
 function TaxStatusSelect({
   transactionId, initial, matched, onChanged,
 }: { transactionId: string; initial: string | null | undefined; matched: boolean; onChanged: () => void }) {
@@ -128,7 +180,7 @@ interface BankInEntry {
 }
 
 interface ClientAR {
-  clientId: string; clientName: string; phone: string | null
+  clientId: string; clientName: string; phone: string | null; clientNotes: string | null
   totalAmount: number; count: number; oldestDays: number
   salesPersons: { name: string; count: number; amount: number }[]
   unassignedCount: number; unassignedAmount: number
@@ -621,6 +673,11 @@ export default function ReceivablesPage() {
                                 <span className="text-slate-300">담당자 미지정</span>
                               )}
                             </div>
+                            {client.clientNotes && (
+                              <div className="text-[11px] text-slate-600 bg-amber-50 border border-amber-200 rounded px-2 py-1 truncate w-full" title={client.clientNotes}>
+                                📝 {client.clientNotes}
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       )
@@ -684,48 +741,59 @@ export default function ReceivablesPage() {
                     <Card className="border-2 border-blue-300 shadow-md">
                       <CardContent className="p-5">
                         {/* 펼침 헤더 — 거래처 정보 풀버전 */}
-                        <div className="flex items-start justify-between mb-4 pb-4 border-b border-slate-200">
-                          <div className="flex-1">
-                            <h3 className="font-bold text-lg text-slate-900">{client.clientName}</h3>
-                            {client.phone && (
-                              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                              {client.salesPersons.map(p => (
-                                <Badge key={p.name} variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
-                                  <User className="w-3 h-3" />{p.name} ({p.count}건)
-                                </Badge>
-                              ))}
-                              {client.unassignedCount > 0 && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    const ids = client.items.filter(ar => !ar.transaction.salesPerson).map(ar => ar.transactionId)
-                                    setBulkDialog({ clientId: client.clientId, clientName: client.clientName, unassignedIds: ids })
-                                  }}
-                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                                  title="미지정 거래에 담당자 일괄 지정"
-                                >
-                                  <UserPlus className="w-3 h-3" />미지정 {client.unassignedCount}건 일괄 지정
-                                </button>
+                        <div className="mb-4 pb-4 border-b border-slate-200">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-lg text-slate-900">{client.clientName}</h3>
+                              {client.phone && (
+                                <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                  <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>
+                                </div>
                               )}
+                              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                {client.salesPersons.map(p => (
+                                  <Badge key={p.name} variant="outline" className="gap-1 bg-blue-50 border-blue-200 text-blue-700">
+                                    <User className="w-3 h-3" />{p.name} ({p.count}건)
+                                  </Badge>
+                                ))}
+                                {client.unassignedCount > 0 && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const ids = client.items.filter(ar => !ar.transaction.salesPerson).map(ar => ar.transactionId)
+                                      setBulkDialog({ clientId: client.clientId, clientName: client.clientName, unassignedIds: ids })
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                    title="미지정 거래에 담당자 일괄 지정"
+                                  >
+                                    <UserPlus className="w-3 h-3" />미지정 {client.unassignedCount}건 일괄 지정
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <div className="text-right ml-3">
-                            <p className={`text-2xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
-                              {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
-                            </p>
-                            {client.totalAmount < 0 && (
-                              <p className="text-[10px] text-blue-500 mt-0.5">입금 초과</p>
-                            )}
-                            <button
-                              onClick={() => setExpandedClient(null)}
-                              className="mt-2 text-xs text-slate-400 hover:text-slate-700"
-                            >
-                              ✕ 닫기
-                            </button>
+                            {/* 가운데: 거래처 비고 입력 */}
+                            <div className="flex-1 min-w-0 max-w-xl">
+                              <div className="text-[11px] text-slate-500 mb-1">📝 거래처 비고</div>
+                              <ClientNoteCell
+                                clientId={client.clientId}
+                                initial={client.clientNotes}
+                                onSaved={() => fetchData(true)}
+                              />
+                            </div>
+                            <div className="text-right ml-3 shrink-0">
+                              <p className={`text-2xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
+                                {client.totalAmount < 0 ? `-${formatKRW(Math.abs(client.totalAmount))}` : formatKRW(client.totalAmount)}
+                              </p>
+                              {client.totalAmount < 0 && (
+                                <p className="text-[10px] text-blue-500 mt-0.5">입금 초과</p>
+                              )}
+                              <button
+                                onClick={() => setExpandedClient(null)}
+                                className="mt-2 text-xs text-slate-400 hover:text-slate-700"
+                              >
+                                ✕ 닫기
+                              </button>
+                            </div>
                           </div>
                         </div>
 

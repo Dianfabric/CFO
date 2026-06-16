@@ -1,0 +1,349 @@
+{
+  "appliedAt": "2026-06-16T01:06:47.011Z",
+  "adjustDate": "2026-02-27",
+  "source": "D:/Dropbox/[디안]직원별_업무공유/[업무]유대현/거래처잔액.xls",
+  "excludedCategories": [
+    "6.?(매입 의심)",
+    "7.공장(매입)"
+  ],
+  "beforeState": [
+    {
+      "clientId": "cmogvpspg0125704g0lifa2yz",
+      "clientName": "가공업체",
+      "before": 0,
+      "after": -150000,
+      "diff": -150000
+    },
+    {
+      "clientId": "cmogvojf200aj704gxfg73dhg",
+      "clientName": "나인투세븐",
+      "before": 375100,
+      "after": 544500,
+      "diff": 169400
+    },
+    {
+      "clientId": "cmov8qahf01qvrctf0s2tgghr",
+      "clientName": "대신화물(서초)",
+      "before": 0,
+      "after": -9160,
+      "diff": -9160
+    },
+    {
+      "clientId": "cmov8qahf01qvrctf0s2tgghr",
+      "clientName": "대신화물(서초)",
+      "before": 0,
+      "after": -2445600,
+      "diff": -2445600
+    },
+    {
+      "clientId": "cmogvo5ma003a704g2330d2bz",
+      "clientName": "디안몰",
+      "before": -9454,
+      "after": 0,
+      "diff": 9454
+    },
+    {
+      "clientId": "cmogvp9g500qz704gmyjf882b",
+      "clientName": "바치",
+      "before": -62150,
+      "after": 59400,
+      "diff": 121550
+    },
+    {
+      "clientId": "cmogvpq4u010e704gx8sc4dcf",
+      "clientName": "백송쇼파",
+      "before": -2000,
+      "after": 0,
+      "diff": 2000
+    },
+    {
+      "clientId": "cmov8q3wb00plrctf0tx3zaa1",
+      "clientName": "서림(매입)",
+      "before": 0,
+      "after": -4742400,
+      "diff": -4742400
+    },
+    {
+      "clientId": "cmov8q2ww00jzrctf3jeqz6v9",
+      "clientName": "엘지커텐",
+      "before": -2250,
+      "after": 0,
+      "diff": 2250
+    },
+    {
+      "clientId": "cmogvq3yc019s704gpytrjdjs",
+      "clientName": "(주)인휴",
+      "before": -146000,
+      "after": 133400,
+      "diff": 279400
+    },
+    {
+      "clientId": "cmogvpoek00zs704g61p8wo10",
+      "clientName": "주식회사 미크래빗",
+      "before": -300,
+      "after": 0,
+      "diff": 300
+    },
+    {
+      "clientId": "cmov8q38r00lxrctf2x5qafhh",
+      "clientName": "주식회사 비비피(BBP Inc.)",
+      "before": 463100,
+      "after": 765600,
+      "diff": 302500
+    },
+    {
+      "clientId": "cmogvp0i900ld704gesf4nxdi",
+      "clientName": "주식회사 스베",
+      "before": -16300,
+      "after": 0,
+      "diff": 16300
+    },
+    {
+      "clientId": "cmov8q5ju010hrctf8pvuww8e",
+      "clientName": "주식회사 씨오브이(COV)",
+      "before": 3930350,
+      "after": 3941750,
+      "diff": 11400
+    },
+    {
+      "clientId": "cmpz45ixe000u9b1ypdsjm7z6",
+      "clientName": "주식회사 주원에프엔디",
+      "before": 304700,
+      "after": 0,
+      "diff": -304700
+    },
+    {
+      "clientId": "cmogvqw1201oj704ggrm8c55x",
+      "clientName": "주식회사 카레클린트",
+      "before": 5602095,
+      "after": 5928345,
+      "diff": 326250
+    },
+    {
+      "clientId": "cmogvokj700b5704gl6hxe3an",
+      "clientName": "(주)투에이치컴퍼니",
+      "before": 8898450,
+      "after": -515680,
+      "diff": -9414130
+    },
+    {
+      "clientId": "cmov8q4k000u3rctfqeoq9t3w",
+      "clientName": "패빌리티",
+      "before": 848755,
+      "after": 0,
+      "diff": -848755
+    },
+    {
+      "clientId": "cmogvoctj006o704g2jo5njik",
+      "clientName": "정상로지스",
+      "before": 0,
+      "after": -845900,
+      "diff": -845900
+    },
+    {
+      "clientId": "cmogvoc3o006c704gny2mttfh",
+      "clientName": "통신비",
+      "before": 0,
+      "after": -22870,
+      "diff": -22870
+    },
+    {
+      "clientId": "cmogvo8v30057704gu7pwz4nj",
+      "clientName": "블랙스톤디자인",
+      "before": 0,
+      "after": -37950,
+      "diff": -37950
+    },
+    {
+      "clientId": "cmogvoemx007o704ggvoc71n4",
+      "clientName": "(주)샤인퍼니처",
+      "before": -1112650,
+      "after": 524150,
+      "diff": 1636800
+    },
+    {
+      "clientId": "cmov8q3nx00o7rctf1x8y5s8h",
+      "clientName": "서림쇼파",
+      "before": 6999147,
+      "after": 5870547,
+      "diff": -1128600
+    },
+    {
+      "clientId": "cmpyu1m1p01yn15erxxzqn026",
+      "clientName": "(주)유니밋",
+      "before": 525075,
+      "after": 534875,
+      "diff": 9800
+    },
+    {
+      "clientId": "cmogvo4a1002h704g1bda846l",
+      "clientName": "장원가구",
+      "before": 3663600,
+      "after": 3689400,
+      "diff": 25800
+    },
+    {
+      "clientId": "cmogvo0iw0002704g0wcy6tip",
+      "clientName": "주식회사 경원",
+      "before": 1956350,
+      "after": 2638350,
+      "diff": 682000
+    },
+    {
+      "clientId": "cmogvp3pn00n2704g54bo8ign",
+      "clientName": "주식회사 네모팽이",
+      "before": 3978020,
+      "after": 4208820,
+      "diff": 230800
+    },
+    {
+      "clientId": "cmogvo1t70010704gzn3bjsxk",
+      "clientName": "주식회사 리트",
+      "before": -66000,
+      "after": 0,
+      "diff": 66000
+    },
+    {
+      "clientId": "cmogvovib00i1704g3uy4rdk9",
+      "clientName": "주식회사 마멜",
+      "before": 577800,
+      "after": 601700,
+      "diff": 23900
+    },
+    {
+      "clientId": "cmogvo58g0032704gmheplq9b",
+      "clientName": "(주)켄타",
+      "before": 4312970,
+      "after": 5833410,
+      "diff": 1520440
+    },
+    {
+      "clientId": "cmogvo129000c704g2py791fn",
+      "clientName": "(주)코시스",
+      "before": 10583925,
+      "after": 10829225,
+      "diff": 245300
+    },
+    {
+      "clientId": "cmogvopc400ee704gdncdzu5n",
+      "clientName": "페르플러스",
+      "before": 2653125,
+      "after": 2952125,
+      "diff": 299000
+    },
+    {
+      "clientId": "cmogko4a50008lg239qsq47m3",
+      "clientName": "(주)유진디자인",
+      "before": 22459658,
+      "after": 24048750,
+      "diff": 1589092
+    },
+    {
+      "clientId": "cmov8q3k400nirctfoqbocxjt",
+      "clientName": "주식회사 이네딧",
+      "before": -939400,
+      "after": -469700,
+      "diff": 469700
+    },
+    {
+      "clientId": "cmogvoowf00e3704gsx4ap2wg",
+      "clientName": "대구상사",
+      "before": 300400,
+      "after": 325600,
+      "diff": 25200
+    },
+    {
+      "clientId": "cmogvogxq008x704gqzqi9xur",
+      "clientName": "디자인몬스터",
+      "before": 373420,
+      "after": 541200,
+      "diff": 167780
+    },
+    {
+      "clientId": "cmogvorlq00fq704gzh5ec038",
+      "clientName": "진우상사",
+      "before": 553690,
+      "after": 564850,
+      "diff": 11160
+    }
+  ],
+  "createdTransactionIds": [
+    "cmqfxz32h00016ix01bsdf3h9",
+    "cmqfxz4l300076ix0lws87tqc",
+    "cmqfxz61b000b6ix0b95rs0i0",
+    "cmqfxz8gh000j6ix0115sk049",
+    "cmqfxz9f9000n6ix0rz87nj3i",
+    "cmqfxzafd000r6ix0c48trako",
+    "cmqfxzbvk000v6ix0e7sqgyog",
+    "cmqfxzdf500116ix0oy0m8ftd",
+    "cmqfxzedy00156ix0jsndzcnd",
+    "cmqfxzfd300196ix0w0vj6j0t",
+    "cmqfxzgc2001d6ix006xl1q4l",
+    "cmqfxzhax001h6ix0idoauh2q",
+    "cmqfxzi9s001l6ix0u9lmoc0u",
+    "cmqfxzk7s001r6ix0m8debz4q",
+    "cmqfxznm4001z6ix02esceoxk",
+    "cmqfxzpng00256ix0w9867fqy",
+    "cmqfxzs2p002d6ix0wk32md42",
+    "cmqfxzu0b002j6ix0z4x4kpxi",
+    "cmqfxzuz5002n6ix0x7nnvaxx",
+    "cmqfxzvy0002r6ix0uhmcqv98",
+    "cmqfxzwx5002v6ix0u1d59ryn",
+    "cmqfxzxvw002z6ix0m4kmtnwg",
+    "cmqfxzyuu00336ix05s6x6947",
+    "cmqfxzztq00376ix0qg1jtp1d",
+    "cmqfy00wq003b6ix07ez3gkj8",
+    "cmqfy01vi003f6ix027u17ajx",
+    "cmqfy02uh003j6ix0pk8ltn28",
+    "cmqfy03te003n6ix04yycq7ub",
+    "cmqfy04s8003r6ix0qbvz8elr",
+    "cmqfy05r7003v6ix07uat4sgx",
+    "cmqfy06q2003z6ix00t7efku1"
+  ],
+  "createdReceivableIds": [
+    "cmqfxz3lp00036ix0w8el8pdy",
+    "cmqfxz52m00096ix0vmxg9np4",
+    "cmqfxz6it000d6ix0l3jh9nu0",
+    "cmqfxz8xx000l6ix040s4tbvh",
+    "cmqfxz9wn000p6ix0sw635pxo",
+    "cmqfxzawr000t6ix0s6t11ycd",
+    "cmqfxzccz000x6ix0afg1e5ob",
+    "cmqfxzdwj00136ix0koyoz4tc",
+    "cmqfxzeve00176ix0a5nm3h5n",
+    "cmqfxzful001b6ix057lk7nft",
+    "cmqfxzgtg001f6ix076ez742p",
+    "cmqfxzhse001j6ix0hl1tbbci",
+    "cmqfxzir3001n6ix0na7jnai5",
+    "cmqfxzkp6001t6ix0xoi5m2dw",
+    "cmqfxzo3s00216ix03ew1n50p",
+    "cmqfxzq4u00276ix0ci6w8w44",
+    "cmqfxzsk2002f6ix0ecsg50gu",
+    "cmqfxzuht002l6ix030n90c38",
+    "cmqfxzvgi002p6ix0x14im8dn",
+    "cmqfxzwfp002t6ix0pxu8tieu",
+    "cmqfxzxei002x6ix01ba9m3ze",
+    "cmqfxzydc00316ix0thzgqzfm",
+    "cmqfxzzc800356ix0vrafhu56",
+    "cmqfy00b500396ix0b8adtspk",
+    "cmqfy01e4003d6ix06ogo9lwt",
+    "cmqfy02d1003h6ix0kyuh88oa",
+    "cmqfy03bu003l6ix09p4xdded",
+    "cmqfy04au003p6ix0bikafj03",
+    "cmqfy059p003t6ix0jx9jb91j",
+    "cmqfy068k003x6ix0aj7pc79d",
+    "cmqfy077g00416ix0w2y1govh"
+  ],
+  "createdPaymentIds": [
+    "cmqfxz43200056ix02dtmpgkg",
+    "cmqfxz707000f6ix0zegdascc",
+    "cmqfxz7z1000h6ix067oo9qxe",
+    "cmqfxzcuc000z6ix05dxzfyjm",
+    "cmqfxzjqc001p6ix0kd3xftdh",
+    "cmqfxzlo3001v6ix0b6iqwvt8",
+    "cmqfxzmmu001x6ix0oxwje3qi",
+    "cmqfxzola00236ix010eo1y1q",
+    "cmqfxzqmc00296ix005vq8qe5",
+    "cmqfxzrlc002b6ix0wquek3zr",
+    "cmqfxztit002h6ix0k67rrmiw"
+  ]
+}

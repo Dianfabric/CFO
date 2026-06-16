@@ -1,0 +1,671 @@
+{
+  "adjustments": [
+    {
+      "clientId": "cmogvokj700b5704gl6hxe3an",
+      "fileName": "(주)투에이치컴퍼니",
+      "dbName": "(주)투에이치컴퍼니",
+      "before": 8898450,
+      "after": -515680,
+      "diff": -9414130
+    },
+    {
+      "clientId": "cmov8qadf01qdrctf9cnuxkkq",
+      "fileName": "현대방염(현대에프알)",
+      "dbName": "현대방염(현대에프알)",
+      "before": 0,
+      "after": -7405750,
+      "diff": -7405750
+    },
+    {
+      "clientId": "cmov8qaf801qlrctfey2c1s5l",
+      "fileName": "대광텍스코",
+      "dbName": "대광텍스코",
+      "before": 0,
+      "after": -7287940,
+      "diff": -7287940
+    },
+    {
+      "clientId": "cmpyum07701yusjd19vb0y2wv",
+      "fileName": "신라지엠주식회사본사",
+      "dbName": "신라지엠주식회사본사",
+      "before": 0,
+      "after": -7145201,
+      "diff": -7145201
+    },
+    {
+      "clientId": "cmov8q3wb00plrctf0tx3zaa1",
+      "fileName": "서림(매입)",
+      "dbName": "서림(매입)",
+      "before": 0,
+      "after": -4742400,
+      "diff": -4742400
+    },
+    {
+      "clientId": "cmogvo0iw0002704g0wcy6tip",
+      "fileName": "주식회사 경원",
+      "dbName": "주식회사 경원",
+      "before": -682000,
+      "after": 2638350,
+      "diff": 3320350
+    },
+    {
+      "clientId": "cmov8qahf01qvrctf0s2tgghr",
+      "fileName": "대신화물(유구)",
+      "dbName": "대신화물(서초)",
+      "before": 0,
+      "after": -2445600,
+      "diff": -2445600
+    },
+    {
+      "clientId": "cmogvo129000c704g2py791fn",
+      "fileName": "(주)코시스",
+      "dbName": "(주)코시스",
+      "before": 8656175,
+      "after": 10829225,
+      "diff": 2173050
+    },
+    {
+      "clientId": "cmogvoemx007o704ggvoc71n4",
+      "fileName": "(주)샤인퍼니처",
+      "dbName": "(주)샤인퍼니처",
+      "before": -1158850,
+      "after": 524150,
+      "diff": 1683000
+    },
+    {
+      "clientId": "cmogko4a50008lg239qsq47m3",
+      "fileName": "(주)유진디자인",
+      "dbName": "(주)유진디자인",
+      "before": 22459658,
+      "after": 24048750,
+      "diff": 1589092
+    },
+    {
+      "clientId": "cmogvo58g0032704gmheplq9b",
+      "fileName": "(주)켄타",
+      "dbName": "(주)켄타",
+      "before": 4312970,
+      "after": 5833410,
+      "diff": 1520440
+    },
+    {
+      "clientId": "cmpyum01d01y3sjd11hsgq4oh",
+      "fileName": "비트패브릭",
+      "dbName": "비트패브릭",
+      "before": 0,
+      "after": -1437250,
+      "diff": -1437250
+    },
+    {
+      "clientId": "cmogvond200d3704g1i4f9tf1",
+      "fileName": "대명인테리어쇼파",
+      "dbName": "대명인테리어쇼파",
+      "before": 0,
+      "after": 930600,
+      "diff": 930600
+    },
+    {
+      "clientId": "cmov8q4k000u3rctfqeoq9t3w",
+      "fileName": "패빌리티",
+      "dbName": "패빌리티",
+      "before": 848755,
+      "after": 0,
+      "diff": -848755
+    },
+    {
+      "clientId": "cmogvoctj006o704g2jo5njik",
+      "fileName": "정상로지스",
+      "dbName": "정상로지스",
+      "before": 0,
+      "after": -845900,
+      "diff": -845900
+    },
+    {
+      "clientId": "cmov8q3k400nirctfoqbocxjt",
+      "fileName": "주식회사 이네딧",
+      "dbName": "주식회사 이네딧",
+      "before": -939400,
+      "after": -469700,
+      "diff": 469700
+    },
+    {
+      "clientId": "cmogvorlq00fq704gzh5ec038",
+      "fileName": "진우상사",
+      "dbName": "진우상사",
+      "before": 135690,
+      "after": 564850,
+      "diff": 429160
+    },
+    {
+      "clientId": "cmpyu1moi021q15erzq2470x4",
+      "fileName": "이편한쇼파",
+      "dbName": "편한쇼파(천갈이공장)",
+      "before": 0,
+      "after": 357880,
+      "diff": 357880
+    },
+    {
+      "clientId": "cmpyum06c01yqsjd16bavop2q",
+      "fileName": "대성섬유",
+      "dbName": "대성섬유",
+      "before": 0,
+      "after": -357500,
+      "diff": -357500
+    },
+    {
+      "clientId": "cmogvqw1201oj704ggrm8c55x",
+      "fileName": "주식회사 카레클린트",
+      "dbName": "주식회사 카레클린트",
+      "before": 5602095,
+      "after": 5928345,
+      "diff": 326250
+    },
+    {
+      "clientId": "cmpz45ixe000u9b1ypdsjm7z6",
+      "fileName": "주식회사 주원에프엔디",
+      "dbName": "주식회사 주원에프엔디",
+      "before": 304700,
+      "after": 0,
+      "diff": -304700
+    },
+    {
+      "clientId": "cmov8q38r00lxrctf2x5qafhh",
+      "fileName": "주식회사 비비피(BBP Inc.)",
+      "dbName": "주식회사 비비피(BBP Inc.)",
+      "before": 463100,
+      "after": 765600,
+      "diff": 302500
+    },
+    {
+      "clientId": "cmogvopc400ee704gdncdzu5n",
+      "fileName": "페르플러스",
+      "dbName": "페르플러스",
+      "before": 2653125,
+      "after": 2952125,
+      "diff": 299000
+    },
+    {
+      "clientId": "cmogvq3yc019s704gpytrjdjs",
+      "fileName": "(주)인휴",
+      "dbName": "(주)인휴",
+      "before": -146000,
+      "after": 133400,
+      "diff": 279400
+    },
+    {
+      "clientId": "cmogvp3pn00n2704g54bo8ign",
+      "fileName": "주식회사 네모팽이",
+      "dbName": "주식회사 네모팽이",
+      "before": 3978020,
+      "after": 4208820,
+      "diff": 230800
+    },
+    {
+      "clientId": "cmogvo2qp001j704ghe6rkqyc",
+      "fileName": "eote(이오테)",
+      "dbName": "eote(이오테)",
+      "before": 443300,
+      "after": 632500,
+      "diff": 189200
+    },
+    {
+      "clientId": "cmogvojf200aj704gxfg73dhg",
+      "fileName": "나인투세븐",
+      "dbName": "나인투세븐",
+      "before": 375100,
+      "after": 544500,
+      "diff": 169400
+    },
+    {
+      "clientId": "cmogvogxq008x704gqzqi9xur",
+      "fileName": "디자인몬스터",
+      "dbName": "디자인몬스터",
+      "before": 373420,
+      "after": 541200,
+      "diff": 167780
+    },
+    {
+      "clientId": "cmqa9owep0084qgh8qpmum7iy",
+      "fileName": "아이디어종합광고",
+      "dbName": "아이디어종합광고",
+      "before": 0,
+      "after": 165000,
+      "diff": 165000
+    },
+    {
+      "clientId": "cmpyum03l01yesjd1o0livyn9",
+      "fileName": "한백섬유",
+      "dbName": "한백섬유",
+      "before": 0,
+      "after": -153731,
+      "diff": -153731
+    },
+    {
+      "clientId": "cmogvpspg0125704g0lifa2yz",
+      "fileName": "가공업체",
+      "dbName": "가공업체",
+      "before": 0,
+      "after": -150000,
+      "diff": -150000
+    },
+    {
+      "clientId": "cmogvoowf00e3704gsx4ap2wg",
+      "fileName": "대구상사",
+      "dbName": "대구상사",
+      "before": 198650,
+      "after": 325600,
+      "diff": 126950
+    },
+    {
+      "clientId": "cmogvp9g500qz704gmyjf882b",
+      "fileName": "바치",
+      "dbName": "바치",
+      "before": -62150,
+      "after": 59400,
+      "diff": 121550
+    },
+    {
+      "clientId": "cmogvo1t70010704gzn3bjsxk",
+      "fileName": "주식회사 리트",
+      "dbName": "주식회사 리트",
+      "before": -66000,
+      "after": 0,
+      "diff": 66000
+    },
+    {
+      "clientId": "cmogvo3ml0022704g7h7op7bg",
+      "fileName": "프리지아침대",
+      "dbName": "프리지아침대",
+      "before": 366300,
+      "after": 407000,
+      "diff": 40700
+    },
+    {
+      "clientId": "cmogvo8v30057704gu7pwz4nj",
+      "fileName": "블랙스톤디자인",
+      "dbName": "블랙스톤디자인",
+      "before": 0,
+      "after": -37950,
+      "diff": -37950
+    },
+    {
+      "clientId": "cmogvo4a1002h704g1bda846l",
+      "fileName": "장원가구",
+      "dbName": "장원가구",
+      "before": 3663600,
+      "after": 3689400,
+      "diff": 25800
+    },
+    {
+      "clientId": "cmogvovib00i1704g3uy4rdk9",
+      "fileName": "주식회사 마멜",
+      "dbName": "주식회사 마멜",
+      "before": 577800,
+      "after": 601700,
+      "diff": 23900
+    },
+    {
+      "clientId": "cmogvoc3o006c704gny2mttfh",
+      "fileName": "통신비",
+      "dbName": "통신비",
+      "before": 0,
+      "after": -22870,
+      "diff": -22870
+    },
+    {
+      "clientId": "cmogvp0i900ld704gesf4nxdi",
+      "fileName": "주식회사 스베",
+      "dbName": "주식회사 스베",
+      "before": -16300,
+      "after": 0,
+      "diff": 16300
+    },
+    {
+      "clientId": "cmov8q5ju010hrctf8pvuww8e",
+      "fileName": "주식회사 씨오브이(COV)",
+      "dbName": "주식회사 씨오브이(COV)",
+      "before": 3930350,
+      "after": 3941750,
+      "diff": 11400
+    },
+    {
+      "clientId": "cmogvocd7006g704gjxhpkdvn",
+      "fileName": "AJ네트웍스(주)",
+      "dbName": "AJ네트웍스(주)",
+      "before": 0,
+      "after": -9900,
+      "diff": -9900
+    },
+    {
+      "clientId": "cmpyu1m1p01yn15erxxzqn026",
+      "fileName": "(주)유니밋",
+      "dbName": "(주)유니밋",
+      "before": 525075,
+      "after": 534875,
+      "diff": 9800
+    },
+    {
+      "clientId": "cmogvo5ma003a704g2330d2bz",
+      "fileName": "디안몰",
+      "dbName": "디안몰",
+      "before": -9454,
+      "after": 0,
+      "diff": 9454
+    },
+    {
+      "clientId": "cmov8qahf01qvrctf0s2tgghr",
+      "fileName": "대신화물(서초)",
+      "dbName": "대신화물(서초)",
+      "before": 0,
+      "after": -9160,
+      "diff": -9160
+    },
+    {
+      "clientId": "cmov8q2ww00jzrctf3jeqz6v9",
+      "fileName": "엘지커텐",
+      "dbName": "엘지커텐",
+      "before": -2250,
+      "after": 0,
+      "diff": 2250
+    },
+    {
+      "clientId": "cmogvpq4u010e704gx8sc4dcf",
+      "fileName": "백송쇼파",
+      "dbName": "백송쇼파",
+      "before": -2000,
+      "after": 0,
+      "diff": 2000
+    },
+    {
+      "clientId": "cmogvpoek00zs704g61p8wo10",
+      "fileName": "주식회사 미크래빗",
+      "dbName": "주식회사 미크래빗",
+      "before": -300,
+      "after": 0,
+      "diff": 300
+    }
+  ],
+  "onlyFile": [
+    {
+      "name": "동원직물",
+      "balance": -237151070
+    },
+    {
+      "name": "무창",
+      "balance": 5585113
+    },
+    {
+      "name": "하나텍스",
+      "balance": 4482850
+    },
+    {
+      "name": "대왕가구",
+      "balance": 4375000
+    },
+    {
+      "name": "캄포트쇼파",
+      "balance": 3365000
+    },
+    {
+      "name": "명문소파",
+      "balance": 3204500
+    },
+    {
+      "name": "거목",
+      "balance": 2649000
+    },
+    {
+      "name": "(주) 에스원지",
+      "balance": 2400000
+    },
+    {
+      "name": "진흥산업",
+      "balance": 2252250
+    },
+    {
+      "name": "노바텍스",
+      "balance": 2049600
+    },
+    {
+      "name": "코리아가구",
+      "balance": 1565000
+    },
+    {
+      "name": "(주)디앤에프",
+      "balance": 1480000
+    },
+    {
+      "name": "주식회사 엔타스",
+      "balance": -1429450
+    },
+    {
+      "name": "울프앤바이브",
+      "balance": 1363552
+    },
+    {
+      "name": "주식회사 에이에이디자인(aa디자인)",
+      "balance": 1258400
+    },
+    {
+      "name": "본쇼파",
+      "balance": 1194500
+    },
+    {
+      "name": "예원쇼파",
+      "balance": 1105500
+    },
+    {
+      "name": "예당쇼파(가우)",
+      "balance": 1094850
+    },
+    {
+      "name": "(주) 씨플러스디자인",
+      "balance": -1062050
+    },
+    {
+      "name": "성창피닉스쇼파",
+      "balance": 909000
+    },
+    {
+      "name": "서진",
+      "balance": 903400
+    },
+    {
+      "name": "대광가구(오남리)",
+      "balance": 901000
+    },
+    {
+      "name": "손선재 (전한샘)",
+      "balance": -823900
+    },
+    {
+      "name": "에스엠 아이노리(SM)",
+      "balance": 674500
+    },
+    {
+      "name": "리즈쇼파",
+      "balance": 619000
+    },
+    {
+      "name": "마이가구",
+      "balance": 583500
+    },
+    {
+      "name": "디자인 Four Seasons(포시즌)",
+      "balance": 540800
+    },
+    {
+      "name": "우아미쇼파(서울)",
+      "balance": 525250
+    },
+    {
+      "name": "진영쇼파",
+      "balance": 485500
+    },
+    {
+      "name": "효성직물",
+      "balance": -464000
+    },
+    {
+      "name": "다인쇼파",
+      "balance": 450000
+    },
+    {
+      "name": "제일쇼파",
+      "balance": -442200
+    },
+    {
+      "name": "벧엘인테리어",
+      "balance": 412250
+    },
+    {
+      "name": "쇼파왕국",
+      "balance": 374000
+    },
+    {
+      "name": "아브라조쇼파Abrazo(한솔)",
+      "balance": 357500
+    },
+    {
+      "name": "대광쇼파, 가구전시장",
+      "balance": 341000
+    },
+    {
+      "name": "제일쇼파(화성)",
+      "balance": -324775
+    },
+    {
+      "name": "미래쇼파(인천)",
+      "balance": 291500
+    },
+    {
+      "name": "쇼파닥터",
+      "balance": 288750
+    },
+    {
+      "name": "창성인테리어가구",
+      "balance": 277500
+    },
+    {
+      "name": "일산쇼파",
+      "balance": 252000
+    },
+    {
+      "name": "영진(청천)",
+      "balance": 241500
+    },
+    {
+      "name": "엘지쇼파(원주)",
+      "balance": 225000
+    },
+    {
+      "name": "지누쇼파천갈이",
+      "balance": 225000
+    },
+    {
+      "name": "호암가구",
+      "balance": 220000
+    },
+    {
+      "name": "다올텍스",
+      "balance": 209550
+    },
+    {
+      "name": "현지쇼파",
+      "balance": 174500
+    },
+    {
+      "name": "포레모쇼파(for&more sofa interior)",
+      "balance": -168300
+    },
+    {
+      "name": "아시아가구",
+      "balance": 135000
+    },
+    {
+      "name": "명문종합가구",
+      "balance": 117000
+    },
+    {
+      "name": "삼성쇼파(부평)",
+      "balance": 105000
+    },
+    {
+      "name": "주식회사 태산솔루젼스",
+      "balance": -103400
+    },
+    {
+      "name": "한솔가구",
+      "balance": 101500
+    },
+    {
+      "name": "다인텍스",
+      "balance": 100800
+    },
+    {
+      "name": "호네스",
+      "balance": -100100
+    },
+    {
+      "name": "주형민",
+      "balance": 100000
+    },
+    {
+      "name": "베스트디자인쇼파",
+      "balance": 45000
+    },
+    {
+      "name": "라이프(일산)",
+      "balance": 44000
+    },
+    {
+      "name": "한성쇼파(갈매)",
+      "balance": 44000
+    },
+    {
+      "name": "필로스플래닛(Philo's Planet)",
+      "balance": -25300
+    },
+    {
+      "name": "이례쇼파",
+      "balance": 22000
+    },
+    {
+      "name": "한일쇼파",
+      "balance": 20000
+    },
+    {
+      "name": "가나직물",
+      "balance": 18000
+    },
+    {
+      "name": "럭셔리 인테리어가구",
+      "balance": 11000
+    },
+    {
+      "name": "나래쇼파",
+      "balance": 6600
+    },
+    {
+      "name": "빙빙의자(제주)",
+      "balance": 5500
+    },
+    {
+      "name": "주식회사 아크디자인앤코",
+      "balance": -4400
+    },
+    {
+      "name": "영인테리어",
+      "balance": 3500
+    },
+    {
+      "name": "파로스쇼파",
+      "balance": 2000
+    },
+    {
+      "name": "주식회사 에이쓰리디자인인터내셔날",
+      "balance": -600
+    }
+  ],
+  "adjustDate": "2026-02-27"
+}
