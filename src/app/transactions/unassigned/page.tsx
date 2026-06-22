@@ -12,6 +12,7 @@ import { formatKRW } from '@/lib/formatters'
 interface UnassignedTx {
   id: string; date: string; clientId: string | null; clientName: string
   totalAmount: number; itemCount: number; firstProduct: string; description: string | null
+  items: { productName: string; quantity: number; unitPrice: number; amount: number }[]
 }
 
 const DEFAULT_PERSONS = ['한태원', '한태종', '최현진', '유대현', '전새로미']
@@ -25,6 +26,8 @@ export default function UnassignedTransactionsPage() {
   const [bulkPerson, setBulkPerson] = useState('')
   const [bulkCustom, setBulkCustom] = useState('')
   const [working, setWorking] = useState(false)
+  const [sortDesc, setSortDesc] = useState(true)  // 기본: 최신순
+  const [expandedTx, setExpandedTx] = useState<string | null>(null)
 
   const fetchData = async () => {
     setLoading(true)
@@ -40,13 +43,15 @@ export default function UnassignedTransactionsPage() {
   const filtered = useMemo(() => {
     if (!data) return []
     const q = search.trim().toLowerCase()
-    if (!q) return data.items
-    return data.items.filter(t =>
+    let list = q ? data.items.filter(t =>
       t.clientName.toLowerCase().includes(q) ||
       t.firstProduct.toLowerCase().includes(q) ||
       (t.description ?? '').toLowerCase().includes(q),
-    )
-  }, [data, search])
+    ) : data.items
+    // 날짜 정렬
+    list = [...list].sort((a, b) => sortDesc ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
+    return list
+  }, [data, search, sortDesc])
 
   const grouped = useMemo(() => {
     if (!groupByClient) return null
@@ -178,11 +183,19 @@ export default function UnassignedTransactionsPage() {
                 </div>
                 <div className="space-y-1 ml-6">
                   {txs.map(tx => (
-                    <TxRow key={tx.id} tx={tx} selected={selected.has(tx.id)} onToggle={() => {
-                      const next = new Set(selected)
-                      if (next.has(tx.id)) next.delete(tx.id); else next.add(tx.id)
-                      setSelected(next)
-                    }} onAssign={handleAssignOne} />
+                    <TxRow
+                      key={tx.id}
+                      tx={tx}
+                      selected={selected.has(tx.id)}
+                      expanded={expandedTx === tx.id}
+                      onToggle={() => {
+                        const next = new Set(selected)
+                        if (next.has(tx.id)) next.delete(tx.id); else next.add(tx.id)
+                        setSelected(next)
+                      }}
+                      onExpand={() => setExpandedTx(expandedTx === tx.id ? null : tx.id)}
+                      onAssign={handleAssignOne}
+                    />
                   ))}
                 </div>
               </CardContent>
@@ -195,7 +208,13 @@ export default function UnassignedTransactionsPage() {
             <thead className="border-b text-left text-slate-500 bg-slate-50">
               <tr>
                 <th className="p-2 w-10"><input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} /></th>
-                <th className="p-2 font-medium">날짜</th>
+                <th
+                  className="p-2 font-medium cursor-pointer select-none hover:text-slate-700"
+                  onClick={() => setSortDesc(s => !s)}
+                  title="클릭해서 정렬 전환"
+                >
+                  날짜 {sortDesc ? '↓ 최신순' : '↑ 오래된순'}
+                </th>
                 <th className="p-2 font-medium">거래처</th>
                 <th className="p-2 font-medium">품목 (대표)</th>
                 <th className="p-2 font-medium text-right">금액</th>
@@ -204,11 +223,20 @@ export default function UnassignedTransactionsPage() {
             </thead>
             <tbody>
               {filtered.map(tx => (
-                <TxRow key={tx.id} tx={tx} selected={selected.has(tx.id)} onToggle={() => {
-                  const next = new Set(selected)
-                  if (next.has(tx.id)) next.delete(tx.id); else next.add(tx.id)
-                  setSelected(next)
-                }} onAssign={handleAssignOne} tableMode />
+                <TxRow
+                  key={tx.id}
+                  tx={tx}
+                  selected={selected.has(tx.id)}
+                  expanded={expandedTx === tx.id}
+                  onToggle={() => {
+                    const next = new Set(selected)
+                    if (next.has(tx.id)) next.delete(tx.id); else next.add(tx.id)
+                    setSelected(next)
+                  }}
+                  onExpand={() => setExpandedTx(expandedTx === tx.id ? null : tx.id)}
+                  onAssign={handleAssignOne}
+                  tableMode
+                />
               ))}
             </tbody>
           </table>
@@ -219,30 +247,112 @@ export default function UnassignedTransactionsPage() {
 }
 
 function TxRow({
-  tx, selected, onToggle, onAssign, tableMode = false,
+  tx, selected, expanded, onToggle, onExpand, onAssign, tableMode = false,
 }: {
-  tx: UnassignedTx; selected: boolean; onToggle: () => void
+  tx: UnassignedTx; selected: boolean; expanded: boolean
+  onToggle: () => void; onExpand: () => void
   onAssign: (id: string, person: string) => void; tableMode?: boolean
 }) {
   if (tableMode) {
     return (
-      <tr className="border-b last:border-0 hover:bg-slate-50">
-        <td className="p-2"><input type="checkbox" checked={selected} onChange={onToggle} /></td>
-        <td className="p-2 text-slate-500 text-xs">{tx.date}</td>
-        <td className="p-2 font-medium">{tx.clientName}</td>
-        <td className="p-2 text-slate-600">{tx.firstProduct}{tx.itemCount > 1 ? ` +${tx.itemCount - 1}` : ''}</td>
-        <td className="p-2 text-right font-bold">{formatKRW(tx.totalAmount)}</td>
-        <td className="p-2"><PersonSelect onSelect={p => onAssign(tx.id, p)} /></td>
-      </tr>
+      <>
+        <tr
+          className={`border-b last:border-0 hover:bg-slate-50 cursor-pointer ${expanded ? 'bg-blue-50/50' : ''}`}
+          onClick={e => {
+            // 체크박스/셀렉트 클릭은 펼침 방지
+            const tag = (e.target as HTMLElement).tagName
+            if (tag === 'INPUT' || tag === 'SELECT' || tag === 'OPTION') return
+            onExpand()
+          }}
+        >
+          <td className="p-2"><input type="checkbox" checked={selected} onChange={onToggle} onClick={e => e.stopPropagation()} /></td>
+          <td className="p-2 text-slate-500 text-xs">{tx.date}</td>
+          <td className="p-2 font-medium">
+            <span className="text-slate-400 mr-1">{expanded ? '▼' : '▶'}</span>
+            {tx.clientName}
+          </td>
+          <td className="p-2 text-slate-600">{tx.firstProduct}{tx.itemCount > 1 ? ` +${tx.itemCount - 1}` : ''}</td>
+          <td className="p-2 text-right font-bold">{formatKRW(tx.totalAmount)}</td>
+          <td className="p-2"><PersonSelect onSelect={p => onAssign(tx.id, p)} /></td>
+        </tr>
+        {expanded && (
+          <tr className="bg-slate-50/60">
+            <td colSpan={6} className="px-4 py-3">
+              <p className="text-xs text-slate-500 font-medium mb-2">📋 매출 품목 ({tx.itemCount}건)</p>
+              {tx.items.length === 0 ? (
+                <p className="text-xs text-slate-400">품목 정보 없음</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="text-slate-500">
+                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-1 font-normal">품목</th>
+                      <th className="text-right py-1 font-normal w-20">수량</th>
+                      <th className="text-right py-1 font-normal w-24">단가</th>
+                      <th className="text-right py-1 font-normal w-28">금액</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tx.items.map((it, i) => (
+                      <tr key={i} className="border-b border-slate-100 last:border-0">
+                        <td className="py-1 text-slate-700">{it.productName}</td>
+                        <td className="py-1 text-right text-slate-600">{it.quantity.toLocaleString()}</td>
+                        <td className="py-1 text-right text-slate-600">{formatKRW(it.unitPrice)}</td>
+                        <td className="py-1 text-right font-medium text-slate-800">{formatKRW(it.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {tx.description && (
+                <p className="text-[11px] text-slate-500 mt-2">📝 {tx.description}</p>
+              )}
+            </td>
+          </tr>
+        )}
+      </>
     )
   }
   return (
-    <div className="flex items-center gap-2 py-1 text-sm">
-      <input type="checkbox" checked={selected} onChange={onToggle} />
-      <span className="text-xs text-slate-500 w-24">{tx.date}</span>
-      <span className="flex-1">{tx.firstProduct}{tx.itemCount > 1 ? ` +${tx.itemCount - 1}` : ''}</span>
-      <span className="font-bold w-32 text-right">{formatKRW(tx.totalAmount)}</span>
-      <PersonSelect onSelect={p => onAssign(tx.id, p)} />
+    <div>
+      <div
+        className={`flex items-center gap-2 py-1 text-sm cursor-pointer hover:bg-slate-50 px-2 rounded ${expanded ? 'bg-blue-50/50' : ''}`}
+        onClick={e => {
+          const tag = (e.target as HTMLElement).tagName
+          if (tag === 'INPUT' || tag === 'SELECT' || tag === 'OPTION') return
+          onExpand()
+        }}
+      >
+        <input type="checkbox" checked={selected} onChange={onToggle} onClick={e => e.stopPropagation()} />
+        <span className="text-slate-400">{expanded ? '▼' : '▶'}</span>
+        <span className="text-xs text-slate-500 w-24">{tx.date}</span>
+        <span className="flex-1">{tx.firstProduct}{tx.itemCount > 1 ? ` +${tx.itemCount - 1}` : ''}</span>
+        <span className="font-bold w-32 text-right">{formatKRW(tx.totalAmount)}</span>
+        <PersonSelect onSelect={p => onAssign(tx.id, p)} />
+      </div>
+      {expanded && tx.items.length > 0 && (
+        <div className="ml-12 my-2 bg-slate-50 rounded p-2">
+          <table className="w-full text-xs">
+            <thead className="text-slate-500">
+              <tr className="border-b border-slate-200">
+                <th className="text-left py-1 font-normal">품목</th>
+                <th className="text-right py-1 font-normal w-20">수량</th>
+                <th className="text-right py-1 font-normal w-24">단가</th>
+                <th className="text-right py-1 font-normal w-28">금액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tx.items.map((it, i) => (
+                <tr key={i} className="border-b border-slate-100 last:border-0">
+                  <td className="py-1 text-slate-700">{it.productName}</td>
+                  <td className="py-1 text-right text-slate-600">{it.quantity.toLocaleString()}</td>
+                  <td className="py-1 text-right text-slate-600">{formatKRW(it.unitPrice)}</td>
+                  <td className="py-1 text-right font-medium text-slate-800">{formatKRW(it.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

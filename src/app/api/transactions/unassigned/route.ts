@@ -8,7 +8,7 @@ export async function GET() {
       where: { type: 'SALE', salesPerson: null },
       include: {
         client: { select: { id: true, name: true } },
-        items: { select: { productName: true, quantity: true, amount: true } },
+        items: { select: { productName: true, quantity: true, unitPrice: true, amount: true } },
       },
       orderBy: { date: 'asc' },
     })
@@ -22,6 +22,12 @@ export async function GET() {
       itemCount: tx.items.length,
       firstProduct: tx.items[0]?.productName ?? '',
       description: tx.description,
+      items: tx.items.map(i => ({
+        productName: i.productName,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        amount: i.amount,
+      })),
     }))
 
     return NextResponse.json({
