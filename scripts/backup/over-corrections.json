@@ -1,0 +1,82 @@
+[
+  {
+    "clientName": "드림패브릭",
+    "dbBalance": -673700,
+    "naturalBalance": 0,
+    "correctionImpact": -673700,
+    "fileBalance": 0,
+    "fixAmount": 673700
+  },
+  {
+    "clientName": "(주)비트스타일링",
+    "dbBalance": -633600,
+    "naturalBalance": 0,
+    "correctionImpact": -633600,
+    "fileBalance": 0,
+    "fixAmount": 633600
+  },
+  {
+    "clientName": "주식회사 비비피(BBP Inc.)",
+    "dbBalance": 1068100,
+    "naturalBalance": 765600,
+    "correctionImpact": 302500,
+    "fileBalance": 765600,
+    "fixAmount": -302500
+  },
+  {
+    "clientName": "성당방석",
+    "dbBalance": -177100,
+    "naturalBalance": 0,
+    "correctionImpact": -177100,
+    "fileBalance": 0,
+    "fixAmount": 177100
+  },
+  {
+    "clientName": "이현D&C",
+    "dbBalance": -54610,
+    "naturalBalance": 0,
+    "correctionImpact": -54610,
+    "fileBalance": 0,
+    "fixAmount": 54610
+  },
+  {
+    "clientName": "꾸밈방",
+    "dbBalance": -45072,
+    "naturalBalance": 0,
+    "correctionImpact": -45072,
+    "fileBalance": 0,
+    "fixAmount": 45072
+  },
+  {
+    "clientName": "바다(SEA)",
+    "dbBalance": -19200,
+    "naturalBalance": 0,
+    "correctionImpact": -19200,
+    "fileBalance": 0,
+    "fixAmount": 19200
+  },
+  {
+    "clientName": "믿음쇼파",
+    "dbBalance": -9100,
+    "naturalBalance": 0,
+    "correctionImpact": -9100,
+    "fileBalance": 0,
+    "fixAmount": 9100
+  },
+  {
+    "clientName": "시우인터내셔널",
+    "dbBalance": -1000,
+    "naturalBalance": 0,
+    "correctionImpact": -1000,
+    "fileBalance": 0,
+    "fixAmount": 1000
+  },
+  {
+    "clientName": "티씨티씨",
+    "dbBalance": -172,
+    "naturalBalance": 0,
+    "correctionImpact": -172,
+    "fileBalance": 0,
+    "fixAmount": 172
+  }
+]

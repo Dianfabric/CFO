@@ -131,18 +131,47 @@ export async function POST(request: NextRequest) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
 
+    // 헤더 기반 컬럼 인덱스 동적 감지 — 마감 엑셀 양식 변경에 대응
+    // 헤더에 찾을 텍스트와 fallback 인덱스 (헤더 못 찾을 때)
+    const headerRow = (rows[0] ?? []).map(h => String(h ?? '').trim())
+    const findCol = (...names: string[]) => {
+      for (const n of names) {
+        const idx = headerRow.findIndex(h => h === n)
+        if (idx >= 0) return idx
+      }
+      return -1
+    }
+    const COL = {
+      date:            findCol('날짜'),
+      company:         findCol('업체명'),
+      product:         findCol('원단명'),
+      spec:            findCol('색상'),
+      qty:             findCol('수량(Y)', '수량'),
+      person:          findCol('담당자'),
+      industry:        findCol('직군'),
+      productCategory: findCol('제품'),
+      processFunction: findCol('가공·기능', '가공기능', '가공'),
+      material:        findCol('재료'),
+    }
+    // fallback (헤더 못 찾으면 기존 위치)
+    const fb = { date: 0, company: 2, product: 3, spec: 4, qty: 5, person: 13, industry: 15, productCategory: 16, processFunction: 17, material: 18 }
+    for (const k of Object.keys(COL)) {
+      if ((COL as Record<string, number>)[k] < 0) (COL as Record<string, number>)[k] = (fb as Record<string, number>)[k]
+    }
+    console.log('마감 엑셀 컬럼 인덱스:', COL)
+
     // 마감 엑셀 파싱 — 행별 A열 날짜를 그대로 보관 (범위 파일 지원)
     const magamRows: MagamRow[] = []
     let lastCompany = ''
     let lastDate: Date | null = null
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i]
-      // 날짜 (A열) — 빈 셀이면 위 행 날짜 유지
-      const cellDate = parseDateCell(r[0])
+      // 날짜 (보통 A열) — 빈 셀이면 위 행 날짜 유지
+      const cellDate = parseDateCell(r[COL.date])
       if (cellDate) lastDate = cellDate
 
-      // 업체명 (C열) — " 또는 빈값이면 위 행 업체 유지
-      let company = String(r[2] ?? '').trim()
+      // 업체명 — " 또는 빈값이면 위 행 업체 유지
+      let company = String(r[COL.company] ?? '').trim()
       if (company === '"' || company === '') company = lastCompany
       else lastCompany = company
       if (!company) continue
@@ -151,17 +180,16 @@ export async function POST(request: NextRequest) {
         date: lastDate,
         company,
         cKey: normClient(company),
-        product: String(r[3] ?? '').trim(),
-        pKey: normItem(String(r[3] ?? '')),
-        color: String(r[4] ?? '').trim(),
-        colorKey: normItem(String(r[4] ?? '')),
-        qty: parseFloat(String(r[5] ?? '').replace(/,/g, '')) || 0,
-        person: mapPerson(String(r[13] ?? '')),         // N열: 담당자
-        // O열(인덱스 14)은 ✓ 체크 컬럼 — 사용 안 함
-        industry: String(r[15] ?? '').trim(),           // P열: 직군
-        productCategory: String(r[16] ?? '').trim(),    // Q열: 제품
-        processFunction: String(r[17] ?? '').trim(),    // R열: 가공·기능
-        material: String(r[18] ?? '').trim(),           // S열: 재료
+        product: String(r[COL.product] ?? '').trim(),
+        pKey: normItem(String(r[COL.product] ?? '')),
+        color: String(r[COL.spec] ?? '').trim(),
+        colorKey: normItem(String(r[COL.spec] ?? '')),
+        qty: parseFloat(String(r[COL.qty] ?? '').replace(/,/g, '')) || 0,
+        person: mapPerson(String(r[COL.person] ?? '')),
+        industry: String(r[COL.industry] ?? '').trim(),
+        productCategory: String(r[COL.productCategory] ?? '').trim(),
+        processFunction: String(r[COL.processFunction] ?? '').trim(),
+        material: String(r[COL.material] ?? '').trim(),
       })
     }
 
@@ -189,7 +217,15 @@ export async function POST(request: NextRequest) {
       magamByClient.get(m.cKey)!.push(m)
     }
 
+    // 거래처별 단일 담당자 추출 — 점수 부족해도 거래처가 단일 담당자면 그대로 적용
+    const personByClient = new Map<string, string>()
+    for (const [cKey, list] of magamByClient) {
+      const persons = new Set(list.map(m => m.person).filter(Boolean))
+      if (persons.size === 1) personByClient.set(cKey, [...persons][0])
+    }
+
     let personUpdated = 0  // 담당자 채워진 거래 수
+    let personFromFallback = 0  // 거래처 단위 단일 담당자로 채워진 거래 수
     let itemTagged = 0      // 메타 채워진 아이템 수
     const unmatchedMagam: { company: string; product: string; reason: string }[] = []
     const usedMagam = new Set<number>()
@@ -249,6 +285,18 @@ export async function POST(request: NextRequest) {
         // 마감 엑셀이 최우선 — 무조건 덮어쓰기
         await prisma.transaction.update({ where: { id: tx.id }, data: { salesPerson: bestPerson } })
         personUpdated++
+      } else {
+        // 점수 부족이지만 거래처가 마감 엑셀에서 단일 담당자라면 적용 (fuzzy 매칭 보강)
+        // 거래처 정규화 매칭 + 마감 엑셀에 그 거래처가 한 명의 담당자만 갖는 경우
+        let fallbackPerson: string | null = null
+        for (const [k, person] of personByClient) {
+          if (fuzzy(cKey, k)) { fallbackPerson = person; break }
+        }
+        if (fallbackPerson) {
+          await prisma.transaction.update({ where: { id: tx.id }, data: { salesPerson: fallbackPerson } })
+          personUpdated++
+          personFromFallback++
+        }
       }
     }
 
@@ -269,6 +317,8 @@ export async function POST(request: NextRequest) {
       fileDate: `${minDate.toISOString().slice(0, 10)} ~ ${maxDate.toISOString().slice(0, 10)}`,
       totalMagamRows: magamRows.length,
       personUpdated,
+      personFromFallback,
+      columnsDetected: COL,
       itemTagged,
       unmatchedMagamCount: unmatchedMagam.length,
       unmatchedMagam: unmatchedMagam.slice(0, 20),
