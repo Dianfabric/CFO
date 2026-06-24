@@ -255,6 +255,14 @@ export default async function MarketingHubPage() {
               </CardContent>
             </Card>
           </Link>
+          <Link href="/finance/marketing/event-picker">
+            <Card className="cursor-pointer transition hover:border-rose-300 hover:bg-rose-50/30">
+              <CardContent className="space-y-1 py-3">
+                <div className="text-sm font-semibold">⑪ 댓글 이벤트 추첨</div>
+                <div className="text-[11px] text-slate-500">인스타 댓글 추첨·영상·DM</div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 
