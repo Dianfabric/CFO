@@ -586,3 +586,50 @@
     gap: 10px;
   }
 }
+
+/* ──────────────────────────────────────────────────────────
+   댓글 이벤트 피커 (event-picker) — 색동 톤 (ep- 네임스페이스)
+   CFO NVIDIA 토큰과 충돌 없도록 ep- 접두사로 격리. CFO .dark 테마 따름.
+   ────────────────────────────────────────────────────────── */
+:root {
+  --ep-canvas: #ffffff;
+  --ep-parchment: #f6f2ea;
+  --ep-card: #ffffff;
+  --ep-ink: #1d1d1f;
+  --ep-ink-muted: #6e6962;
+  --ep-ink-faint: #9a948b;
+  --ep-accent: #b5392e;
+  --ep-accent-strong: #c4402f;
+  --ep-accent-soft: rgba(181, 57, 46, 0.1);
+  --ep-on-accent: #ffffff;
+  --ep-hairline: #e8e2d8;
+  --ep-field: #ffffff;
+}
+.dark {
+  --ep-canvas: #1c1813;
+  --ep-parchment: #16130f;
+  --ep-card: #1c1813;
+  --ep-ink: #f3eee6;
+  --ep-ink-muted: #a39c90;
+  --ep-ink-faint: #7c746a;
+  --ep-accent: #e2705c;
+  --ep-accent-strong: #e8806e;
+  --ep-accent-soft: rgba(226, 112, 92, 0.14);
+  --ep-on-accent: #1a1310;
+  --ep-hairline: #332c22;
+  --ep-field: #221d17;
+}
+@theme inline {
+  --color-ep-canvas: var(--ep-canvas);
+  --color-ep-parchment: var(--ep-parchment);
+  --color-ep-card: var(--ep-card);
+  --color-ep-ink: var(--ep-ink);
+  --color-ep-ink-muted: var(--ep-ink-muted);
+  --color-ep-ink-faint: var(--ep-ink-faint);
+  --color-ep-accent: var(--ep-accent);
+  --color-ep-accent-strong: var(--ep-accent-strong);
+  --color-ep-accent-soft: var(--ep-accent-soft);
+  --color-ep-on-accent: var(--ep-on-accent);
+  --color-ep-hairline: var(--ep-hairline);
+  --color-ep-field: var(--ep-field);
+}
