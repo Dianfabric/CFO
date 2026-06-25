@@ -7,7 +7,8 @@ export function ClaimLink({ eventId }: { eventId: string }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setUrl(`${window.location.origin}/claim/${eventId}`);
+    // 짧은 코드 링크 — DM·공유 시 URL 을 짧게 (UUID 앞 8자 → /c/[code] → claim 페이지)
+    setUrl(`${window.location.origin}/c/${eventId.slice(0, 8)}`);
   }, [eventId]);
 
   async function copy() {

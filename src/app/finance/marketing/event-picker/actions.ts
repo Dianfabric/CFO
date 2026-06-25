@@ -621,7 +621,7 @@ export async function previewDM(
     return { ok: false, error: e instanceof Error ? e.message : "댓글 조회 실패" };
   }
 
-  const claimLink = `${await originFromHeaders()}/claim/${eventId}`;
+  const claimLink = `${await originFromHeaders()}/c/${eventId.slice(0, 8)}`;
   const replies: ReplyOutcome[] = t.winners!.map((u) => ({
     username: u,
     matched: index.has(u.toLowerCase()),
@@ -655,7 +655,7 @@ export async function sendDMs(
     return { ok: false, error: e instanceof Error ? e.message : "댓글 조회 실패" };
   }
 
-  const claimLink = `${await originFromHeaders()}/claim/${eventId}`;
+  const claimLink = `${await originFromHeaders()}/c/${eventId.slice(0, 8)}`;
   const replies: ReplyOutcome[] = [];
   for (const u of t.winners!) {
     const ref = index.get(u.toLowerCase());
