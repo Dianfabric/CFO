@@ -94,7 +94,9 @@ export default async function EventsPage() {
                     <p className="mt-0.5 text-[13px] text-ep-ink-muted">
                       당첨 {ev.winner_count}명
                       {ev.backup_count > 0 && ` · 보결 ${ev.backup_count}명`} ·{" "}
-                      {new Date(ev.created_at).toLocaleDateString("ko-KR")}
+                      {new Date(ev.created_at).toLocaleDateString("ko-KR", {
+                        timeZone: "Asia/Seoul",
+                      })}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-ep-parchment px-3 py-1 text-[12px] font-medium text-ep-ink-muted">

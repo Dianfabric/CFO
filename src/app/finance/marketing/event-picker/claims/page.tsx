@@ -109,7 +109,10 @@ export default async function ClaimsPage({
             name: c.name,
             phone: c.phone,
             address: `${c.address}${c.address_detail ? " " + c.address_detail : ""}`,
-            submittedAt: new Date(c.submitted_at).toLocaleString("ko-KR"),
+            // 서버(Vercel)가 UTC 라 timeZone 명시 안 하면 9시간 느리게 표시됨
+            submittedAt: new Date(c.submitted_at).toLocaleString("ko-KR", {
+              timeZone: "Asia/Seoul",
+            }),
           }))}
           event={event}
           q={q}

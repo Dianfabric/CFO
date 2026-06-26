@@ -384,7 +384,9 @@ export default async function EventDetailPage({
                         <span className="font-medium">@{c.username}</span>
                         <span className="text-ep-ink-muted">{c.name}</span>
                         <span className="text-xs text-ep-ink-faint">
-                          {new Date(c.submitted_at).toLocaleString("ko-KR")}
+                          {new Date(c.submitted_at).toLocaleString("ko-KR", {
+                            timeZone: "Asia/Seoul",
+                          })}
                         </span>
                       </li>
                     ))}
