@@ -215,6 +215,13 @@ export default async function EventDetailPage({
             desc="각 당첨자의 댓글을 확인하고, 이상한 댓글이면 '재추첨'으로 그 사람만 교체하세요 (제외 후 대체자 1명 추첨)."
           >
             <div className="flex flex-col gap-4">
+              {/* 당첨자 아이디 + 댓글 엑셀 다운로드 (댓글별 선물 정리용) */}
+              <a
+                href={`/api/event-picker/winners?event=${id}`}
+                className="inline-flex h-9 w-fit items-center gap-1.5 rounded-full bg-ep-accent px-4 text-[13px] font-semibold text-ep-on-accent transition active:scale-[0.96]"
+              >
+                ⬇ 당첨자·댓글 엑셀 다운로드
+              </a>
               <div>
                 <h3 className="mb-2 text-sm font-semibold text-ep-ink">
                   당첨자 ({mainWinners.length}명)
