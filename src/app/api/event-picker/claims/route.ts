@@ -88,7 +88,14 @@ export async function GET(req: Request) {
   XLSX.utils.book_append_sheet(wb, ws, "발송");
   const buf: ArrayBuffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
 
-  const fname = "로젠_배송정보.xlsx";
+  // 파일명에 이벤트명 포함 — 로젠_{이벤트명}_배송정보.xlsx
+  // (파일명 금지문자 제거, 데이터 없으면 이벤트명 생략)
+  const eventTitle = (rows[0]?.events?.title ?? "")
+    .replace(/[\\/:*?"<>|]/g, "")
+    .trim();
+  const fname = eventTitle
+    ? `로젠_${eventTitle}_배송정보.xlsx`
+    : "로젠_배송정보.xlsx";
   return new Response(buf, {
     headers: {
       "Content-Type":
