@@ -4,52 +4,17 @@
  * 디안 신규 라인 '색동공장' 전용 경영 화면.
  * - 12주 목표: 12주 대시보드와 동일 구조(큰 목표 + KR 선행/후행 + 주별 타겟 + 5일 투두)를
  *   '색동 신사업' 프로젝트 하나에 적용 (직원별 아님). OkrTree 재사용.
- * - 디안 본체 전체 매출과 엮어 비교하는 섹션 (transactions 집계)
+ *
+ * 디안 본체 전체 매출은 '디안 경영 계기판'(/settlement)에 있으므로 여기선 제외.
  */
 import Link from 'next/link'
-import { Sparkles, TrendingUp, Target, Wallet, ArrowRight } from 'lucide-react'
-import { prisma } from '@/lib/prisma'
+import { Sparkles, Target, Wallet, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { formatKRW } from '@/lib/formatters'
 import type { Employee } from '@/lib/cycle-okr'
 import SaekdongOkr from './SaekdongOkr'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-interface Summary {
-  monthRevenue: number
-  monthCount: number
-  totalRevenue: number
-  totalCount: number
-}
-
-async function loadSummary(): Promise<Summary> {
-  try {
-    const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const [monthAgg, totalAgg] = await Promise.all([
-      prisma.transaction.aggregate({
-        where: { type: 'SALE', date: { gte: monthStart } },
-        _sum: { totalAmount: true },
-        _count: { _all: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { type: 'SALE' },
-        _sum: { totalAmount: true },
-        _count: { _all: true },
-      }),
-    ])
-    return {
-      monthRevenue: monthAgg._sum.totalAmount ?? 0,
-      monthCount: monthAgg._count._all ?? 0,
-      totalRevenue: totalAgg._sum.totalAmount ?? 0,
-      totalCount: totalAgg._count._all ?? 0,
-    }
-  } catch {
-    return { monthRevenue: 0, monthCount: 0, totalRevenue: 0, totalCount: 0 }
-  }
-}
 
 interface CycleInfo {
   id: number
@@ -87,10 +52,7 @@ async function loadCycleAndProject(): Promise<{
 }
 
 export default async function SaekdongPage() {
-  const [s, { cycle, project }] = await Promise.all([
-    loadSummary(),
-    loadCycleAndProject(),
-  ])
+  const { cycle, project } = await loadCycleAndProject()
 
   return (
     <div className="space-y-6">
@@ -160,44 +122,6 @@ export default async function SaekdongPage() {
         )}
       </div>
 
-      {/* 디안 본체 전체 매출 (엮어 보기) */}
-      <div>
-        <h2
-          className="mb-3 text-base font-semibold flex items-center gap-1.5"
-          style={{ color: 'var(--nv-ink)' }}
-        >
-          <TrendingUp className="w-4 h-4" style={{ color: 'var(--nv-mute)' }} />
-          디안 본체 전체 매출{' '}
-          <span className="text-xs font-normal" style={{ color: 'var(--nv-stone)' }}>
-            (거래 데이터 자동 집계)
-          </span>
-        </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="이번 달 매출"
-            value={formatKRW(s.monthRevenue)}
-            hint={`${s.monthCount.toLocaleString()}건`}
-            accent
-          />
-          <StatCard
-            label="이번 달 거래"
-            value={`${s.monthCount.toLocaleString()}건`}
-            hint="이번 달 판매 건수"
-          />
-          <StatCard
-            label="누적 매출 (전체)"
-            value={formatKRW(s.totalRevenue)}
-            hint={`${s.totalCount.toLocaleString()}건`}
-            accent
-          />
-          <StatCard
-            label="누적 거래 (전체)"
-            value={`${s.totalCount.toLocaleString()}건`}
-            hint="전체 판매 건수"
-          />
-        </div>
-      </div>
-
       {/* 바로가기 */}
       <div>
         <h2
@@ -236,41 +160,6 @@ export default async function SaekdongPage() {
           ))}
         </div>
       </div>
-    </div>
-  )
-}
-
-function StatCard({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string
-  value: string
-  hint: string
-  accent?: boolean
-}) {
-  return (
-    <div
-      className="bg-white p-4"
-      style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
-    >
-      <p
-        className="text-[11px] font-semibold uppercase tracking-[0.08em]"
-        style={{ color: 'var(--nv-mute)' }}
-      >
-        {label}
-      </p>
-      <p
-        className="mt-2 text-[22px] font-bold tabular-nums leading-none"
-        style={{ color: accent ? 'var(--nv-primary)' : 'var(--nv-ink)' }}
-      >
-        {value}
-      </p>
-      <p className="mt-2 text-[11px]" style={{ color: 'var(--nv-stone)' }}>
-        {hint}
-      </p>
     </div>
   )
 }
