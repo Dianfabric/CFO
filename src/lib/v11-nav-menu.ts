@@ -64,6 +64,7 @@ export const v10MenuItems: MenuItem[] = [
   { href: '/', label: '대시보드', icon: LayoutDashboard },
   { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
   { href: '/settlement', label: '디안 경영 계기판', icon: CalendarCheck },
+  { href: '/saekdong', label: '색동 신사업', icon: Sparkles },
   { href: '/transactions', label: '거래 관리', icon: Receipt },
   { href: '/clients', label: '거래처 관리', icon: Users },
   { href: '/receivables', label: '미수금 관리', icon: AlertCircle },
@@ -116,6 +117,7 @@ export const menuGroups: MenuGroup[] = [
     icon: Sun,
     items: [
       { href: '/settlement', label: '디안 경영 계기판', icon: CalendarCheck },
+      { href: '/saekdong', label: '색동 신사업', icon: Sparkles },
       { href: '/finance/briefing', label: '모닝 브리핑 (AI)', icon: Brain },
     ],
   },
