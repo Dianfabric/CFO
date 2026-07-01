@@ -87,13 +87,24 @@ export interface ProductSales {
   qty: number
 }
 
+// 매출 카테고리별 분리 (예: saekdong / Luck items / Limited)
+export interface CategorySales {
+  code: string
+  name: string
+  thisYearTotal: number // 올해 이 카테고리 매출(상품 결제액 기준)
+  monthly: MonthlyPoint[] // 올해 월별 (2026-01 ~ 이번 달)
+  products: ProductSales[] // 올해 제품별
+}
+
 export interface SaekdongSales {
   today: number
   thisWeek: number
   thisMonth: number
-  monthly: MonthlyPoint[] // 최근 N개월 월별 매출 추이
-  products: ProductSales[] // 올해(연초~오늘) 제품별
+  thisYear: number // 올해(연초~오늘) 총 매출
+  monthly: MonthlyPoint[] // 최근 N개월 월별 매출 추이 (전체, 주문단위)
+  products: ProductSales[] // 올해(연초~오늘) 제품별 (전체)
   productYear: string // 제품 집계 기준 연도 (예: '2026')
+  categories: CategorySales[] // 카테고리별 (올해, 상품단위) — 매출순
   orderCount: number
   fetchedAt: string
   error?: string
@@ -176,11 +187,12 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
   try {
     const orders = await fetchOrdersLong(fromDate, toDate)
 
-    // 월별 집계 + 오늘/이번주/이번달 합계
+    // 월별 집계 + 오늘/이번주/이번달/올해 합계
     const byMonth = new Map<string, { revenue: number; orders: number }>()
     let today = 0
     let thisWeek = 0
     let thisMonth = 0
+    let thisYearTotal = 0
     for (const o of orders) {
       const amt = o.payment?.payment_amount ?? 0
       const day = kstDate(o.order_time)
@@ -192,6 +204,7 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
       if (day === todayStr) today += amt
       if (day >= mondayStr) thisWeek += amt
       if (day >= monthStart) thisMonth += amt
+      if (day.slice(0, 4) === thisYear) thisYearTotal += amt
     }
 
     // 최근 monthRange 개월 연속 배열 (빈 달 0)
@@ -204,12 +217,23 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
     }
 
     // 올해 제품별 집계 — 올해(연초~오늘) 주문의 prod-orders (호출 제한 보호 위해 상한)
+    // 카테고리별 분리를 위해 상품→카테고리, 카테고리→이름 맵도 조회
     const thisYearOrders = orders.filter(
       (o) => kstDate(o.order_time).slice(0, 4) === thisYear,
     )
+    const [prodCat, catNames] = await Promise.all([
+      getProdCategoryMap(),
+      getCategoryNames(),
+    ])
     const prodMap = new Map<string, { revenue: number; qty: number }>()
+    // 카테고리별: code → { products, monthly }
+    const catAgg = new Map<
+      string,
+      { products: Map<string, { revenue: number; qty: number }>; monthly: Map<string, number> }
+    >()
     const targetOrders = thisYearOrders.slice(0, 300) // 올해 주문 상한 300건
     for (const o of targetOrders) {
+      const oMonth = kstMonth(o.order_time)
       try {
         const rows = await api<ProdOrderRow[]>(
           `/shop/orders/${o.order_no}/prod-orders`,
@@ -223,6 +247,19 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
             cur.revenue += price
             cur.qty += qty
             prodMap.set(name, cur)
+
+            // 카테고리별 누적
+            const code = (it.prod_no != null && prodCat[it.prod_no]) || '__uncat__'
+            let agg = catAgg.get(code)
+            if (!agg) {
+              agg = { products: new Map(), monthly: new Map() }
+              catAgg.set(code, agg)
+            }
+            const cp = agg.products.get(name) ?? { revenue: 0, qty: 0 }
+            cp.revenue += price
+            cp.qty += qty
+            agg.products.set(name, cp)
+            agg.monthly.set(oMonth, (agg.monthly.get(oMonth) ?? 0) + price)
           }
         }
       } catch {
@@ -233,13 +270,43 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
       .map(([prodName, v]) => ({ prodName, revenue: v.revenue, qty: v.qty }))
       .sort((a, b) => b.revenue - a.revenue)
 
+    // 올해 월 목록 (2026-01 ~ 이번 달)
+    const thisYearMonths: string[] = []
+    for (let m = 1; m <= Number(todayStr.slice(5, 7)); m++) {
+      thisYearMonths.push(`${thisYear}-${String(m).padStart(2, '0')}`)
+    }
+    // 카테고리별 결과 (매출순)
+    const categories: CategorySales[] = Array.from(catAgg.entries())
+      .map(([code, agg]) => {
+        const catProducts: ProductSales[] = Array.from(agg.products.entries())
+          .map(([prodName, v]) => ({ prodName, revenue: v.revenue, qty: v.qty }))
+          .sort((a, b) => b.revenue - a.revenue)
+        const catMonthly: MonthlyPoint[] = thisYearMonths.map((mo) => ({
+          month: mo,
+          revenue: agg.monthly.get(mo) ?? 0,
+          orders: 0,
+        }))
+        const thisYearTot = catProducts.reduce((s, p) => s + p.revenue, 0)
+        return {
+          code,
+          name: code === '__uncat__' ? '미분류' : catNames[code] || code,
+          thisYearTotal: thisYearTot,
+          monthly: catMonthly,
+          products: catProducts,
+        }
+      })
+      .filter((c) => c.thisYearTotal > 0)
+      .sort((a, b) => b.thisYearTotal - a.thisYearTotal)
+
     return {
       today,
       thisWeek,
       thisMonth,
+      thisYear: thisYearTotal,
       monthly,
       products,
       productYear: thisYear,
+      categories,
       orderCount: orders.length,
       fetchedAt: new Date().toISOString(),
     }
@@ -248,9 +315,11 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
       today: 0,
       thisWeek: 0,
       thisMonth: 0,
+      thisYear: 0,
       monthly: [],
       products: [],
       productYear: String(now.getFullYear()),
+      categories: [],
       orderCount: 0,
       fetchedAt: new Date().toISOString(),
       error: e instanceof Error ? e.message : '아임웹 매출 조회 실패',
@@ -351,9 +420,11 @@ export async function getSaekdongNotices(dayRange = 3): Promise<{
 // ── 색동 상품명 카탈로그 (오프라인 매출 매칭용) ──
 
 interface ProductRow {
+  no?: number
   prod_no?: number
   name?: string
   prod_name?: string
+  categories?: string[]
 }
 
 // 아임웹 조회 실패 시 폴백 — 알려진 색동 대표 상품명
@@ -397,4 +468,62 @@ export async function getSaekdongProductNames(): Promise<string[]> {
   } catch {
     return [...SAEKDONG_FALLBACK_NAMES]
   }
+}
+
+// ── 매출 카테고리 (카테고리별 매출 분리용) ──
+
+interface CategoryRow {
+  code: string
+  name: string
+  list?: CategoryRow[]
+}
+
+let cachedCatNames: { map: Record<string, string>; expires: number } | null = null
+
+/** 카테고리 코드 → 이름 맵 (하위 카테고리 포함). 6시간 캐싱. */
+export async function getCategoryNames(): Promise<Record<string, string>> {
+  if (cachedCatNames && cachedCatNames.expires > Date.now()) return cachedCatNames.map
+  const map: Record<string, string> = {}
+  try {
+    const data = await api<CategoryRow[]>('/shop/categories')
+    const walk = (rows: CategoryRow[]) => {
+      for (const c of rows ?? []) {
+        if (c.code) map[c.code] = c.name
+        if (c.list) walk(c.list)
+      }
+    }
+    walk(data ?? [])
+  } catch {
+    // 실패 시 빈 맵 — 코드가 이름으로 표시됨
+  }
+  cachedCatNames = { map, expires: Date.now() + 6 * 60 * 60 * 1000 }
+  return map
+}
+
+let cachedProdCat: { map: Record<number, string>; expires: number } | null = null
+
+/** 상품번호(prod_no) → 대표 카테고리 코드 맵. 6시간 캐싱. */
+export async function getProdCategoryMap(): Promise<Record<number, string>> {
+  if (cachedProdCat && cachedProdCat.expires > Date.now()) return cachedProdCat.map
+  const map: Record<number, string> = {}
+  try {
+    let offset = 0
+    for (let i = 0; i < 5; i++) {
+      const data = await api<{ list: ProductRow[] }>(
+        `/shop/products?limit=100&offset=${offset}`,
+      )
+      const list = data?.list ?? []
+      for (const p of list) {
+        const no = p.no ?? p.prod_no
+        const cat = p.categories?.[0]
+        if (no != null && cat) map[no] = cat
+      }
+      if (list.length < 100) break
+      offset += 100
+    }
+  } catch {
+    // 실패 시 빈 맵 — 카테고리 미분류 처리
+  }
+  cachedProdCat = { map, expires: Date.now() + 6 * 60 * 60 * 1000 }
+  return map
 }

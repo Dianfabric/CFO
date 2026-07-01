@@ -27,22 +27,38 @@ interface ProductSales {
   revenue: number
   qty: number
 }
+interface CategorySales {
+  code: string
+  name: string
+  thisYearTotal: number
+  monthly: MonthlyPoint[]
+  products: ProductSales[]
+}
 interface SalesData {
   today: number
   thisWeek: number
   thisMonth: number
+  thisYear: number
   monthly: MonthlyPoint[]
   products: ProductSales[]
   productYear: string
+  categories: CategorySales[]
   orderCount: number
   fetchedAt: string
   error?: string
 }
 
+const ALL = '__all__'
+
+// 아임웹 카테고리명 → 화면 표시명 (사장님 용어에 맞춤)
+const CAT_LABEL: Record<string, string> = { saekdong: 'Fabric' }
+const catLabel = (name: string) => CAT_LABEL[name] ?? name
+
 export default function SaekdongSales() {
   const [data, setData] = useState<SalesData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [activeCat, setActiveCat] = useState<string>(ALL)
 
   const fetchData = useCallback(async (force = false) => {
     if (force) setRefreshing(true)
@@ -90,12 +106,19 @@ export default function SaekdongSales() {
     )
   }
 
+  // 활성 카테고리 선택 (전체 vs 특정 카테고리)
+  const cats = data.categories ?? []
+  const activeCatObj = activeCat === ALL ? null : cats.find((c) => c.code === activeCat)
+  const activeMonthly = activeCatObj ? activeCatObj.monthly : data.monthly
+  const activeProducts = activeCatObj ? activeCatObj.products : data.products
+  const monthlyLabel = activeCatObj ? `· ${data.productYear} 월별` : '· 최근 12개월'
+
   // 월 라벨: YYYY-MM → "26.6" (연도 2자리 + 월)
-  const chartData = data.monthly.map((m) => {
+  const chartData = activeMonthly.map((m) => {
     const [y, mo] = m.month.split('-')
     return { label: `${y.slice(2)}.${Number(mo)}`, 매출: m.revenue }
   })
-  const maxProdRevenue = Math.max(1, ...data.products.map((p) => p.revenue))
+  const maxProdRevenue = Math.max(1, ...activeProducts.map((p) => p.revenue))
 
   return (
     <div className="space-y-4">
@@ -125,14 +148,40 @@ export default function SaekdongSales() {
         </button>
       </div>
 
-      {/* 오늘 / 이번주 / 이번달 */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {/* 오늘 / 이번주 / 이번달 / 이번년 */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SalesCard label="오늘 매출" value={data.today} accent />
         <SalesCard label="이번 주 매출" value={data.thisWeek} />
-        <SalesCard label="이번 달 매출" value={data.thisMonth} accent />
+        <SalesCard label="이번 달 매출" value={data.thisMonth} />
+        <SalesCard label={`${data.productYear}년 매출`} value={data.thisYear} accent />
       </div>
 
-      {/* 월별 추이 + 이번 달 제품별 — 한 줄 (2열) */}
+      {/* 카테고리 탭 — 전체 + 매출 있는 카테고리 (월별 추이·제품 그래프에 적용) */}
+      {cats.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {[{ code: ALL, name: '전체' }, ...cats].map((c) => {
+            const active = activeCat === c.code
+            return (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => setActiveCat(c.code)}
+                className="h-7 px-3 text-[12px] font-bold transition-colors"
+                style={{
+                  borderRadius: '2px',
+                  border: `1px solid ${active ? 'var(--nv-primary)' : 'var(--nv-hairline)'}`,
+                  backgroundColor: active ? 'var(--nv-primary)' : 'white',
+                  color: active ? '#000' : 'var(--nv-mute)',
+                }}
+              >
+                {c.code === ALL ? c.name : catLabel(c.name)}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 월별 추이 + 제품별 — 한 줄 (2열) — 카테고리 탭 반영 */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {/* 연도별 월별 매출 추이 */}
         <div
@@ -142,7 +191,7 @@ export default function SaekdongSales() {
           <h3 className="text-[13px] font-bold mb-3" style={{ color: 'var(--nv-ink)' }}>
             월별 매출 추이{' '}
             <span className="text-[11px] font-normal" style={{ color: 'var(--nv-stone)' }}>
-              · 최근 12개월
+              {monthlyLabel}
             </span>
           </h3>
           <div className="h-56 -ml-2">
@@ -179,13 +228,13 @@ export default function SaekdongSales() {
               · 올해 주문 총합
             </span>
           </h3>
-          {data.products.length === 0 ? (
+          {activeProducts.length === 0 ? (
             <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>
               {data.productYear}년 제품 매출 데이터가 없습니다.
             </p>
           ) : (
             <div className="space-y-1.5">
-              {data.products.map((p) => {
+              {activeProducts.map((p) => {
                 const rate = (p.revenue / maxProdRevenue) * 100
                 return (
                   <div key={p.prodName} className="flex items-center gap-2 text-[12px]">
