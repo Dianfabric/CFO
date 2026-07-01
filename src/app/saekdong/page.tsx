@@ -12,6 +12,7 @@ import { Sparkles, Target, Wallet, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import type { Employee } from '@/lib/cycle-okr'
 import SaekdongOkr from './SaekdongOkr'
+import SaekdongSales from './SaekdongSales'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -121,6 +122,9 @@ export default async function SaekdongPage() {
           </div>
         )}
       </div>
+
+      {/* 색동 쇼핑몰 매출 (아임웹 실시간) */}
+      <SaekdongSales />
 
       {/* 바로가기 */}
       <div>

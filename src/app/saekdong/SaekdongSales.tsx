@@ -1,0 +1,250 @@
+'use client'
+
+/**
+ * 색동 쇼핑몰 매출 섹션 — 아임웹 API 실시간 집계 표시.
+ * 오늘/이번주/이번달 카드 + 일별 추이 차트 + 제품별 매출 표.
+ */
+import { useCallback, useEffect, useState } from 'react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from 'recharts'
+import { ShoppingBag, RefreshCw, Loader2 } from 'lucide-react'
+import { formatKRW } from '@/lib/formatters'
+
+interface SalesPoint {
+  date: string
+  revenue: number
+  orders: number
+}
+interface ProductSales {
+  prodName: string
+  revenue: number
+  qty: number
+}
+interface SalesData {
+  today: number
+  thisWeek: number
+  thisMonth: number
+  daily: SalesPoint[]
+  products: ProductSales[]
+  orderCount: number
+  fetchedAt: string
+  error?: string
+}
+
+export default function SaekdongSales() {
+  const [data, setData] = useState<SalesData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const fetchData = useCallback(async (force = false) => {
+    if (force) setRefreshing(true)
+    try {
+      const r = await fetch('/api/saekdong/sales', force ? { cache: 'no-store' } : {})
+      const j = (await r.json()) as SalesData
+      setData(j)
+    } catch {
+      setData(null)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  if (loading) {
+    return (
+      <div
+        className="bg-white p-6 text-center text-[12px]"
+        style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px', color: 'var(--nv-mute)' }}
+      >
+        <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+        색동 쇼핑몰 매출 불러오는 중...
+      </div>
+    )
+  }
+
+  if (!data || data.error) {
+    return (
+      <div
+        className="p-4 text-[12px]"
+        style={{
+          border: '1px solid var(--nv-error)',
+          backgroundColor: '#fef2f2',
+          color: 'var(--nv-error)',
+          borderRadius: '2px',
+        }}
+      >
+        ⚠ 매출 조회 실패{data?.error ? `: ${data.error}` : ''}
+      </div>
+    )
+  }
+
+  const chartData = data.daily.map((d) => ({
+    label: d.date.slice(5).replace('-', '/'), // MM/DD
+    매출: d.revenue,
+  }))
+  const maxProdRevenue = Math.max(1, ...data.products.map((p) => p.revenue))
+
+  return (
+    <div className="space-y-4">
+      {/* 헤더 + 새로고침 */}
+      <div className="flex items-center gap-2">
+        <ShoppingBag className="w-4 h-4" style={{ color: 'var(--nv-primary)' }} />
+        <h2 className="text-base font-semibold" style={{ color: 'var(--nv-ink)' }}>
+          색동 쇼핑몰 매출
+        </h2>
+        <span className="text-xs" style={{ color: 'var(--nv-stone)' }}>
+          · 아임웹 실시간 (최근 30일)
+        </span>
+        <button
+          type="button"
+          onClick={() => fetchData(true)}
+          disabled={refreshing}
+          className="ml-auto h-7 px-2 text-[11px] font-bold inline-flex items-center gap-1 bg-white transition-colors"
+          style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px', color: 'var(--nv-mute)' }}
+          title="지금 다시 불러오기"
+        >
+          {refreshing ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <RefreshCw className="w-3 h-3" />
+          )}
+          새로고침
+        </button>
+      </div>
+
+      {/* 오늘 / 이번주 / 이번달 */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <SalesCard label="오늘 매출" value={data.today} accent />
+        <SalesCard label="이번 주 매출" value={data.thisWeek} />
+        <SalesCard label="이번 달 매출" value={data.thisMonth} accent />
+      </div>
+
+      {/* 일별 추이 차트 */}
+      <div
+        className="bg-white p-4"
+        style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
+      >
+        <h3 className="text-[13px] font-bold mb-3" style={{ color: 'var(--nv-ink)' }}>
+          일별 매출 추이 (최근 30일)
+        </h3>
+        <div className="h-56 -ml-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: '#999' }}
+                interval={Math.max(0, Math.floor(chartData.length / 10))}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: '#999' }}
+                tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : `${v}`)}
+                width={40}
+              />
+              <Tooltip
+                formatter={(v) => formatKRW(Number(v))}
+                labelStyle={{ fontSize: 11 }}
+                contentStyle={{ fontSize: 12, borderRadius: 2 }}
+              />
+              <Bar dataKey="매출" fill="#76b900" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* 제품별 매출 */}
+      <div
+        className="bg-white p-4"
+        style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
+      >
+        <h3 className="text-[13px] font-bold mb-3" style={{ color: 'var(--nv-ink)' }}>
+          제품별 매출{' '}
+          <span className="text-[11px] font-normal" style={{ color: 'var(--nv-stone)' }}>
+            · 최근 주문 기준
+          </span>
+        </h3>
+        {data.products.length === 0 ? (
+          <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>
+            제품별 데이터가 없습니다.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {data.products.map((p) => {
+              const rate = (p.revenue / maxProdRevenue) * 100
+              return (
+                <div key={p.prodName} className="flex items-center gap-2 text-[12px]">
+                  <span
+                    className="w-28 shrink-0 truncate font-medium"
+                    style={{ color: 'var(--nv-ink)' }}
+                    title={p.prodName}
+                  >
+                    {p.prodName}
+                  </span>
+                  <div
+                    className="flex-1 h-4 relative overflow-hidden"
+                    style={{ backgroundColor: 'var(--nv-surface-soft)', borderRadius: '2px' }}
+                  >
+                    <div
+                      className="h-full"
+                      style={{ width: `${rate}%`, backgroundColor: 'var(--nv-primary)' }}
+                    />
+                  </div>
+                  <span
+                    className="w-24 shrink-0 text-right tabular-nums font-bold"
+                    style={{ color: 'var(--nv-ink)' }}
+                  >
+                    {formatKRW(p.revenue)}
+                  </span>
+                  <span
+                    className="w-12 shrink-0 text-right tabular-nums"
+                    style={{ color: 'var(--nv-stone)' }}
+                  >
+                    {p.qty}개
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <p className="text-[10px] text-right" style={{ color: 'var(--nv-stone)' }}>
+        갱신: {new Date(data.fetchedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} · 총{' '}
+        {data.orderCount}건
+      </p>
+    </div>
+  )
+}
+
+function SalesCard({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div
+      className="bg-white p-4"
+      style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
+    >
+      <p
+        className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+        style={{ color: 'var(--nv-mute)' }}
+      >
+        {label}
+      </p>
+      <p
+        className="mt-2 text-[24px] font-bold tabular-nums leading-none"
+        style={{ color: accent ? 'var(--nv-primary)' : 'var(--nv-ink)' }}
+      >
+        {formatKRW(value)}
+      </p>
+    </div>
+  )
+}
