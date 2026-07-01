@@ -17,8 +17,8 @@ import {
 import { ShoppingBag, RefreshCw, Loader2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 
-interface SalesPoint {
-  date: string
+interface MonthlyPoint {
+  month: string // YYYY-MM
   revenue: number
   orders: number
 }
@@ -31,7 +31,7 @@ interface SalesData {
   today: number
   thisWeek: number
   thisMonth: number
-  daily: SalesPoint[]
+  monthly: MonthlyPoint[]
   products: ProductSales[]
   orderCount: number
   fetchedAt: string
@@ -89,10 +89,11 @@ export default function SaekdongSales() {
     )
   }
 
-  const chartData = data.daily.map((d) => ({
-    label: d.date.slice(5).replace('-', '/'), // MM/DD
-    매출: d.revenue,
-  }))
+  // 월 라벨: YYYY-MM → "26.6" (연도 2자리 + 월)
+  const chartData = data.monthly.map((m) => {
+    const [y, mo] = m.month.split('-')
+    return { label: `${y.slice(2)}.${Number(mo)}`, 매출: m.revenue }
+  })
   const maxProdRevenue = Math.max(1, ...data.products.map((p) => p.revenue))
 
   return (
@@ -130,93 +131,97 @@ export default function SaekdongSales() {
         <SalesCard label="이번 달 매출" value={data.thisMonth} accent />
       </div>
 
-      {/* 일별 추이 차트 */}
-      <div
-        className="bg-white p-4"
-        style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
-      >
-        <h3 className="text-[13px] font-bold mb-3" style={{ color: 'var(--nv-ink)' }}>
-          일별 매출 추이 (최근 30일)
-        </h3>
-        <div className="h-56 -ml-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 10, fill: '#999' }}
-                interval={Math.max(0, Math.floor(chartData.length / 10))}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: '#999' }}
-                tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : `${v}`)}
-                width={40}
-              />
-              <Tooltip
-                formatter={(v) => formatKRW(Number(v))}
-                labelStyle={{ fontSize: 11 }}
-                contentStyle={{ fontSize: 12, borderRadius: 2 }}
-              />
-              <Bar dataKey="매출" fill="#76b900" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* 제품별 매출 */}
-      <div
-        className="bg-white p-4"
-        style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
-      >
-        <h3 className="text-[13px] font-bold mb-3" style={{ color: 'var(--nv-ink)' }}>
-          제품별 매출{' '}
-          <span className="text-[11px] font-normal" style={{ color: 'var(--nv-stone)' }}>
-            · 최근 주문 기준
-          </span>
-        </h3>
-        {data.products.length === 0 ? (
-          <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>
-            제품별 데이터가 없습니다.
-          </p>
-        ) : (
-          <div className="space-y-1.5">
-            {data.products.map((p) => {
-              const rate = (p.revenue / maxProdRevenue) * 100
-              return (
-                <div key={p.prodName} className="flex items-center gap-2 text-[12px]">
-                  <span
-                    className="w-28 shrink-0 truncate font-medium"
-                    style={{ color: 'var(--nv-ink)' }}
-                    title={p.prodName}
-                  >
-                    {p.prodName}
-                  </span>
-                  <div
-                    className="flex-1 h-4 relative overflow-hidden"
-                    style={{ backgroundColor: 'var(--nv-surface-soft)', borderRadius: '2px' }}
-                  >
-                    <div
-                      className="h-full"
-                      style={{ width: `${rate}%`, backgroundColor: 'var(--nv-primary)' }}
-                    />
-                  </div>
-                  <span
-                    className="w-24 shrink-0 text-right tabular-nums font-bold"
-                    style={{ color: 'var(--nv-ink)' }}
-                  >
-                    {formatKRW(p.revenue)}
-                  </span>
-                  <span
-                    className="w-12 shrink-0 text-right tabular-nums"
-                    style={{ color: 'var(--nv-stone)' }}
-                  >
-                    {p.qty}개
-                  </span>
-                </div>
-              )
-            })}
+      {/* 월별 추이 + 이번 달 제품별 — 한 줄 (2열) */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {/* 연도별 월별 매출 추이 */}
+        <div
+          className="bg-white p-4"
+          style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
+        >
+          <h3 className="text-[13px] font-bold mb-3" style={{ color: 'var(--nv-ink)' }}>
+            월별 매출 추이{' '}
+            <span className="text-[11px] font-normal" style={{ color: 'var(--nv-stone)' }}>
+              · 최근 12개월
+            </span>
+          </h3>
+          <div className="h-56 -ml-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#999' }} />
+                <YAxis
+                  tick={{ fontSize: 10, fill: '#999' }}
+                  tickFormatter={(v: number) =>
+                    v >= 10000 ? `${Math.round(v / 10000)}만` : `${v}`
+                  }
+                  width={44}
+                />
+                <Tooltip
+                  formatter={(v) => formatKRW(Number(v))}
+                  labelStyle={{ fontSize: 11 }}
+                  contentStyle={{ fontSize: 12, borderRadius: 2 }}
+                />
+                <Bar dataKey="매출" fill="#76b900" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-        )}
+        </div>
+
+        {/* 이번 달 제품별 매출 */}
+        <div
+          className="bg-white p-4"
+          style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
+        >
+          <h3 className="text-[13px] font-bold mb-3" style={{ color: 'var(--nv-ink)' }}>
+            이번 달 제품 매출{' '}
+            <span className="text-[11px] font-normal" style={{ color: 'var(--nv-stone)' }}>
+              · 이번 달 주문 기준
+            </span>
+          </h3>
+          {data.products.length === 0 ? (
+            <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>
+              이번 달 제품 매출 데이터가 없습니다.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.products.map((p) => {
+                const rate = (p.revenue / maxProdRevenue) * 100
+                return (
+                  <div key={p.prodName} className="flex items-center gap-2 text-[12px]">
+                    <span
+                      className="w-24 shrink-0 truncate font-medium"
+                      style={{ color: 'var(--nv-ink)' }}
+                      title={p.prodName}
+                    >
+                      {p.prodName}
+                    </span>
+                    <div
+                      className="flex-1 h-4 relative overflow-hidden"
+                      style={{ backgroundColor: 'var(--nv-surface-soft)', borderRadius: '2px' }}
+                    >
+                      <div
+                        className="h-full"
+                        style={{ width: `${rate}%`, backgroundColor: 'var(--nv-primary)' }}
+                      />
+                    </div>
+                    <span
+                      className="w-20 shrink-0 text-right tabular-nums font-bold"
+                      style={{ color: 'var(--nv-ink)' }}
+                    >
+                      {formatKRW(p.revenue)}
+                    </span>
+                    <span
+                      className="w-10 shrink-0 text-right tabular-nums"
+                      style={{ color: 'var(--nv-stone)' }}
+                    >
+                      {p.qty}개
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <p className="text-[10px] text-right" style={{ color: 'var(--nv-stone)' }}>

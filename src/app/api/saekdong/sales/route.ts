@@ -12,6 +12,6 @@ export const runtime = 'nodejs'
 export const revalidate = 600
 
 export async function GET() {
-  const data = await getSaekdongSales(30)
+  const data = await getSaekdongSales(12) // 최근 12개월
   return NextResponse.json(data)
 }

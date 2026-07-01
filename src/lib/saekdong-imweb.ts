@@ -11,6 +11,15 @@
 
 const BASE = 'https://api.imweb.me/v2'
 
+// 호출 제한 5건/초 → 모든 아임웹 호출 사이 최소 간격 보장 (버스트 방지 위해 넉넉히 500ms)
+let lastCall = 0
+async function throttle() {
+  const gap = 500
+  const wait = lastCall + gap - Date.now()
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+  lastCall = Date.now()
+}
+
 // 토큰 짧은 캐싱 (요청마다 재발급 방지 — 호출 제한 5건/초 보호)
 let cachedToken: { token: string; expires: number } | null = null
 
@@ -21,6 +30,7 @@ async function getToken(): Promise<string> {
   if (!key || !secret) {
     throw new Error('IMWEB_API_KEY / IMWEB_SECRET_KEY 가 .env 에 없습니다.')
   }
+  await throttle()
   const r = await fetch(`${BASE}/auth?key=${key}&secret=${secret}`)
   const j = (await r.json()) as { access_token?: string; msg?: string }
   if (!j.access_token) throw new Error(`아임웹 인증 실패: ${j.msg ?? 'unknown'}`)
@@ -29,12 +39,18 @@ async function getToken(): Promise<string> {
   return j.access_token
 }
 
-async function api<T>(path: string): Promise<T> {
+async function api<T>(path: string, retry = 2): Promise<T> {
   const token = await getToken()
+  await throttle()
   const r = await fetch(`${BASE}${path}`, {
     headers: { 'access-token': token },
   })
   const j = (await r.json()) as { code?: number; msg?: string; data?: T }
+  // 호출 폭주(TOO MANY REQUEST) 시 잠시 대기 후 재시도
+  if (j.msg === 'TOO MANY REQUEST' && retry > 0) {
+    await new Promise((res) => setTimeout(res, 1500))
+    return api(path, retry - 1)
+  }
   if (j.code !== 200) throw new Error(`아임웹 API 오류: ${j.msg ?? j.code}`)
   return j.data as T
 }
@@ -59,8 +75,8 @@ interface ProdOrderRow {
   items?: ProdItem[]
 }
 
-export interface SalesPoint {
-  date: string // YYYY-MM-DD (KST)
+export interface MonthlyPoint {
+  month: string // YYYY-MM (KST)
   revenue: number
   orders: number
 }
@@ -75,8 +91,8 @@ export interface SaekdongSales {
   today: number
   thisWeek: number
   thisMonth: number
-  daily: SalesPoint[] // 최근 N일 일별
-  products: ProductSales[] // 기간 내 제품별
+  monthly: MonthlyPoint[] // 최근 N개월 월별 매출 추이
+  products: ProductSales[] // 이번 달 제품별
   orderCount: number
   fetchedAt: string
   error?: string
@@ -88,11 +104,16 @@ function kstDate(unixSec: number): string {
   return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) // sv-SE = YYYY-MM-DD
 }
 
+// KST 기준 YYYY-MM
+function kstMonth(unixSec: number): string {
+  return kstDate(unixSec).slice(0, 7)
+}
+
 function ymd(d: Date): string {
   return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
 }
 
-// 기간 내 모든 주문 (페이지네이션)
+// 기간 내 모든 주문 (페이지네이션) — 한 번의 from~to
 async function fetchOrders(from: string, to: string): Promise<OrderRow[]> {
   const all: OrderRow[] = []
   let offset = 0
@@ -110,20 +131,34 @@ async function fetchOrders(from: string, to: string): Promise<OrderRow[]> {
   return all
 }
 
+// 아임웹은 검색 기간 최대 3개월 제약 → 3개월 청크로 나눠 조회
+async function fetchOrdersLong(fromDate: Date, toDate: Date): Promise<OrderRow[]> {
+  const all: OrderRow[] = []
+  let chunkStart = new Date(fromDate)
+  for (let i = 0; i < 8 && chunkStart < toDate; i++) {
+    // 안전장치 8청크(=24개월)
+    const chunkEnd = new Date(chunkStart)
+    chunkEnd.setMonth(chunkEnd.getMonth() + 3)
+    const end = chunkEnd > toDate ? toDate : chunkEnd
+    const chunk = await fetchOrders(ymd(chunkStart), ymd(end)) // to exclusive → 경계 중복 없음
+    all.push(...chunk)
+    chunkStart = end
+  }
+  return all
+}
+
 /**
- * 색동 매출 집계 — 최근 dayRange 일 (기본 30).
- * 일/주/월 합계 + 일별 추이 + 제품별.
+ * 색동 매출 집계 — 최근 monthRange 개월 (기본 12).
+ * 오늘/이번주/이번달 합계 + 월별 추이 + 이번 달 제품별.
  */
-export async function getSaekdongSales(dayRange = 30): Promise<SaekdongSales> {
+export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> {
   const now = new Date()
   const todayStr = ymd(now)
-  const fromDate = new Date(now)
-  fromDate.setDate(fromDate.getDate() - dayRange + 1)
-  const fromStr = ymd(fromDate)
+  // monthRange 개월 전 1일부터
+  const fromDate = new Date(now.getFullYear(), now.getMonth() - (monthRange - 1), 1)
   // order_date_to 는 exclusive(그날 00:00까지)라 오늘 주문 포함 위해 +1일
   const toDate = new Date(now)
   toDate.setDate(toDate.getDate() + 1)
-  const toStr = ymd(toDate)
 
   // 이번 주 월요일 (KST)
   const monday = new Date(now)
@@ -132,43 +167,46 @@ export async function getSaekdongSales(dayRange = 30): Promise<SaekdongSales> {
   monday.setDate(monday.getDate() + offsetToMon)
   const mondayStr = ymd(monday)
 
-  // 이번 달 1일
+  // 이번 달 1일 / YYYY-MM
   const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1))
+  const thisMonthKey = monthStart.slice(0, 7)
 
   try {
-    const orders = await fetchOrders(fromStr, toStr)
+    const orders = await fetchOrdersLong(fromDate, toDate)
 
-    // 일별 집계
-    const byDay = new Map<string, { revenue: number; orders: number }>()
+    // 월별 집계 + 오늘/이번주/이번달 합계
+    const byMonth = new Map<string, { revenue: number; orders: number }>()
     let today = 0
     let thisWeek = 0
     let thisMonth = 0
     for (const o of orders) {
       const amt = o.payment?.payment_amount ?? 0
       const day = kstDate(o.order_time)
-      const cur = byDay.get(day) ?? { revenue: 0, orders: 0 }
+      const month = kstMonth(o.order_time)
+      const cur = byMonth.get(month) ?? { revenue: 0, orders: 0 }
       cur.revenue += amt
       cur.orders += 1
-      byDay.set(day, cur)
+      byMonth.set(month, cur)
       if (day === todayStr) today += amt
       if (day >= mondayStr) thisWeek += amt
       if (day >= monthStart) thisMonth += amt
     }
 
-    // 최근 dayRange 일 연속 배열 (빈 날 0)
-    const daily: SalesPoint[] = []
-    for (let i = dayRange - 1; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const key = ymd(d)
-      const v = byDay.get(key) ?? { revenue: 0, orders: 0 }
-      daily.push({ date: key, revenue: v.revenue, orders: v.orders })
+    // 최근 monthRange 개월 연속 배열 (빈 달 0)
+    const monthly: MonthlyPoint[] = []
+    for (let i = monthRange - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = ymd(d).slice(0, 7)
+      const v = byMonth.get(key) ?? { revenue: 0, orders: 0 }
+      monthly.push({ month: key, revenue: v.revenue, orders: v.orders })
     }
 
-    // 제품별 집계 — 각 주문의 prod-orders (호출 제한 5/초 → 순차 + 약간의 텀)
+    // 이번 달 제품별 집계 — 이번 달 주문의 prod-orders (호출 제한 보호 위해 상한)
+    const thisMonthOrders = orders.filter(
+      (o) => kstMonth(o.order_time) === thisMonthKey,
+    )
     const prodMap = new Map<string, { revenue: number; qty: number }>()
-    // 최근 주문 위주로 제한 (최대 60건까지만 제품 상세 — 과도한 호출 방지)
-    const targetOrders = orders.slice(0, 60)
+    const targetOrders = thisMonthOrders.slice(0, 100) // 이번 달 주문 상한 100건
     for (const o of targetOrders) {
       try {
         const rows = await api<ProdOrderRow[]>(
@@ -197,7 +235,7 @@ export async function getSaekdongSales(dayRange = 30): Promise<SaekdongSales> {
       today,
       thisWeek,
       thisMonth,
-      daily,
+      monthly,
       products,
       orderCount: orders.length,
       fetchedAt: new Date().toISOString(),
@@ -207,7 +245,7 @@ export async function getSaekdongSales(dayRange = 30): Promise<SaekdongSales> {
       today: 0,
       thisWeek: 0,
       thisMonth: 0,
-      daily: [],
+      monthly: [],
       products: [],
       orderCount: 0,
       fetchedAt: new Date().toISOString(),
