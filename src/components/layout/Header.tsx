@@ -9,9 +9,10 @@
  * - 우측: 새 거래 (NVIDIA Green CTA) + 알림
  * - 데스크탑(≥md)에서는 사이드바가 이미 검정이라 시각적 연속
  */
-import { Bell, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import Link from 'next/link'
 import MobileNav from './MobileNav'
+import NotificationBell from './NotificationBell'
 
 export default function Header() {
   return (
@@ -38,13 +39,7 @@ export default function Header() {
           <Plus className="w-3.5 h-3.5" strokeWidth={2.4} />
           <span className="hidden sm:inline">새 거래</span>
         </Link>
-        <button
-          aria-label="알림"
-          className="relative inline-flex h-8 w-8 items-center justify-center text-white/60 hover:text-white transition-colors"
-          style={{ borderRadius: '2px' }}
-        >
-          <Bell className="w-4 h-4" strokeWidth={1.6} />
-        </button>
+        <NotificationBell />
       </div>
     </header>
   )

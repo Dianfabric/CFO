@@ -257,3 +257,93 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
     }
   }
 }
+
+// ── 알림 (최근 N일 신규 주문·후기) ──
+
+interface ReviewRow {
+  idx: number
+  prod_no: number
+  nick: string
+  body: string
+  rating: number
+  is_hide?: boolean
+  is_secret?: boolean
+  wtime: number // Unix seconds
+}
+
+export interface SaekdongNotice {
+  id: string // 안정적 식별자 (order:xxx / review:xxx)
+  kind: 'order' | 'review'
+  time: number // Unix seconds (KST 환산은 표시단에서)
+  amount?: number // 주문 금액
+  rating?: number // 후기 별점
+  text: string // 후기 본문 요약 (주문은 '')
+}
+
+/** 리뷰 본문에서 HTML 태그·과잉 공백 제거 후 요약 */
+function cleanReviewBody(body: string, max = 40): string {
+  const t = (body || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return t.length > max ? t.slice(0, max) + '…' : t
+}
+
+/**
+ * 최근 dayRange 일(기본 3일) 내 신규 주문 + 신규 상품후기 알림.
+ * 3일 윈도우를 매번 라이브로 계산 → 저장/크론 없이 자연 만료(자동 삭제).
+ * 개인정보 없이 금액·별점·후기요약·시각만.
+ */
+export async function getSaekdongNotices(dayRange = 3): Promise<{
+  notices: SaekdongNotice[]
+  fetchedAt: string
+  error?: string
+}> {
+  const now = Date.now()
+  const cutoff = Math.floor(now / 1000) - dayRange * 86400
+  const from = ymd(new Date(now - dayRange * 86400 * 1000))
+  const to = ymd(new Date(now + 86400 * 1000)) // exclusive → 오늘 포함
+
+  try {
+    const notices: SaekdongNotice[] = []
+
+    // 신규 주문
+    const orders = await fetchOrders(from, to)
+    for (const o of orders) {
+      if (o.order_time < cutoff) continue
+      notices.push({
+        id: `order:${o.order_no}`,
+        kind: 'order',
+        time: o.order_time,
+        amount: o.payment?.payment_amount ?? 0,
+        text: '',
+      })
+    }
+
+    // 신규 후기 (최신순 반환 → 상위 50건에서 3일 필터)
+    try {
+      const rev = await api<{ list: ReviewRow[] }>('/shop/reviews?limit=50')
+      for (const r of rev?.list ?? []) {
+        if (r.wtime < cutoff || r.is_hide) continue
+        notices.push({
+          id: `review:${r.idx}`,
+          kind: 'review',
+          time: r.wtime,
+          rating: r.rating,
+          text: r.is_secret ? '비밀 후기' : cleanReviewBody(r.body),
+        })
+      }
+    } catch {
+      // 후기 조회 실패는 주문 알림에 영향 없이 무시
+    }
+
+    notices.sort((a, b) => b.time - a.time)
+    return { notices, fetchedAt: new Date().toISOString() }
+  } catch (e) {
+    return {
+      notices: [],
+      fetchedAt: new Date().toISOString(),
+      error: e instanceof Error ? e.message : '아임웹 알림 조회 실패',
+    }
+  }
+}
