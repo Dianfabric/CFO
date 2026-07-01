@@ -14,6 +14,8 @@ import type { Employee } from '@/lib/cycle-okr'
 import SaekdongOkr from './SaekdongOkr'
 import SaekdongSales from './SaekdongSales'
 import SaekdongOfflineSales from './SaekdongOfflineSales'
+import SaekdongVision from './SaekdongVision'
+import { getSaekdongVision } from './actions'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -54,7 +56,10 @@ async function loadCycleAndProject(): Promise<{
 }
 
 export default async function SaekdongPage() {
-  const { cycle, project } = await loadCycleAndProject()
+  const [{ cycle, project }, vision] = await Promise.all([
+    loadCycleAndProject(),
+    getSaekdongVision(),
+  ])
 
   return (
     <div className="space-y-6">
@@ -76,6 +81,9 @@ export default async function SaekdongPage() {
           색동공장 신규 라인의 12주 목표·매출 현황. 프로젝트 하나로 관리합니다.
         </p>
       </div>
+
+      {/* 비전 · 미션 — 사장님이 직접 작성·수정 */}
+      <SaekdongVision initialVision={vision.vision} initialMission={vision.mission} />
 
       {/* 12주 목표 — 색동 프로젝트 OKR (큰 목표 + KR + 주별 타겟 + 5일 투두) */}
       <div>
