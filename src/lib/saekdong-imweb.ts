@@ -347,3 +347,54 @@ export async function getSaekdongNotices(dayRange = 3): Promise<{
     }
   }
 }
+
+// ── 색동 상품명 카탈로그 (오프라인 매출 매칭용) ──
+
+interface ProductRow {
+  prod_no?: number
+  name?: string
+  prod_name?: string
+}
+
+// 아임웹 조회 실패 시 폴백 — 알려진 색동 대표 상품명
+const SAEKDONG_FALLBACK_NAMES = [
+  '금빛단', '은빛단', '청빛단', '보석단', '까치동', '금까치',
+  '팔색', '아동팔색', '신고속', '고속 27mm', '소골 2mm',
+  '중골 3mm', '중골 3mm (은사)', '중골 7mm',
+  '색동스툴', '색동 스툴', '오방색 복주머니', '색동 잔 받침',
+]
+
+let cachedCatalog: { names: string[]; expires: number } | null = null
+
+/**
+ * 색동 쇼핑몰 상품명 목록 (오프라인 일계표 품목 매칭 기준).
+ * 6시간 캐싱, 아임웹 실패 시 폴백 목록 사용. 나눔/결제성 항목은 제외.
+ */
+export async function getSaekdongProductNames(): Promise<string[]> {
+  if (cachedCatalog && cachedCatalog.expires > Date.now()) return cachedCatalog.names
+  try {
+    const names: string[] = []
+    let offset = 0
+    for (let i = 0; i < 5; i++) {
+      const data = await api<{ list: ProductRow[] }>(
+        `/shop/products?limit=100&offset=${offset}`,
+      )
+      const list = data?.list ?? []
+      for (const p of list) {
+        const nm = (p.name || p.prod_name || '').trim()
+        if (nm) names.push(nm)
+      }
+      if (list.length < 100) break
+      offset += 100
+    }
+    // 실제 상품이 아닌 항목 제외 (나눔/신청/개인결제/여분/실콘 나눔 등)
+    const filtered = names.filter(
+      (n) => !/나눔|신청|개인결제|여분|추가나눔/.test(n),
+    )
+    const uniq = [...new Set(filtered.length > 0 ? filtered : SAEKDONG_FALLBACK_NAMES)]
+    cachedCatalog = { names: uniq, expires: Date.now() + 6 * 60 * 60 * 1000 }
+    return uniq
+  } catch {
+    return [...SAEKDONG_FALLBACK_NAMES]
+  }
+}

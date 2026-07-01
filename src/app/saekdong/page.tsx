@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Employee } from '@/lib/cycle-okr'
 import SaekdongOkr from './SaekdongOkr'
 import SaekdongSales from './SaekdongSales'
+import SaekdongOfflineSales from './SaekdongOfflineSales'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -125,6 +126,9 @@ export default async function SaekdongPage() {
 
       {/* 색동 쇼핑몰 매출 (아임웹 실시간) */}
       <SaekdongSales />
+
+      {/* 색동 오프라인 매출 (경영 계기판 일계표 매칭) */}
+      <SaekdongOfflineSales />
 
       {/* 바로가기 */}
       <div>
