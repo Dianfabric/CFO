@@ -33,6 +33,7 @@ interface SalesData {
   thisMonth: number
   monthly: MonthlyPoint[]
   products: ProductSales[]
+  productYear: string
   orderCount: number
   fetchedAt: string
   error?: string
@@ -105,7 +106,7 @@ export default function SaekdongSales() {
           색동 쇼핑몰 매출
         </h2>
         <span className="text-xs" style={{ color: 'var(--nv-stone)' }}>
-          · 아임웹 실시간 (최근 30일)
+          · 아임웹 실시간
         </span>
         <button
           type="button"
@@ -167,20 +168,20 @@ export default function SaekdongSales() {
           </div>
         </div>
 
-        {/* 이번 달 제품별 매출 */}
+        {/* 올해 제품별 매출 */}
         <div
           className="bg-white p-4"
           style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
         >
           <h3 className="text-[13px] font-bold mb-3" style={{ color: 'var(--nv-ink)' }}>
-            이번 달 제품 매출{' '}
+            {data.productYear}년 제품 매출{' '}
             <span className="text-[11px] font-normal" style={{ color: 'var(--nv-stone)' }}>
-              · 이번 달 주문 기준
+              · 올해 주문 총합
             </span>
           </h3>
           {data.products.length === 0 ? (
             <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>
-              이번 달 제품 매출 데이터가 없습니다.
+              {data.productYear}년 제품 매출 데이터가 없습니다.
             </p>
           ) : (
             <div className="space-y-1.5">

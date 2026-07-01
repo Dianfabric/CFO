@@ -92,7 +92,8 @@ export interface SaekdongSales {
   thisWeek: number
   thisMonth: number
   monthly: MonthlyPoint[] // 최근 N개월 월별 매출 추이
-  products: ProductSales[] // 이번 달 제품별
+  products: ProductSales[] // 올해(연초~오늘) 제품별
+  productYear: string // 제품 집계 기준 연도 (예: '2026')
   orderCount: number
   fetchedAt: string
   error?: string
@@ -169,7 +170,8 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
 
   // 이번 달 1일 / YYYY-MM
   const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1))
-  const thisMonthKey = monthStart.slice(0, 7)
+  // 제품별은 올해(연초~오늘) 집계
+  const thisYear = String(now.getFullYear())
 
   try {
     const orders = await fetchOrdersLong(fromDate, toDate)
@@ -201,12 +203,12 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
       monthly.push({ month: key, revenue: v.revenue, orders: v.orders })
     }
 
-    // 이번 달 제품별 집계 — 이번 달 주문의 prod-orders (호출 제한 보호 위해 상한)
-    const thisMonthOrders = orders.filter(
-      (o) => kstMonth(o.order_time) === thisMonthKey,
+    // 올해 제품별 집계 — 올해(연초~오늘) 주문의 prod-orders (호출 제한 보호 위해 상한)
+    const thisYearOrders = orders.filter(
+      (o) => kstDate(o.order_time).slice(0, 4) === thisYear,
     )
     const prodMap = new Map<string, { revenue: number; qty: number }>()
-    const targetOrders = thisMonthOrders.slice(0, 100) // 이번 달 주문 상한 100건
+    const targetOrders = thisYearOrders.slice(0, 300) // 올해 주문 상한 300건
     for (const o of targetOrders) {
       try {
         const rows = await api<ProdOrderRow[]>(
@@ -237,6 +239,7 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
       thisMonth,
       monthly,
       products,
+      productYear: thisYear,
       orderCount: orders.length,
       fetchedAt: new Date().toISOString(),
     }
@@ -247,6 +250,7 @@ export async function getSaekdongSales(monthRange = 12): Promise<SaekdongSales> 
       thisMonth: 0,
       monthly: [],
       products: [],
+      productYear: String(now.getFullYear()),
       orderCount: 0,
       fetchedAt: new Date().toISOString(),
       error: e instanceof Error ? e.message : '아임웹 매출 조회 실패',
