@@ -150,11 +150,12 @@ export async function GET() {
       b2cKrCount = count ?? 0
     }
 
-    // 직원별 진행률
+    // 직원별 진행률 (색동 신사업 프로젝트는 제외 — /saekdong 전용)
     const { data: employees } = await supabase
       .from('employees')
       .select('id, name, color, role_label, business_track')
       .eq('active', true)
+      .neq('department', '__saekdong_project__')
       .order('display_order')
 
     interface BigKrDetail {

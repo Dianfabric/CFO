@@ -1,17 +1,18 @@
 /**
  * 색동 신사업 대시보드 (V2.5)
  *
- * 디안 신규 라인 '색동공장' 전용 경영 화면. 초기 단계라 골격 우선.
- * - 색동 전용 지표(매출/비용/이익) 자리 — 데이터 쌓이면 채워짐
+ * 디안 신규 라인 '색동공장' 전용 경영 화면.
+ * - 12주 목표: 12주 대시보드와 동일 구조(큰 목표 + KR 선행/후행 + 주별 타겟 + 5일 투두)를
+ *   '색동 신사업' 프로젝트 하나에 적용 (직원별 아님). OkrTree 재사용.
  * - 디안 본체 전체 매출과 엮어 비교하는 섹션 (transactions 집계)
- *
- * 색동 거래 구분 방식은 데이터가 쌓이면 결정 (channel/notes/전용 태그 등).
- * 지금은 전체 매출 요약 + 색동 목표 진행 골격만.
  */
 import Link from 'next/link'
 import { Sparkles, TrendingUp, Target, Wallet, ArrowRight } from 'lucide-react'
 import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { formatKRW } from '@/lib/formatters'
+import type { Employee } from '@/lib/cycle-okr'
+import SaekdongOkr from './SaekdongOkr'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,7 +28,6 @@ async function loadSummary(): Promise<Summary> {
   try {
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-
     const [monthAgg, totalAgg] = await Promise.all([
       prisma.transaction.aggregate({
         where: { type: 'SALE', date: { gte: monthStart } },
@@ -40,7 +40,6 @@ async function loadSummary(): Promise<Summary> {
         _count: { _all: true },
       }),
     ])
-
     return {
       monthRevenue: monthAgg._sum.totalAmount ?? 0,
       monthCount: monthAgg._count._all ?? 0,
@@ -52,17 +51,46 @@ async function loadSummary(): Promise<Summary> {
   }
 }
 
-export default async function SaekdongPage() {
-  const s = await loadSummary()
+interface CycleInfo {
+  id: number
+  start_date: string
+  end_date: string
+}
 
-  // 색동 월 매출 목표 (한태원 대표 12주 KR — 월 1억)
-  const SAEKDONG_MONTHLY_GOAL = 100_000_000
-  // 색동 전용 매출은 아직 별도 집계 안 함 → 0 (데이터 태깅 방식 결정 후 연동)
-  const saekdongMonthRevenue = 0
-  const goalRate =
-    SAEKDONG_MONTHLY_GOAL > 0
-      ? Math.min(100, (saekdongMonthRevenue / SAEKDONG_MONTHLY_GOAL) * 100)
-      : 0
+async function loadCycleAndProject(): Promise<{
+  cycle: CycleInfo | null
+  project: Employee | null
+}> {
+  try {
+    const sb = await createClient()
+    const [{ data: cycle }, { data: project }] = await Promise.all([
+      sb
+        .from('cycles')
+        .select('id, start_date, end_date')
+        .eq('status', 'active')
+        .order('cycle_number', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      sb
+        .from('employees')
+        .select('*')
+        .eq('department', '__saekdong_project__')
+        .maybeSingle(),
+    ])
+    return {
+      cycle: (cycle as CycleInfo) ?? null,
+      project: (project as Employee) ?? null,
+    }
+  } catch {
+    return { cycle: null, project: null }
+  }
+}
+
+export default async function SaekdongPage() {
+  const [s, { cycle, project }] = await Promise.all([
+    loadSummary(),
+    loadCycleAndProject(),
+  ])
 
   return (
     <div className="space-y-6">
@@ -81,50 +109,55 @@ export default async function SaekdongPage() {
           색동 신사업
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--nv-mute)' }}>
-          색동공장 신규 라인의 매출·목표 현황. 초기 단계라 지표는 데이터가 쌓이며 채워집니다.
+          색동공장 신규 라인의 12주 목표·매출 현황. 프로젝트 하나로 관리합니다.
         </p>
       </div>
 
-      {/* 색동 월 매출 목표 진행 */}
-      <div
-        className="bg-white p-4"
-        style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
-      >
-        <div className="flex items-center gap-1.5 mb-3">
-          <Target className="w-4 h-4" style={{ color: 'var(--nv-primary)' }} />
-          <h2
-            className="text-[13px] font-bold uppercase tracking-[0.04em]"
-            style={{ color: 'var(--nv-ink)' }}
-          >
-            색동 월 매출 목표
-          </h2>
-          <span className="text-[10px]" style={{ color: 'var(--nv-stone)' }}>
-            · 한태원 대표 12주 KR (월 1억)
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between mb-2">
-          <span
-            className="text-[24px] font-bold tabular-nums"
-            style={{ color: 'var(--nv-primary)' }}
-          >
-            {formatKRW(saekdongMonthRevenue)}
-          </span>
-          <span className="text-[12px]" style={{ color: 'var(--nv-stone)' }}>
-            / 목표 {formatKRW(SAEKDONG_MONTHLY_GOAL)}
-          </span>
-        </div>
-        <div
-          className="h-2.5 overflow-hidden"
-          style={{ backgroundColor: 'var(--nv-surface-soft)', borderRadius: '2px' }}
+      {/* 12주 목표 — 색동 프로젝트 OKR (큰 목표 + KR + 주별 타겟 + 5일 투두) */}
+      <div>
+        <h2
+          className="mb-3 text-base font-semibold flex items-center gap-1.5"
+          style={{ color: 'var(--nv-ink)' }}
         >
-          <div
-            className="h-full transition-all"
-            style={{ width: `${goalRate}%`, backgroundColor: 'var(--nv-primary)' }}
+          <Target className="w-4 h-4" style={{ color: 'var(--nv-primary)' }} />
+          색동 12주 목표{' '}
+          <span className="text-xs font-normal" style={{ color: 'var(--nv-stone)' }}>
+            (큰 목표 → KR → 주별 → 일일 투두)
+          </span>
+        </h2>
+        {cycle && project ? (
+          <SaekdongOkr
+            project={project}
+            cycleId={cycle.id}
+            cycleStart={cycle.start_date}
+            cycleEnd={cycle.end_date}
           />
-        </div>
-        <p className="mt-2 text-[11px]" style={{ color: 'var(--nv-mute)' }}>
-          색동 전용 매출 집계는 거래 태깅 방식 확정 후 연동됩니다. 현재는 목표 골격만 표시.
-        </p>
+        ) : (
+          <div
+            className="bg-white p-4"
+            style={{
+              border: '1px solid var(--nv-hairline)',
+              borderRadius: '2px',
+              color: 'var(--nv-mute)',
+            }}
+          >
+            {!cycle ? (
+              <p className="text-[13px]">
+                활성 12주 사이클이 없습니다.{' '}
+                <Link
+                  href="/finance/cycle"
+                  className="underline"
+                  style={{ color: 'var(--nv-success-deep)' }}
+                >
+                  12주 대시보드
+                </Link>
+                에서 사이클을 먼저 시작하세요.
+              </p>
+            ) : (
+              <p className="text-[13px]">색동 프로젝트를 불러오지 못했습니다.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 디안 본체 전체 매출 (엮어 보기) */}
@@ -177,7 +210,7 @@ export default async function SaekdongPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[
             { href: '/settlement', title: '디안 경영 계기판', desc: '일일 마감 + 매출·이익 흐름' },
-            { href: '/finance/cycle', title: '12주 대시보드', desc: '색동 월 1억 KR 진행' },
+            { href: '/finance/cycle', title: '12주 대시보드', desc: '전사 12주 목표 진행' },
             { href: '/finance/marketing/event-picker', title: '이벤트 피커', desc: '색동 댓글 이벤트 추첨' },
           ].map((c) => (
             <Link key={c.href} href={c.href} className="block">

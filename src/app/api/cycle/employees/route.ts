@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('employees')
       .select('*')
+      // 색동 신사업 프로젝트는 개인 직원이 아니므로 직원 목록에서 제외 (/saekdong 전용)
+      .neq('department', '__saekdong_project__')
       .order('display_order', { ascending: true })
     if (!includeInactive) query = query.eq('active', true)
     const { data, error } = await query
