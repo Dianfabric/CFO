@@ -14,7 +14,6 @@ import {
   CalendarCheck, TrendingUp, TrendingDown, ArrowRight, DollarSign, Target,
   Banknote, AlertTriangle, ChevronLeft, ChevronRight, Minus,
 } from 'lucide-react'
-import UploadSection from '@/components/upload/UploadSection'
 
 type PeriodType = 'day' | 'week' | 'month' | 'custom'
 
@@ -204,8 +203,7 @@ export default function SettlementView() {
 
   return (
     <div className="space-y-6">
-      {/* 파일 업로드 */}
-      <UploadSection onUploadSuccess={() => fetchData(selectedDate, periodType)} />
+      {/* 일일 마감 업로드는 공문/자료 페이지로 이동 (기능 동일) */}
 
       {/* 헤더 + 날짜 선택 */}
       <div className="flex items-center justify-between flex-wrap gap-3">

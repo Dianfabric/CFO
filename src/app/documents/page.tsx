@@ -10,6 +10,8 @@ import { FileText, Plus, TrendingUp, CalendarOff, Wallet, ListChecks, Search, Re
 import DocumentPreviewDialog, { DocFull } from '@/components/documents/DocumentPreviewDialog'
 import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/SavedDocumentRender'
 import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
+import UploadSection from '@/components/upload/UploadSection'
+import DailyChecklist from '@/components/documents/DailyChecklist'
 
 interface DocRow {
   id: string
@@ -153,6 +155,12 @@ export default function DocumentsPage() {
           </h1>
           <p className="text-sm text-slate-500">거래처 대상 공식 서한을 작성하고 PDF/JPG로 발행합니다</p>
         </div>
+      </div>
+
+      {/* 일일 마감 업로드 + 1일 체크리스트 — 매일 여기서 한 번에 */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
+        <UploadSection />
+        <DailyChecklist />
       </div>
 
       {/* 새 공문 작성 카드 */}
