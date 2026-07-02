@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import DianOverview from './DianOverview'
 import IntegratedSections from './IntegratedSections'
+import ReconCenter from './ReconCenter'
 import UpcomingSections from './UpcomingSections'
 
 type PeriodType = 'day' | 'week' | 'month' | 'custom'
@@ -421,7 +422,10 @@ export default function SettlementView() {
       {/* ③ 비용 구조 · 입금·발행 확인 · 재고 — 본체+색동 통합 */}
       <IntegratedSections />
 
-      {/* ④ 연동 예정 (엔에이아이디 · 본체 스와치/샘플 재고) */}
+      {/* ④ 대사 센터 — 퍼지 매칭 제안 (매출↔세금계산서 · 통장입금↔미수) */}
+      <ReconCenter />
+
+      {/* ⑤ 연동 예정 (엔에이아이디) */}
       <UpcomingSections />
     </div>
   )
