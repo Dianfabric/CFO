@@ -63,6 +63,7 @@ export type MenuGroup = {
 export const v10MenuItems: MenuItem[] = [
   { href: '/', label: '대시보드', icon: LayoutDashboard },
   { href: '/finance/cycle', label: '12주 대시보드', icon: TargetIcon },
+  { href: '/documents', label: '공문 / 자료', icon: FileText },
   { href: '/settlement', label: '디안 경영 계기판', icon: CalendarCheck },
   { href: '/saekdong', label: '색동 신사업', icon: Sparkles },
   { href: '/transactions', label: '거래 관리', icon: Receipt },
@@ -72,7 +73,6 @@ export const v10MenuItems: MenuItem[] = [
   { href: '/costs', label: '비용 관리', icon: Wallet },
   { href: '/analysis', label: '분석/시뮬레이션', icon: BarChart3 },
   { href: '/advisor', label: 'AI CFO 자문', icon: Bot },
-  { href: '/documents', label: '공문 / 자료', icon: FileText },
   { href: '/settings', label: '설정', icon: Settings },
 ]
 
