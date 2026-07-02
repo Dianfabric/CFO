@@ -6,12 +6,13 @@
  */
 import { NextResponse } from 'next/server'
 import { getSaekdongPayCheck } from '@/lib/saekdong-paycheck'
+import { withApiCache } from '@/lib/saekdong-api-cache'
 
 export const runtime = 'nodejs'
-// 3분 캐싱 — 아임웹 호출 제한(5건/초) 보호. 통장 업로드 반영은 최대 3분 지연.
-export const revalidate = 180
+export const dynamic = 'force-dynamic' // 캐싱은 Supabase 공유 캐시가 담당
 
 export async function GET() {
-  const data = await getSaekdongPayCheck()
+  // 3분 TTL — 아임웹 호출 제한 보호. 통장 업로드 반영은 최대 3분 지연.
+  const data = await withApiCache('paycheck', 180, () => getSaekdongPayCheck())
   return NextResponse.json(data)
 }

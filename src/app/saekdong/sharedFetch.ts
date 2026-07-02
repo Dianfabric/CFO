@@ -12,7 +12,11 @@ let offlinePromise: Promise<unknown> | null = null
 
 export function fetchSharedSales<T>(force = false): Promise<T> {
   if (force || !salesPromise) {
-    salesPromise = fetch('/api/saekdong/sales', force ? { cache: 'no-store' } : {})
+    // refresh=1 → 서버 공유 캐시 TTL 을 건너뛰고 갱신
+    salesPromise = fetch(
+      force ? '/api/saekdong/sales?refresh=1' : '/api/saekdong/sales',
+      force ? { cache: 'no-store' } : {},
+    )
       .then((r) => r.json())
       .catch((e) => {
         salesPromise = null // 실패 시 다음 시도에서 재요청
