@@ -26,13 +26,15 @@ export interface UnconfirmedSale {
   time: number // Unix seconds
   amount: number
   payType: string
+  imwebPaid: boolean // 아임웹 결제(입금) 확인 여부
 }
 
 export interface SaekdongPayCheck {
   since: string
   totalSales: number // 시행일 이후 매출 건수
-  confirmedCount: number // 입금 확인된 건수
-  unconfirmed: UnconfirmedSale[] // 미확인 (최신순)
+  imwebPaidCount: number // 아임웹 결제 확인 건수
+  confirmedCount: number // 통장 입금 확인된 건수
+  unconfirmed: UnconfirmedSale[] // 통장 미확인 (최신순)
   fetchedAt: string
   error?: string
 }
@@ -41,6 +43,7 @@ export async function getSaekdongPayCheck(): Promise<SaekdongPayCheck> {
   const base = {
     since: SINCE,
     totalSales: 0,
+    imwebPaidCount: 0,
     confirmedCount: 0,
     unconfirmed: [] as UnconfirmedSale[],
     fetchedAt: new Date().toISOString(),
@@ -84,6 +87,7 @@ export async function getSaekdongPayCheck(): Promise<SaekdongPayCheck> {
     return {
       ...base,
       totalSales: orders.length,
+      imwebPaidCount: orders.filter((o) => o.payTime > 0).length,
       confirmedCount,
       unconfirmed,
     }
@@ -96,5 +100,12 @@ export async function getSaekdongPayCheck(): Promise<SaekdongPayCheck> {
 }
 
 function toUnconfirmed(o: SimpleOrder): UnconfirmedSale {
-  return { orderNo: o.orderNo, date: o.date, time: o.time, amount: o.amount, payType: o.payType }
+  return {
+    orderNo: o.orderNo,
+    date: o.date,
+    time: o.time,
+    amount: o.amount,
+    payType: o.payType,
+    imwebPaid: o.payTime > 0,
+  }
 }

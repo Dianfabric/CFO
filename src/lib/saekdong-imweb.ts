@@ -60,7 +60,12 @@ interface OrderRow {
   order_no: string
   order_time: number // Unix seconds
   order_type: string
-  payment: { payment_amount: number; price_currency: string; pay_type?: string } | null
+  payment: {
+    payment_amount: number
+    price_currency: string
+    pay_type?: string
+    payment_time?: number // 결제(입금) 완료 시각 — 없으면 입금대기
+  } | null
 }
 
 interface ProdItem {
@@ -536,11 +541,12 @@ export interface SimpleOrder {
   date: string // YYYY-MM-DD (KST)
   amount: number // 결제 총액
   payType: string // npay / card / trans 등
+  payTime: number // 아임웹 결제(입금) 완료 시각 — 0 이면 입금대기
 }
 
 /**
  * fromDate(YYYY-MM-DD, KST) 이후 결제 주문 목록 — 통장 입금 대사용.
- * 개인정보 없이 주문번호·시각·금액·결제수단만.
+ * 개인정보 없이 주문번호·시각·금액·결제수단·결제시각만.
  */
 export async function getSaekdongOrdersFrom(fromDate: string): Promise<SimpleOrder[]> {
   const to = new Date()
@@ -554,6 +560,7 @@ export async function getSaekdongOrdersFrom(fromDate: string): Promise<SimpleOrd
       date: kstDate(o.order_time),
       amount: o.payment?.payment_amount ?? 0,
       payType: o.payment?.pay_type ?? '',
+      payTime: o.payment?.payment_time ?? 0,
     }))
     .filter((o) => o.date >= fromDate)
 }

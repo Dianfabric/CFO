@@ -72,10 +72,12 @@ interface UnconfirmedSale {
   time: number
   amount: number
   payType: string
+  imwebPaid: boolean
 }
 interface PayCheckData {
   since: string
   totalSales: number
+  imwebPaidCount: number
   confirmedCount: number
   unconfirmed: UnconfirmedSale[]
   fetchedAt: string
@@ -340,7 +342,8 @@ export default function SaekdongSales() {
               className="ml-auto text-[11px] font-bold tabular-nums"
               style={{ color: 'var(--nv-mute)' }}
             >
-              매출 {payCheck.totalSales}건 중 확인 {payCheck.confirmedCount}건
+              매출 {payCheck.totalSales}건 · 아임웹 결제 {payCheck.imwebPaidCount}건 · 통장 확인{' '}
+              {payCheck.confirmedCount}건
             </span>
           )}
         </div>
@@ -363,12 +366,12 @@ export default function SaekdongSales() {
             style={{ color: 'var(--nv-success-deep, #4a7c00)' }}
           >
             <CheckCircle2 className="w-4 h-4" />
-            모든 매출의 입금이 확인되었습니다.
+            모든 매출의 통장 입금이 확인되었습니다.
           </p>
         ) : (
           <>
             <p className="text-[11px] mb-2" style={{ color: 'var(--nv-error)' }}>
-              입금 미확인 {payCheck.unconfirmed.length}건 · 합계{' '}
+              통장 입금 미확인 {payCheck.unconfirmed.length}건 · 합계{' '}
               {formatKRW(payCheck.unconfirmed.reduce((s, u) => s + u.amount, 0))}
             </p>
             <div className="max-h-48 overflow-y-auto space-y-1.5">
@@ -382,6 +385,25 @@ export default function SaekdongSales() {
                     style={{ color: 'var(--nv-mute)' }}
                   >
                     {payLabel(u.payType)}
+                  </span>
+                  {/* 아임웹 결제 상태 */}
+                  <span
+                    className="shrink-0 px-1.5 py-0.5 text-[10px] font-bold"
+                    style={
+                      u.imwebPaid
+                        ? {
+                            backgroundColor: 'rgba(118, 185, 0, 0.12)',
+                            color: 'var(--nv-success-deep, #4a7c00)',
+                            borderRadius: '2px',
+                          }
+                        : {
+                            backgroundColor: '#fff7ed',
+                            color: '#c2410c',
+                            borderRadius: '2px',
+                          }
+                    }
+                  >
+                    {u.imwebPaid ? '아임웹 결제 ✓' : '아임웹 입금대기'}
                   </span>
                   <span
                     className="flex-1 truncate text-[11px]"
@@ -402,7 +424,8 @@ export default function SaekdongSales() {
           </>
         )}
         <p className="mt-2 text-[10px]" style={{ color: 'var(--nv-stone)' }}>
-          경영 계기판에 통장 내역을 업로드하면 같은 금액의 입금이 확인된 매출은 자동으로
+          <b>아임웹 결제 ✓</b> = 쇼핑몰에서 고객 결제 완료 · <b>통장 확인</b> = 실제 계좌 입금
+          확인. 경영 계기판에 통장 내역을 업로드하면 같은 금액의 입금이 확인된 매출은 자동으로
           사라집니다. 네이버페이·카드 정산이 여러 주문 묶음으로 입금되면 금액이 달라 미확인으로
           남을 수 있습니다.
         </p>
