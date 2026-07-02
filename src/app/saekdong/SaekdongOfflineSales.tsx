@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import { Store, RefreshCw, Loader2, Banknote, FileText } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import { fetchSharedOffline } from './sharedFetch'
 
 interface MonthlyPoint { month: string; revenue: number; orders: number }
 interface ProductSales { prodName: string; revenue: number; qty: number }
@@ -34,8 +35,7 @@ export default function SaekdongOfflineSales() {
   const fetchData = useCallback(async (force = false) => {
     if (force) setRefreshing(true)
     try {
-      const r = await fetch('/api/saekdong/offline-sales', force ? { cache: 'no-store' } : {})
-      const j = (await r.json()) as OfflineData
+      const j = await fetchSharedOffline<OfflineData>(force)
       setData(j)
     } catch {
       setData(null)

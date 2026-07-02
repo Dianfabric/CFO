@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Gauge, Loader2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import { fetchSharedSales, fetchSharedOffline } from './sharedFetch'
 import type { SaekdongPurchase, SaekdongExpense } from './actions'
 
 type Period = 'week' | 'month' | 'quarter' | 'year'
@@ -94,9 +95,10 @@ export default function SaekdongKpi({ purchases, expenses }: Props) {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
+      // 매출 섹션과 같은 요청을 공유 (아임웹 호출 제한 보호 — 페이지당 1회)
       const [s, o] = await Promise.all([
-        fetch('/api/saekdong/sales').then((r) => r.json()),
-        fetch('/api/saekdong/offline-sales').then((r) => r.json()),
+        fetchSharedSales<SalesData>(),
+        fetchSharedOffline<OfflineData>(),
       ])
       setSales(s)
       setOffline(o)
@@ -189,16 +191,24 @@ export default function SaekdongKpi({ purchases, expenses }: Props) {
             매출 데이터 불러오는 중... (첫 조회는 1분 정도 걸릴 수 있어요)
           </p>
         ) : (
-          <div className="flex flex-wrap items-stretch gap-y-5">
-            <Metric label="매출" value={m.revenue} big first />
-            <Metric label="매출원가" value={m.cogs} negative dim />
-            <Metric label="매출총이익" value={m.gross} rate={m.rate(m.gross)} />
-            <Metric label="변동비" value={m.variable} negative dim />
-            <Metric label="공헌이익" value={m.contribution} rate={m.rate(m.contribution)} />
-            <Metric label="고정비" value={m.fixed} negative dim />
-            <Metric label="영업이익" value={m.operating} rate={m.rate(m.operating)} big />
-            <Metric label="순이익" value={m.net} rate={m.rate(m.net)} big />
-          </div>
+          <>
+            <div className="flex flex-wrap items-stretch gap-y-5">
+              <Metric label="매출" value={m.revenue} big first />
+              <Metric label="매출원가" value={m.cogs} negative dim />
+              <Metric label="매출총이익" value={m.gross} rate={m.rate(m.gross)} />
+              <Metric label="변동비" value={m.variable} negative dim />
+              <Metric label="공헌이익" value={m.contribution} rate={m.rate(m.contribution)} />
+              <Metric label="고정비" value={m.fixed} negative dim />
+              <Metric label="영업이익" value={m.operating} rate={m.rate(m.operating)} big />
+              <Metric label="순이익" value={m.net} rate={m.rate(m.net)} big />
+            </div>
+            {(sales?.error || offline?.error) && (
+              <p className="mt-3 text-[11px] font-medium" style={{ color: '#fbbf24' }}>
+                ⚠ {sales?.error ? '온라인' : '오프라인'} 매출 조회 실패 — 위 지표는 일부 매출이
+                빠진 값입니다. 잠시 후 새로고침 해주세요.
+              </p>
+            )}
+          </>
         )}
       </div>
 

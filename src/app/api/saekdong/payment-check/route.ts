@@ -8,7 +8,8 @@ import { NextResponse } from 'next/server'
 import { getSaekdongPayCheck } from '@/lib/saekdong-paycheck'
 
 export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic' // 통장 업로드 즉시 반영
+// 3분 캐싱 — 아임웹 호출 제한(5건/초) 보호. 통장 업로드 반영은 최대 3분 지연.
+export const revalidate = 180
 
 export async function GET() {
   const data = await getSaekdongPayCheck()

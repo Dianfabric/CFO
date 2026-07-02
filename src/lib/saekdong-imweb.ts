@@ -23,7 +23,7 @@ async function throttle() {
 // 토큰 짧은 캐싱 (요청마다 재발급 방지 — 호출 제한 5건/초 보호)
 let cachedToken: { token: string; expires: number } | null = null
 
-async function getToken(): Promise<string> {
+async function getToken(retry = 2): Promise<string> {
   if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.token
   const key = process.env.IMWEB_API_KEY
   const secret = process.env.IMWEB_SECRET_KEY
@@ -33,22 +33,33 @@ async function getToken(): Promise<string> {
   await throttle()
   const r = await fetch(`${BASE}/auth?key=${key}&secret=${secret}`)
   const j = (await r.json()) as { access_token?: string; msg?: string }
-  if (!j.access_token) throw new Error(`아임웹 인증 실패: ${j.msg ?? 'unknown'}`)
+  if (!j.access_token) {
+    // 호출 제한으로 인증 자체가 튕기는 경우 대기 후 재시도
+    if (/TOO MANY/i.test(j.msg ?? '') && retry > 0) {
+      await new Promise((res) => setTimeout(res, 2500))
+      return getToken(retry - 1)
+    }
+    throw new Error(`아임웹 인증 실패: ${j.msg ?? 'unknown'}`)
+  }
   // 토큰 수명 보수적으로 20분 캐싱
   cachedToken = { token: j.access_token, expires: Date.now() + 20 * 60 * 1000 }
   return j.access_token
 }
 
-async function api<T>(path: string, retry = 2): Promise<T> {
+const API_RETRY = 4
+
+async function api<T>(path: string, retry = API_RETRY): Promise<T> {
   const token = await getToken()
   await throttle()
   const r = await fetch(`${BASE}${path}`, {
     headers: { 'access-token': token },
   })
   const j = (await r.json()) as { code?: number; msg?: string; data?: T }
-  // 호출 폭주(TOO MANY REQUEST) 시 잠시 대기 후 재시도
+  // 호출 폭주(TOO MANY REQUEST) 시 점증 대기 후 재시도
+  // (Vercel 서버리스는 라우트마다 별도 인스턴스라 동시 호출이 생길 수 있음)
   if (j.msg === 'TOO MANY REQUEST' && retry > 0) {
-    await new Promise((res) => setTimeout(res, 1500))
+    const wait = 1500 * (API_RETRY - retry + 1) // 1.5s → 3s → 4.5s → 6s
+    await new Promise((res) => setTimeout(res, wait))
     return api(path, retry - 1)
   }
   if (j.code !== 200) throw new Error(`아임웹 API 오류: ${j.msg ?? j.code}`)

@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 import { ShoppingBag, RefreshCw, Loader2, Banknote, CheckCircle2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import { fetchSharedSales } from './sharedFetch'
 import type { SaekdongPurchase } from './actions'
 
 interface MonthlyPoint {
@@ -108,8 +109,7 @@ export default function SaekdongSales({ purchases = [] }: { purchases?: Saekdong
   const fetchData = useCallback(async (force = false) => {
     if (force) setRefreshing(true)
     try {
-      const r = await fetch('/api/saekdong/sales', force ? { cache: 'no-store' } : {})
-      const j = (await r.json()) as SalesData
+      const j = await fetchSharedSales<SalesData>(force)
       setData(j)
     } catch {
       setData(null)
