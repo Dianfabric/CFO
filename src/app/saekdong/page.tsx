@@ -147,13 +147,19 @@ export default async function SaekdongPage() {
           <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--nv-mute)' }} />
           관련 화면
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { href: '/settlement', title: '디안 경영 계기판', desc: '일일 마감 + 매출·이익 흐름' },
             { href: '/finance/cycle', title: '12주 대시보드', desc: '전사 12주 목표 진행' },
             { href: '/finance/marketing/event-picker', title: '이벤트 피커', desc: '색동 댓글 이벤트 추첨' },
-          ].map((c) => (
-            <Link key={c.href} href={c.href} className="block">
+            {
+              href: 'https://center-pf.kakao.com/',
+              title: '카카오 채널 상담',
+              desc: '파트너센터 채팅 (새 탭)',
+              external: true,
+            },
+          ].map((c) => {
+            const card = (
               <div
                 className="bg-white p-4 h-full transition-colors"
                 style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
@@ -172,8 +178,17 @@ export default async function SaekdongPage() {
                   {c.desc}
                 </div>
               </div>
-            </Link>
-          ))}
+            )
+            return c.external ? (
+              <a key={c.href} href={c.href} target="_blank" rel="noreferrer" className="block">
+                {card}
+              </a>
+            ) : (
+              <Link key={c.href} href={c.href} className="block">
+                {card}
+              </Link>
+            )
+          })}
         </div>
       </div>
     </div>
