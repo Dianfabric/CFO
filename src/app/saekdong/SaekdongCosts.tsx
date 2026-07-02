@@ -156,7 +156,12 @@ export default function SaekdongCosts({
       {tab === 'purchase' ? (
         <>
           <PurchaseTab purchases={purchases} setPurchases={setPurchases} setError={setError} />
-          <ItemCostBlock itemCosts={itemCosts} setItemCosts={setItemCosts} setError={setError} />
+          <ItemCostBlock
+            itemCosts={itemCosts}
+            setItemCosts={setItemCosts}
+            purchases={purchases}
+            setError={setError}
+          />
         </>
       ) : (
         <ExpenseTab expenses={expenses} setExpenses={setExpenses} setError={setError} />
@@ -655,10 +660,11 @@ interface SoldProduct {
 }
 
 function ItemCostBlock({
-  itemCosts, setItemCosts, setError,
+  itemCosts, setItemCosts, purchases, setError,
 }: {
   itemCosts: SaekdongItemCost[]
   setItemCosts: React.Dispatch<React.SetStateAction<SaekdongItemCost[]>>
+  purchases: SaekdongPurchase[]
   setError: (m: string | null) => void
 }) {
   const [saving, setSaving] = useState(false)
@@ -680,6 +686,14 @@ function ItemCostBlock({
       })
       .catch(() => {})
   }, [])
+
+  // 원가 정보가 있는 품목 (기준단가 등록 or 매입 기록) — 없는 품목은 드롭다운에서 빨간색
+  const costKeys = useMemo(() => {
+    const set = new Set<string>()
+    for (const c of itemCosts) set.add(normItemName(c.item_name))
+    for (const p of purchases) set.add(normItemName(p.item_name))
+    return set
+  }, [itemCosts, purchases])
 
   const name = picked === CUSTOM ? customName : picked
   const unitCost = Number(cost) || 0
@@ -755,11 +769,18 @@ function ItemCostBlock({
           <option value="">
             {products.length > 0 ? `제품 선택 (${productYear}년 판매)` : '제품 목록 불러오는 중...'}
           </option>
-          {products.map((p) => (
-            <option key={p.prodName} value={p.prodName}>
-              {p.prodName} · {p.qty}개 판매
-            </option>
-          ))}
+          {products.map((p) => {
+            const hasCost = costKeys.has(normItemName(p.prodName))
+            return (
+              <option
+                key={p.prodName}
+                value={p.prodName}
+                style={{ color: hasCost ? undefined : '#dc2626' }}
+              >
+                {p.prodName} · {p.qty}개 판매{hasCost ? '' : ' · 원가 미입력'}
+              </option>
+            )
+          })}
           <option value={CUSTOM}>직접 입력 (미판매 품목)</option>
         </select>
         {picked === CUSTOM && (
