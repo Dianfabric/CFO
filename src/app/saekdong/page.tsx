@@ -143,15 +143,15 @@ export default async function SaekdongPage() {
         itemCosts={costs.itemCosts}
       />
 
-      {/* 색동 쇼핑몰 매출 (아임웹 실시간) — 제품별 이익은 매입·기준단가로 자동 계산 */}
-      <SaekdongSales purchases={costs.purchases} itemCosts={costs.itemCosts} />
-
-      {/* 색동 펄스 — 한 줄 모션 타이포 성장 전광판 */}
+      {/* 색동 펄스 — 한 줄 모션 타이포 성장 전광판 (경영지표 바로 아래) */}
       <SaekdongPulse
         purchases={costs.purchases}
         expenses={costs.expenses}
         itemCosts={costs.itemCosts}
       />
+
+      {/* 색동 쇼핑몰 매출 (아임웹 실시간) — 제품별 이익은 매입·기준단가로 자동 계산 */}
+      <SaekdongSales purchases={costs.purchases} itemCosts={costs.itemCosts} />
 
       {/* 색동 오프라인 매출 (경영 계기판 일계표 매칭) */}
       <SaekdongOfflineSales />
