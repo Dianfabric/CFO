@@ -170,10 +170,11 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     const gross = revenue - cogs // 매출총이익
     const contribution = gross - variable // 공헌이익
     const operating = contribution - fixed // 영업이익
-    const net = operating - nonOp // 순이익(근사)
+    // 세전이익 = 영업이익 − 영업외비용 (영업외수익·법인세는 법인 단위 — 사업부 지표에선 제외)
+    const pretax = operating - nonOp
     const rate = (v: number) => (revenue > 0 ? (v / revenue) * 100 : 0)
 
-    return { info, revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, net, rate }
+    return { info, revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, pretax, rate }
   }, [period, sales, offline, purchases, expenses, itemCosts])
 
   return (
@@ -225,7 +226,13 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
               <Metric label="공헌이익" value={m.contribution} rate={m.rate(m.contribution)} />
               <Metric label="고정비" value={m.fixed} negative dim />
               <Metric label="영업이익" value={m.operating} rate={m.rate(m.operating)} big />
-              <Metric label="순이익" value={m.net} rate={m.rate(m.net)} big />
+              {/* 영업외비용이 실제 등록된 경우에만 세전이익까지 표시 */}
+              {m.nonOp > 0 && (
+                <>
+                  <Metric label="영업외비용" value={m.nonOp} negative dim />
+                  <Metric label="세전이익" value={m.pretax} rate={m.rate(m.pretax)} big />
+                </>
+              )}
             </div>
             {(sales?.error || offline?.error) && (
               <p className="mt-3 text-[11px] font-medium" style={{ color: '#fbbf24' }}>
@@ -239,8 +246,9 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
 
       <p className="text-[10px] text-right" style={{ color: 'var(--nv-stone)' }}>
         온라인 매출 부가세 제외 환산(÷1.1) · 매출원가 = 기간 매입액 + 기준단가×판매수량
-        추정(재고 미반영) · 고정비 월 등록액 기간 비례 배분 · 순이익은 이자·세금 반영 전
-        근사치 · 제품별 이익은 아래 ‘{sales?.productYear ?? '올해'}년 제품 매출’에 표시
+        추정(재고 미반영) · 고정비 월 등록액 기간 비례 배분 · 영업외비용 등록 시 세전이익
+        표시 (영업외수익·법인세는 법인 단위라 사업부 지표에서 제외) · 제품별 이익은 아래 ‘
+        {sales?.productYear ?? '올해'}년 제품 매출’에 표시
       </p>
     </div>
   )
