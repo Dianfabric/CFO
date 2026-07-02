@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Gauge, Loader2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 import { fetchSharedSales, fetchSharedOffline } from '@/app/saekdong/sharedFetch'
+import { listSaekdongCosts } from '@/app/saekdong/actions'
+import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from '@/app/saekdong/actions'
 
 type Period = 'week' | 'month' | 'quarter' | 'year'
 
@@ -24,7 +26,22 @@ interface SeriesData {
   thisWeek: number
   thisMonth: number
   thisYear?: number
+  products?: { prodName: string; revenue: number; qty: number }[]
   error?: string
+}
+
+function normName(s: string): string {
+  return String(s || '').replace(/\[[^\]]*\]/g, '').toLowerCase().replace(/\s+/g, '')
+}
+
+/** 확정월(전월) 범위 — KST */
+function prevMonthRange(): { key: string; start: string; end: string } {
+  const today = kstToday()
+  const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))]
+  const first = new Date(y, m - 2, 1) // 전월 1일
+  const last = new Date(y, m - 1, 0) // 전월 말일
+  const ymd = (d: Date) => d.toLocaleDateString('sv-SE')
+  return { key: ymd(first).slice(0, 7), start: ymd(first), end: ymd(last) }
 }
 
 const PERIODS: { key: Period; label: string }[] = [
@@ -105,19 +122,35 @@ export default function DianOverview() {
   const [dian, setDian] = useState<SeriesData | null>(null)
   const [saekOn, setSaekOn] = useState<SeriesData | null>(null)
   const [saekOff, setSaekOff] = useState<SeriesData | null>(null)
+  const [bodyOpPrev, setBodyOpPrev] = useState<number | null>(null) // 본체 확정월 영업이익
+  const [saekCosts, setSaekCosts] = useState<{
+    purchases: SaekdongPurchase[]
+    expenses: SaekdongExpense[]
+    itemCosts: SaekdongItemCost[]
+  } | null>(null)
   const [loading, setLoading] = useState(true)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [d, s, o] = await Promise.all([
+      const pm = prevMonthRange()
+      const [d, s, o, st, sc] = await Promise.all([
         fetch('/api/settlement/monthly').then((r) => r.json()),
         fetchSharedSales<SeriesData>().catch(() => null),
         fetchSharedOffline<SeriesData>().catch(() => null),
+        // 확정월 본체 영업이익 (결산 API — 매입원가·비용·고정비 반영)
+        fetch(`/api/settlement/daily?startDate=${pm.start}&endDate=${pm.end}`)
+          .then((r) => r.json())
+          .catch(() => null),
+        listSaekdongCosts().catch(() => null),
       ])
       setDian(d)
       setSaekOn(s)
       setSaekOff(o)
+      setBodyOpPrev(
+        st && typeof st.dailyOperatingProfit === 'number' ? st.dailyOperatingProfit : null,
+      )
+      if (sc) setSaekCosts({ purchases: sc.purchases, expenses: sc.expenses, itemCosts: sc.itemCosts })
     } catch {
       // 부가 표시 — 실패 시 0
     } finally {
@@ -157,8 +190,52 @@ export default function DianOverview() {
     const lastSaekOff = lastIdx >= 0 ? (offMap.get(months[lastIdx]) ?? 0) : 0
     const saekShare = lastRev > 0 ? ((lastSaekOn + lastSaekOff) / lastRev) * 100 : null
 
-    return { dianBody, saekOnline, saekOffline, total, saekTotal, dianFabric, series, lastRev, growth, lastLabel, saekShare }
-  }, [dian, saekOn, saekOff, period])
+    // ── 확정월 통합 영업이익 (근사) ──
+    // = 본체 영업이익(결산 API) + 색동 영업이익 − 색동 오프라인 매출(이중계상 제거)
+    let profit: number | null = null
+    let profitRate: number | null = null
+    if (bodyOpPrev != null && lastIdx >= 0) {
+      const pmKey = months[lastIdx]
+      const exps = saekCosts?.expenses ?? []
+      const monthlyActive = (e: SaekdongExpense) =>
+        (!e.start_month || e.start_month <= pmKey) && (!e.end_month || e.end_month >= pmKey)
+      const expSum = (filter: (e: SaekdongExpense) => boolean) =>
+        exps.reduce(
+          (s, e) =>
+            s +
+            (e.is_monthly
+              ? monthlyActive(e) && filter(e) ? e.amount : 0
+              : (e.expense_date ?? '').startsWith(pmKey) && filter(e) ? e.amount : 0),
+          0,
+        )
+      // 색동 매출원가: 확정월 매입 + 성격=매출원가 비용 + 기준단가 추정(올해 원가율 × 확정월 온라인)
+      const purch = (saekCosts?.purchases ?? [])
+        .filter((p) => p.purchase_date.startsWith(pmKey))
+        .reduce((s, p) => s + p.amount, 0)
+      const purchasedKeys = new Set((saekCosts?.purchases ?? []).map((p) => normName(p.item_name)))
+      const stdMap = new Map((saekCosts?.itemCosts ?? []).map((c) => [normName(c.item_name), c.unit_cost]))
+      let yearStdCogs = 0
+      for (const pr of saekOn?.products ?? []) {
+        const k = normName(pr.prodName)
+        if (purchasedKeys.has(k)) continue
+        const uc = stdMap.get(k)
+        if (uc != null) yearStdCogs += uc * pr.qty
+      }
+      const yearOnlineSupply = Math.round((saekOn?.thisYear ?? 0) / 1.1)
+      const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
+      const saekCogs = purch + expSum((e) => e.nature === '매출원가') + Math.round(lastSaekOn * stdRate)
+      const saekVar = expSum((e) => e.cost_type === 'variable' && e.nature === '판관비')
+      const saekFixed = expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비')
+      const saekOp = lastSaekOn + lastSaekOff - saekCogs - saekVar - saekFixed
+      profit = bodyOpPrev + saekOp - lastSaekOff // 오프라인 매출 이중계상 제거
+      profitRate = lastRev > 0 ? (profit / lastRev) * 100 : null
+    }
+
+    return {
+      dianBody, saekOnline, saekOffline, total, saekTotal, dianFabric,
+      series, lastRev, growth, lastLabel, saekShare, profit, profitRate,
+    }
+  }, [dian, saekOn, saekOff, period, bodyOpPrev, saekCosts])
 
   const lastRevCount = useCountUp(m.lastRev)
 
@@ -265,11 +342,30 @@ export default function DianOverview() {
                 {m.lastLabel} 총매출 중 색동
               </p>
             </Cell>
-            <Cell label="이익 흐름" dim>
-              <span style={{ color: 'rgba(255,255,255,0.35)' }}>다음 단계</span>
-              <p className="mt-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                매입·고정비·변동비 통합 후 표시
-              </p>
+            <Cell label={`${m.lastLabel} 통합 영업이익`}>
+              {m.profit == null ? (
+                <>
+                  <span style={{ color: 'rgba(255,255,255,0.35)' }}>—</span>
+                  <p className="mt-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    결산 데이터 없음
+                  </p>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: m.profit >= 0 ? '#76b900' : '#f87171' }}>
+                    {formatKRW(m.profit)}
+                  </span>
+                  <p
+                    className="mt-1 text-[11px] font-bold tabular-nums"
+                    style={{ color: m.profit >= 0 ? 'rgba(118,185,0,0.9)' : '#f87171' }}
+                  >
+                    영업이익률 {m.profitRate == null ? '—' : `${m.profitRate.toFixed(1)}%`}
+                  </p>
+                  <p className="mt-0.5 text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    본체 + 색동 (근사)
+                  </p>
+                </>
+              )}
             </Cell>
             <Cell label="엔에이아이디" dim>
               <span style={{ color: 'rgba(255,255,255,0.35)' }}>연동 예정</span>
