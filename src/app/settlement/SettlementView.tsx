@@ -11,7 +11,7 @@ import {
   PieChart, Pie, Legend,
 } from 'recharts'
 import {
-  CalendarCheck, TrendingUp, TrendingDown, ArrowRight, DollarSign, Target,
+  Compass, TrendingUp, TrendingDown, ArrowRight, DollarSign, Target,
   Banknote, AlertTriangle, ChevronLeft, ChevronRight, Minus,
 } from 'lucide-react'
 
@@ -207,11 +207,24 @@ export default function SettlementView() {
 
       {/* 헤더 + 날짜 선택 */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <CalendarCheck className="w-6 h-6 text-blue-600" /> 결산
+        <div className="max-w-2xl">
+          <div className="mb-1 flex items-center gap-1.5">
+            <Compass className="h-3.5 w-3.5 text-blue-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">
+              Dian Compass
+            </span>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            경영 계기판 — 지금 어디에, 어디로.
           </h1>
-          <p className="text-sm text-slate-500">공헌이익 기반 경영 성과 분석</p>
+          <p className="mt-1 text-sm text-slate-500">
+            흔들리는 것은 방향을 몰라서가 아니라, 지금 어디에 있는지 모르기 때문입니다.
+            매출·이익·현금의 흐름으로 디안의 현재 위치를 확인하고 나아갈 방향을 짚는
+            나침반입니다.
+          </p>
+          <p className="mt-2 border-l-2 border-slate-200 pl-2.5 text-xs italic text-slate-400">
+            “측정할 수 없으면, 관리할 수 없다.” — 피터 드러커
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* 기간 선택 */}
