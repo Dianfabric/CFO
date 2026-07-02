@@ -60,7 +60,7 @@ interface OrderRow {
   order_no: string
   order_time: number // Unix seconds
   order_type: string
-  payment: { payment_amount: number; price_currency: string } | null
+  payment: { payment_amount: number; price_currency: string; pay_type?: string } | null
 }
 
 interface ProdItem {
@@ -526,4 +526,34 @@ export async function getProdCategoryMap(): Promise<Record<number, string>> {
   }
   cachedProdCat = { map, expires: Date.now() + 6 * 60 * 60 * 1000 }
   return map
+}
+
+// ── 입금 대사용 주문 목록 ──
+
+export interface SimpleOrder {
+  orderNo: string
+  time: number // Unix seconds
+  date: string // YYYY-MM-DD (KST)
+  amount: number // 결제 총액
+  payType: string // npay / card / trans 등
+}
+
+/**
+ * fromDate(YYYY-MM-DD, KST) 이후 결제 주문 목록 — 통장 입금 대사용.
+ * 개인정보 없이 주문번호·시각·금액·결제수단만.
+ */
+export async function getSaekdongOrdersFrom(fromDate: string): Promise<SimpleOrder[]> {
+  const to = new Date()
+  to.setDate(to.getDate() + 1) // order_date_to exclusive → 오늘 포함
+  const orders = await fetchOrdersLong(new Date(fromDate), to)
+  return orders
+    .filter((o) => (o.payment?.payment_amount ?? 0) > 0)
+    .map((o) => ({
+      orderNo: o.order_no,
+      time: o.order_time,
+      date: kstDate(o.order_time),
+      amount: o.payment?.payment_amount ?? 0,
+      payType: o.payment?.pay_type ?? '',
+    }))
+    .filter((o) => o.date >= fromDate)
 }

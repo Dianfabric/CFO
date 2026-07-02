@@ -14,7 +14,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts'
-import { ShoppingBag, RefreshCw, Loader2 } from 'lucide-react'
+import { ShoppingBag, RefreshCw, Loader2, Banknote, CheckCircle2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 
 interface MonthlyPoint {
@@ -54,11 +54,41 @@ const ALL = '__all__'
 const CAT_LABEL: Record<string, string> = { saekdong: 'Fabric' }
 const catLabel = (name: string) => CAT_LABEL[name] ?? name
 
+// 결제수단 표시명
+const PAY_LABEL: Record<string, string> = {
+  npay: '네이버페이',
+  card: '카드',
+  trans: '계좌이체',
+  vbank: '가상계좌',
+  deposit: '무통장입금',
+  phone: '휴대폰',
+  kakaopay: '카카오페이',
+}
+const payLabel = (t: string) => PAY_LABEL[t] ?? (t || '기타')
+
+interface UnconfirmedSale {
+  orderNo: string
+  date: string
+  time: number
+  amount: number
+  payType: string
+}
+interface PayCheckData {
+  since: string
+  totalSales: number
+  confirmedCount: number
+  unconfirmed: UnconfirmedSale[]
+  fetchedAt: string
+  error?: string
+}
+
 export default function SaekdongSales() {
   const [data, setData] = useState<SalesData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [activeCat, setActiveCat] = useState<string>(ALL)
+  const [payCheck, setPayCheck] = useState<PayCheckData | null>(null)
+  const [payCheckLoading, setPayCheckLoading] = useState(true)
 
   const fetchData = useCallback(async (force = false) => {
     if (force) setRefreshing(true)
@@ -74,9 +104,24 @@ export default function SaekdongSales() {
     }
   }, [])
 
+  // 입금 확인 대사 — 매출 조회와 별도(가벼움), 새로고침 시 함께 갱신
+  const fetchPayCheck = useCallback(async () => {
+    setPayCheckLoading(true)
+    try {
+      const r = await fetch('/api/saekdong/payment-check', { cache: 'no-store' })
+      const j = (await r.json()) as PayCheckData
+      setPayCheck(j)
+    } catch {
+      setPayCheck(null)
+    } finally {
+      setPayCheckLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchData()
-  }, [fetchData])
+    fetchPayCheck()
+  }, [fetchData, fetchPayCheck])
 
   if (loading) {
     return (
@@ -133,7 +178,10 @@ export default function SaekdongSales() {
         </span>
         <button
           type="button"
-          onClick={() => fetchData(true)}
+          onClick={() => {
+            fetchData(true)
+            fetchPayCheck()
+          }}
           disabled={refreshing}
           className="ml-auto h-7 px-2 text-[11px] font-bold inline-flex items-center gap-1 bg-white transition-colors"
           style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px', color: 'var(--nv-mute)' }}
@@ -272,6 +320,92 @@ export default function SaekdongSales() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* 입금 확인 — 아임웹 매출 ↔ 통장 내역 자동 대사 (7월 시행) */}
+      <div
+        className="bg-white p-4"
+        style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}
+      >
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+          <Banknote className="w-4 h-4" style={{ color: 'var(--nv-primary)' }} />
+          <h3 className="text-[13px] font-bold" style={{ color: 'var(--nv-ink)' }}>
+            입금 확인
+          </h3>
+          <span className="text-[11px]" style={{ color: 'var(--nv-stone)' }}>
+            · {payCheck?.since ?? '2026-07-01'}부터 · 통장 내역 업로드와 자동 대사
+          </span>
+          {payCheck && !payCheck.error && (
+            <span
+              className="ml-auto text-[11px] font-bold tabular-nums"
+              style={{ color: 'var(--nv-mute)' }}
+            >
+              매출 {payCheck.totalSales}건 중 확인 {payCheck.confirmedCount}건
+            </span>
+          )}
+        </div>
+        {payCheckLoading ? (
+          <p className="text-[12px] py-2" style={{ color: 'var(--nv-mute)' }}>
+            <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1.5" />
+            입금 대사 중...
+          </p>
+        ) : !payCheck || payCheck.error ? (
+          <p className="text-[12px] py-1" style={{ color: 'var(--nv-error)' }}>
+            ⚠ 입금 대사 실패{payCheck?.error ? `: ${payCheck.error}` : ''}
+          </p>
+        ) : payCheck.totalSales === 0 ? (
+          <p className="text-[12px] py-1" style={{ color: 'var(--nv-stone)' }}>
+            {payCheck.since} 이후 매출이 아직 없습니다.
+          </p>
+        ) : payCheck.unconfirmed.length === 0 ? (
+          <p
+            className="text-[12px] py-1 inline-flex items-center gap-1.5 font-medium"
+            style={{ color: 'var(--nv-success-deep, #4a7c00)' }}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            모든 매출의 입금이 확인되었습니다.
+          </p>
+        ) : (
+          <>
+            <p className="text-[11px] mb-2" style={{ color: 'var(--nv-error)' }}>
+              입금 미확인 {payCheck.unconfirmed.length}건 · 합계{' '}
+              {formatKRW(payCheck.unconfirmed.reduce((s, u) => s + u.amount, 0))}
+            </p>
+            <div className="max-h-48 overflow-y-auto space-y-1.5">
+              {payCheck.unconfirmed.map((u) => (
+                <div key={u.orderNo} className="flex items-center gap-2 text-[12px]">
+                  <span className="w-12 shrink-0 tabular-nums" style={{ color: 'var(--nv-stone)' }}>
+                    {u.date.slice(5).replace('-', '.')}
+                  </span>
+                  <span
+                    className="w-20 shrink-0 truncate"
+                    style={{ color: 'var(--nv-mute)' }}
+                  >
+                    {payLabel(u.payType)}
+                  </span>
+                  <span
+                    className="flex-1 truncate text-[11px]"
+                    style={{ color: 'var(--nv-stone)' }}
+                    title={`주문번호 ${u.orderNo}`}
+                  >
+                    주문 …{u.orderNo.slice(-7)}
+                  </span>
+                  <span
+                    className="shrink-0 text-right tabular-nums font-bold"
+                    style={{ color: 'var(--nv-error)' }}
+                  >
+                    {formatKRW(u.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        <p className="mt-2 text-[10px]" style={{ color: 'var(--nv-stone)' }}>
+          경영 계기판에 통장 내역을 업로드하면 같은 금액의 입금이 확인된 매출은 자동으로
+          사라집니다. 네이버페이·카드 정산이 여러 주문 묶음으로 입금되면 금액이 달라 미확인으로
+          남을 수 있습니다.
+        </p>
       </div>
 
       <p className="text-[10px] text-right" style={{ color: 'var(--nv-stone)' }}>
