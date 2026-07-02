@@ -4,18 +4,13 @@
  * 매입·고정비·변동비·입금확인·발행·재고는 IntegratedSections 로 통합 완료.
  * 남은 것: 엔에이아이디(법인) 매출 연동, 본체 스와치·샘플 재고.
  */
-import { Building2, Boxes } from 'lucide-react'
+import { Building2 } from 'lucide-react'
 
 const SECTIONS = [
   {
     title: '법인 매출 (엔에이아이디)',
     desc: '법인 거래 매출·비용 — 데이터 소스 결정 후 연동',
     icon: Building2,
-  },
-  {
-    title: '본체 재고 (스와치·샘플)',
-    desc: '스와치·샘플북·샘플 재고 — 색동 재고 방식 확장 예정',
-    icon: Boxes,
   },
 ]
 

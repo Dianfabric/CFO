@@ -19,6 +19,7 @@ import { formatKRW } from '@/lib/formatters'
 import { listSaekdongCosts } from '@/app/saekdong/actions'
 import type { SaekdongPurchase, SaekdongExpense, SaekdongGift } from '@/app/saekdong/actions'
 import { fetchSharedSales, fetchSharedOffline } from '@/app/saekdong/sharedFetch'
+import SampleStock from './SampleStock'
 
 const box: React.CSSProperties = { border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }
 
@@ -263,13 +264,18 @@ export default function IntegratedSections() {
         </div>
       </div>
 
-      {/* ── 재고 (색동 완제품 — 스와치·샘플은 다음 단계) ── */}
+      {/* ── 재고 (색동 완제품 + 본체 스와치·샘플) ── */}
       <div>
         <h2 className="mb-1 text-base font-semibold text-slate-900">재고</h2>
         <p className="mb-3 text-xs text-slate-400">
-          색동 완제품 재고 (입고 − 판매 − 선물) · 본체 스와치·샘플 재고는 연동 예정
+          색동 완제품 (입고 − 판매 − 선물) · 본체 스와치·샘플 (입고 − 발송)
         </p>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 items-start">
         <div className="bg-white p-4" style={box}>
+          <p className="mb-2 text-[12px] font-bold text-slate-800">
+            <Boxes className="w-3.5 h-3.5 inline mr-1 text-slate-400" />
+            색동 완제품
+          </p>
           {stockRows.length === 0 ? (
             <p className="text-[12px] italic text-slate-400">
               색동 매입을 입력하면 재고가 표시됩니다.{' '}
@@ -315,6 +321,10 @@ export default function IntegratedSections() {
               </p>
             </div>
           )}
+        </div>
+
+        {/* 본체 스와치·샘플 재고 (V1) */}
+        <SampleStock />
         </div>
       </div>
     </div>
