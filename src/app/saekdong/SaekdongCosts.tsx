@@ -14,13 +14,16 @@ import {
   Package, Receipt, Plus, Trash2, Loader2, CheckCircle2, Circle, AlertTriangle,
 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
-import { fetchSharedSales } from './sharedFetch'
+import { fetchSharedSales, fetchSharedOffline } from './sharedFetch'
 import {
   addSaekdongPurchase, updateSaekdongPurchase, deleteSaekdongPurchase,
   addSaekdongExpense, deleteSaekdongExpense,
   upsertSaekdongItemCost, deleteSaekdongItemCost,
+  addSaekdongGift, deleteSaekdongGift,
 } from './actions'
-import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from './actions'
+import type {
+  SaekdongPurchase, SaekdongExpense, SaekdongItemCost, SaekdongGift,
+} from './actions'
 
 // 디안 관리회계 엑셀 분류 준용
 export const EXPENSE_CATEGORIES = [
@@ -45,15 +48,17 @@ interface Props {
   initialPurchases: SaekdongPurchase[]
   initialExpenses: SaekdongExpense[]
   initialItemCosts?: SaekdongItemCost[]
+  initialGifts?: SaekdongGift[]
   tableMissing?: boolean
 }
 
 export default function SaekdongCosts({
-  initialPurchases, initialExpenses, initialItemCosts = [], tableMissing,
+  initialPurchases, initialExpenses, initialItemCosts = [], initialGifts = [], tableMissing,
 }: Props) {
   const [purchases, setPurchases] = useState(initialPurchases)
   const [expenses, setExpenses] = useState(initialExpenses)
   const [itemCosts, setItemCosts] = useState(initialItemCosts)
+  const [gifts, setGifts] = useState(initialGifts)
   const [tab, setTab] = useState<'purchase' | 'expense'>('purchase')
   const [error, setError] = useState<string | null>(null)
 
@@ -156,6 +161,12 @@ export default function SaekdongCosts({
       {tab === 'purchase' ? (
         <>
           <PurchaseTab purchases={purchases} setPurchases={setPurchases} setError={setError} />
+          <StockBlock
+            purchases={purchases}
+            gifts={gifts}
+            setGifts={setGifts}
+            setError={setError}
+          />
           <ItemCostBlock
             itemCosts={itemCosts}
             setItemCosts={setItemCosts}
@@ -868,6 +879,265 @@ function ItemCostBlock({
               </span>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════ 재고 현황 — 입고 · 판매 · 선물 · 남은 재고 ═══════════
+
+function StockBlock({
+  purchases, gifts, setGifts, setError,
+}: {
+  purchases: SaekdongPurchase[]
+  gifts: SaekdongGift[]
+  setGifts: React.Dispatch<React.SetStateAction<SaekdongGift[]>>
+  setError: (m: string | null) => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [busyId, setBusyId] = useState<number | null>(null)
+  const [showGifts, setShowGifts] = useState(false)
+  const [f, setF] = useState({ item: '', qty: '1', date: todayYmd(), memo: '' })
+  const [soldMap, setSoldMap] = useState<Map<string, number>>(new Map())
+  const [soldLoaded, setSoldLoaded] = useState(false)
+
+  // 판매수량 = 온라인(아임웹) + 오프라인(일계표) — 페이지 공유 fetch 재사용
+  useEffect(() => {
+    Promise.all([
+      fetchSharedSales<{ products?: { prodName: string; qty: number }[] }>(),
+      fetchSharedOffline<{ products?: { prodName: string; qty: number }[] }>(),
+    ])
+      .then(([s, o]) => {
+        const map = new Map<string, number>()
+        for (const list of [s.products, o.products]) {
+          for (const p of list ?? []) {
+            const k = normItemName(p.prodName)
+            map.set(k, (map.get(k) ?? 0) + (Number(p.qty) || 0))
+          }
+        }
+        setSoldMap(map)
+        setSoldLoaded(true)
+      })
+      .catch(() => setSoldLoaded(true))
+  }, [])
+
+  // 재고 행: 매입 또는 선물 기록이 있는 품목
+  const rows = useMemo(() => {
+    const stocked = new Map<string, { name: string; stocked: number; gifted: number }>()
+    for (const p of purchases) {
+      const k = normItemName(p.item_name)
+      const cur = stocked.get(k) ?? { name: p.item_name, stocked: 0, gifted: 0 }
+      cur.stocked += Number(p.qty) || 0
+      stocked.set(k, cur)
+    }
+    for (const g of gifts) {
+      const k = normItemName(g.item_name)
+      const cur = stocked.get(k) ?? { name: g.item_name, stocked: 0, gifted: 0 }
+      cur.gifted += Number(g.qty) || 0
+      stocked.set(k, cur)
+    }
+    return [...stocked.entries()]
+      .map(([k, v]) => {
+        const sold = soldMap.get(k) ?? 0
+        const remaining = v.stocked - sold - v.gifted
+        return {
+          key: k,
+          name: v.name,
+          stocked: v.stocked,
+          sold,
+          gifted: v.gifted,
+          remaining,
+          sellRate: v.stocked > 0 ? (sold / v.stocked) * 100 : null,
+          giftRate: v.stocked > 0 ? (v.gifted / v.stocked) * 100 : null,
+        }
+      })
+      .sort((a, b) => b.stocked - a.stocked)
+  }, [purchases, gifts, soldMap])
+
+  const addGift = async () => {
+    const qty = Number(f.qty) || 0
+    if (!f.item.trim() || qty <= 0) {
+      setError('선물 품목과 수량을 입력하세요.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    const res = await addSaekdongGift({
+      gift_date: f.date,
+      item_name: f.item.trim(),
+      qty,
+      memo: f.memo.trim() || null,
+    })
+    setSaving(false)
+    if (!res.ok) {
+      setError(
+        /find the table|does not exist/i.test(res.error ?? '')
+          ? '선물 테이블이 없습니다 — supabase/migrations/2026-07-02_saekdong_gifts.sql 을 실행해 주세요.'
+          : (res.error ?? '저장 실패'),
+      )
+      return
+    }
+    setGifts((prev) => [
+      { id: Date.now(), gift_date: f.date, item_name: f.item.trim(), qty, memo: f.memo.trim() || null },
+      ...prev,
+    ])
+    setF({ ...f, qty: '1', memo: '' })
+  }
+
+  const removeGift = async (id: number) => {
+    if (!confirm('이 선물 기록을 삭제할까요? (재고가 다시 늘어납니다)')) return
+    setBusyId(id)
+    const res = await deleteSaekdongGift(id)
+    setBusyId(null)
+    if (!res.ok) { setError(res.error ?? '삭제 실패'); return }
+    setGifts((prev) => prev.filter((g) => g.id !== id))
+  }
+
+  const itemOptions = [...new Set(purchases.map((p) => p.item_name))]
+
+  return (
+    <div className="bg-white p-4" style={box}>
+      <p className="text-[12px] font-bold" style={{ color: 'var(--nv-ink)' }}>
+        재고 현황{' '}
+        <span className="font-normal text-[11px]" style={{ color: 'var(--nv-stone)' }}>
+          · 남은 재고 = 입고(매입) − 판매(온라인+오프라인) − 선물 · 2026년 판매 기준
+        </span>
+      </p>
+
+      {/* 선물(무료) 입력 */}
+      <div className="mt-2.5 mb-3 flex flex-wrap items-center gap-2">
+        <select
+          className={inputCls + ' w-44'}
+          style={inputStyle}
+          value={f.item}
+          onChange={(e) => setF({ ...f, item: e.target.value })}
+        >
+          <option value="">선물(무료) 품목 선택</option>
+          {itemOptions.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+        <input
+          type="number"
+          placeholder="수량"
+          className={inputCls + ' w-20'}
+          style={inputStyle}
+          value={f.qty}
+          onChange={(e) => setF({ ...f, qty: e.target.value })}
+        />
+        <input
+          type="date"
+          className={inputCls + ' w-36'}
+          style={inputStyle}
+          value={f.date}
+          onChange={(e) => setF({ ...f, date: e.target.value })}
+        />
+        <input
+          placeholder="메모 (누구에게 등)"
+          className={inputCls + ' flex-1 min-w-32'}
+          style={inputStyle}
+          value={f.memo}
+          onChange={(e) => setF({ ...f, memo: e.target.value })}
+        />
+        <button
+          type="button"
+          onClick={addGift}
+          disabled={saving}
+          className="h-8 px-3 text-[12px] font-bold inline-flex items-center gap-1 shrink-0"
+          style={{ backgroundColor: 'var(--nv-primary)', color: '#000', borderRadius: '2px' }}
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          선물 기록
+        </button>
+      </div>
+
+      {/* 재고 표 */}
+      {rows.length === 0 ? (
+        <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>
+          매입을 입력하면 품목별 재고가 여기에 표시됩니다.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]" style={{ minWidth: 640 }}>
+            <thead>
+              <tr className="text-left" style={{ color: 'var(--nv-stone)', borderBottom: '1px solid var(--nv-hairline)' }}>
+                <th className="py-1.5 pr-2 font-medium">품목</th>
+                <th className="pr-2 font-medium text-right">입고</th>
+                <th className="pr-2 font-medium text-right">판매</th>
+                <th className="pr-2 font-medium text-right">선물</th>
+                <th className="pr-2 font-medium text-right">남은 재고</th>
+                <th className="pr-2 font-medium text-right">판매율</th>
+                <th className="font-medium text-right">선물율</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key} style={{ borderBottom: '1px solid var(--nv-hairline)' }}>
+                  <td className="py-1.5 pr-2 font-medium" style={{ color: 'var(--nv-ink)' }}>{r.name}</td>
+                  <td className="pr-2 text-right tabular-nums">{r.stocked}</td>
+                  <td className="pr-2 text-right tabular-nums">
+                    {soldLoaded ? r.sold : <Loader2 className="w-3 h-3 animate-spin inline" />}
+                  </td>
+                  <td className="pr-2 text-right tabular-nums" style={{ color: r.gifted > 0 ? '#c2410c' : 'var(--nv-stone)' }}>
+                    {r.gifted}
+                  </td>
+                  <td
+                    className="pr-2 text-right tabular-nums font-bold"
+                    style={{ color: r.remaining < 0 ? 'var(--nv-error)' : r.remaining <= 5 ? '#c2410c' : 'var(--nv-ink)' }}
+                    title={r.remaining < 0 ? '재고가 음수 — 입고 수량 입력 누락 가능성' : undefined}
+                  >
+                    {r.remaining}
+                    {r.remaining < 0 && ' ⚠'}
+                  </td>
+                  <td className="pr-2 text-right tabular-nums" style={{ color: 'var(--nv-success-deep, #4a7c00)' }}>
+                    {r.sellRate != null ? `${r.sellRate.toFixed(0)}%` : '-'}
+                  </td>
+                  <td className="text-right tabular-nums" style={{ color: 'var(--nv-mute)' }}>
+                    {r.giftRate != null ? `${r.giftRate.toFixed(0)}%` : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 선물 내역 (접이식) */}
+      {gifts.length > 0 && (
+        <div className="mt-3 pt-2" style={{ borderTop: '1px solid var(--nv-hairline)' }}>
+          <button
+            type="button"
+            onClick={() => setShowGifts(!showGifts)}
+            className="text-[11px] font-bold"
+            style={{ color: 'var(--nv-mute)' }}
+          >
+            {showGifts ? '▾' : '▸'} 선물 내역 {gifts.length}건
+          </button>
+          {showGifts && (
+            <div className="mt-1.5 space-y-1">
+              {gifts.map((g) => (
+                <div key={g.id} className="flex items-center gap-2 text-[12px]">
+                  <span className="w-16 shrink-0 tabular-nums" style={{ color: 'var(--nv-stone)' }}>
+                    {g.gift_date.slice(2)}
+                  </span>
+                  <span className="font-medium" style={{ color: 'var(--nv-ink)' }}>{g.item_name}</span>
+                  <span className="tabular-nums" style={{ color: '#c2410c' }}>{g.qty}개</span>
+                  <span className="flex-1 truncate" style={{ color: 'var(--nv-stone)' }}>{g.memo ?? ''}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeGift(g.id)}
+                    disabled={busyId === g.id}
+                    className="p-1 shrink-0"
+                    title="삭제"
+                    style={{ color: 'var(--nv-stone)' }}
+                  >
+                    {busyId === g.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

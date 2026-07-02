@@ -100,16 +100,26 @@ export interface SaekdongItemCost {
   memo: string | null
 }
 
-/** 매입 + 비용 + 기준단가 전체 조회 (테이블 없으면 빈 배열 + 안내). */
+// 선물(무료 증정) — 재고 차감 기록
+export interface SaekdongGift {
+  id: number
+  gift_date: string // YYYY-MM-DD
+  item_name: string
+  qty: number
+  memo: string | null
+}
+
+/** 매입 + 비용 + 기준단가 + 선물 전체 조회 (테이블 없으면 빈 배열 + 안내). */
 export async function listSaekdongCosts(): Promise<{
   purchases: SaekdongPurchase[]
   expenses: SaekdongExpense[]
   itemCosts: SaekdongItemCost[]
+  gifts: SaekdongGift[]
   tableMissing?: boolean
 }> {
   try {
     const supabase = await createClient()
-    const [p, e, c] = await Promise.all([
+    const [p, e, c, g] = await Promise.all([
       supabase
         .from('saekdong_purchases')
         .select('*')
@@ -126,22 +136,63 @@ export async function listSaekdongCosts(): Promise<{
         .from('saekdong_item_costs')
         .select('item_name, unit_cost, memo')
         .order('item_name'),
+      supabase
+        .from('saekdong_gifts')
+        .select('*')
+        .order('gift_date', { ascending: false })
+        .limit(300),
     ])
     if (p.error || e.error) {
       const msg = p.error?.message ?? e.error?.message ?? ''
       return {
-        purchases: [], expenses: [], itemCosts: [],
+        purchases: [], expenses: [], itemCosts: [], gifts: [],
         tableMissing: /find the table|does not exist/i.test(msg),
       }
     }
     return {
       purchases: (p.data ?? []) as SaekdongPurchase[],
       expenses: (e.data ?? []) as SaekdongExpense[],
-      // 기준단가 테이블은 없어도 매입·비용은 정상 동작
+      // 기준단가·선물 테이블은 없어도 매입·비용은 정상 동작
       itemCosts: (c.error ? [] : (c.data ?? [])) as SaekdongItemCost[],
+      gifts: (g.error ? [] : (g.data ?? [])) as SaekdongGift[],
     }
   } catch {
-    return { purchases: [], expenses: [], itemCosts: [], tableMissing: true }
+    return { purchases: [], expenses: [], itemCosts: [], gifts: [], tableMissing: true }
+  }
+}
+
+/** 선물(무료 증정) 기록 추가 — 재고에서 차감 */
+export async function addSaekdongGift(input: {
+  gift_date: string
+  item_name: string
+  qty: number
+  memo?: string | null
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.from('saekdong_gifts').insert({
+      gift_date: input.gift_date,
+      item_name: input.item_name.trim(),
+      qty: input.qty,
+      memo: input.memo ?? null,
+    })
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/saekdong')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deleteSaekdongGift(id: number): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.from('saekdong_gifts').delete().eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/saekdong')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 

@@ -161,6 +161,7 @@ export default async function SaekdongPage() {
         initialPurchases={costs.purchases}
         initialExpenses={costs.expenses}
         initialItemCosts={costs.itemCosts}
+        initialGifts={costs.gifts}
         tableMissing={costs.tableMissing}
       />
 
