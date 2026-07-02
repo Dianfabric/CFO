@@ -151,9 +151,12 @@ export default function DocumentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-6 h-6" /> 공문 작성
+            <FileText className="w-6 h-6" /> 공문 / 자료 센터
           </h1>
-          <p className="text-sm text-slate-500">거래처 대상 공식 서한을 작성하고 PDF/JPG로 발행합니다</p>
+          <p className="text-sm text-slate-500">
+            공문 작성·발행, 견적서·단가 검색, 서류·자료 보관, 일일 마감 업로드와 1일 체크까지 —
+            매일의 문서 업무를 한곳에서 처리합니다
+          </p>
         </div>
       </div>
 
