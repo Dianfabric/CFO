@@ -80,10 +80,6 @@ function periodRevenue(
   return d.monthly.filter((mo) => mo.month.startsWith(String(y))).reduce((s, mo) => s + mo.revenue, 0)
 }
 
-function normName(s: string): string {
-  return String(s || '').replace(/\[[^\]]*\]/g, '').toLowerCase().replace(/\s+/g, '')
-}
-
 interface Props {
   purchases: SaekdongPurchase[]
   expenses: SaekdongExpense[]
@@ -153,33 +149,6 @@ export default function SaekdongKpi({ purchases, expenses }: Props) {
     return { info, revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, net, rate }
   }, [period, sales, offline, purchases, expenses])
 
-  // 제품별 이익 (올해) — 평균 매입단가 × 판매수량 추정
-  const productProfit = useMemo(() => {
-    if (!sales?.products) return []
-    const costMap = new Map<string, { amt: number; qty: number }>()
-    for (const p of purchases) {
-      const k = normName(p.item_name)
-      const cur = costMap.get(k) ?? { amt: 0, qty: 0 }
-      cur.amt += p.amount
-      cur.qty += Number(p.qty) || 0
-      costMap.set(k, cur)
-    }
-    return sales.products.slice(0, 10).map((pr) => {
-      const supply = Math.round(pr.revenue / 1.1)
-      const c = costMap.get(normName(pr.prodName))
-      const avgUnit = c && c.qty > 0 ? c.amt / c.qty : null
-      const cost = avgUnit != null ? Math.round(avgUnit * pr.qty) : null
-      const profit = cost != null ? supply - cost : null
-      return {
-        name: pr.prodName,
-        supply,
-        cost,
-        profit,
-        margin: profit != null && supply > 0 ? (profit / supply) * 100 : null,
-      }
-    })
-  }, [sales, purchases])
-
   return (
     <div className="space-y-3">
       {/* 헤더 + 기간 버튼 */}
@@ -233,57 +202,11 @@ export default function SaekdongKpi({ purchases, expenses }: Props) {
         )}
       </div>
 
-      {/* 제품별 이익 (올해) */}
-      <div className="bg-white p-4" style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}>
-        <p className="text-[12px] font-bold mb-2" style={{ color: 'var(--nv-ink)' }}>
-          제품별 이익{' '}
-          <span className="font-normal text-[11px]" style={{ color: 'var(--nv-stone)' }}>
-            · {sales?.productYear ?? ''}년 온라인 판매 기준 · 원가 = 평균 매입단가 × 판매수량 추정
-          </span>
-        </p>
-        {loading ? (
-          <p className="text-[12px] py-2" style={{ color: 'var(--nv-mute)' }}>불러오는 중...</p>
-        ) : productProfit.length === 0 ? (
-          <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>판매 데이터가 없습니다.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[12px]" style={{ minWidth: 560 }}>
-              <thead>
-                <tr className="text-left" style={{ color: 'var(--nv-stone)', borderBottom: '1px solid var(--nv-hairline)' }}>
-                  <th className="py-1.5 pr-2 font-medium">제품</th>
-                  <th className="pr-2 font-medium text-right">매출(공급가)</th>
-                  <th className="pr-2 font-medium text-right">추정 원가</th>
-                  <th className="pr-2 font-medium text-right">이익</th>
-                  <th className="font-medium text-right">이익률</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productProfit.map((p) => (
-                  <tr key={p.name} style={{ borderBottom: '1px solid var(--nv-hairline)' }}>
-                    <td className="py-1.5 pr-2 font-medium" style={{ color: 'var(--nv-ink)' }}>{p.name}</td>
-                    <td className="pr-2 text-right tabular-nums">{formatKRW(p.supply)}</td>
-                    <td className="pr-2 text-right tabular-nums" style={{ color: 'var(--nv-mute)' }}>
-                      {p.cost != null ? formatKRW(p.cost) : <span style={{ color: 'var(--nv-stone)' }}>원가 미입력</span>}
-                    </td>
-                    <td className="pr-2 text-right tabular-nums font-bold"
-                      style={{ color: p.profit == null ? 'var(--nv-stone)' : p.profit >= 0 ? 'var(--nv-success-deep, #4a7c00)' : 'var(--nv-error)' }}>
-                      {p.profit != null ? formatKRW(p.profit) : '-'}
-                    </td>
-                    <td className="text-right tabular-nums font-bold"
-                      style={{ color: p.margin == null ? 'var(--nv-stone)' : p.margin >= 0 ? 'var(--nv-success-deep, #4a7c00)' : 'var(--nv-error)' }}>
-                      {p.margin != null ? `${p.margin.toFixed(1)}%` : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="mt-2 text-[10px]" style={{ color: 'var(--nv-stone)' }}>
-          온라인 매출은 부가세 제외 환산(÷1.1) · 매출원가는 기간 매입액 기준(재고 미반영) ·
-          고정비는 월 등록액을 기간에 비례 배분 · 순이익은 이자·세금 반영 전 근사치입니다.
-        </p>
-      </div>
+      <p className="text-[10px] text-right" style={{ color: 'var(--nv-stone)' }}>
+        온라인 매출 부가세 제외 환산(÷1.1) · 매출원가 = 기간 매입액(재고 미반영) · 고정비 월
+        등록액 기간 비례 배분 · 순이익은 이자·세금 반영 전 근사치 · 제품별 이익은 아래 ‘
+        {sales?.productYear ?? '올해'}년 제품 매출’에 표시
+      </p>
     </div>
   )
 }

@@ -4,7 +4,7 @@
  * 색동 쇼핑몰 매출 섹션 — 아임웹 API 실시간 집계 표시.
  * 오늘/이번주/이번달 카드 + 일별 추이 차트 + 제품별 매출 표.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   BarChart,
   Bar,
@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 import { ShoppingBag, RefreshCw, Loader2, Banknote, CheckCircle2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import type { SaekdongPurchase } from './actions'
 
 interface MonthlyPoint {
   month: string // YYYY-MM
@@ -91,7 +92,12 @@ interface PayCheckData {
   error?: string
 }
 
-export default function SaekdongSales() {
+// 품목명 정규화 — 매입 품목 ↔ 쇼핑몰 상품명 매칭용
+function normName(s: string): string {
+  return String(s || '').replace(/\[[^\]]*\]/g, '').toLowerCase().replace(/\s+/g, '')
+}
+
+export default function SaekdongSales({ purchases = [] }: { purchases?: SaekdongPurchase[] }) {
   const [data, setData] = useState<SalesData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -131,6 +137,19 @@ export default function SaekdongSales() {
     fetchData()
     fetchPayCheck()
   }, [fetchData, fetchPayCheck])
+
+  // 품목별 평균 매입단가 (제품별 이익 계산용)
+  const costMap = useMemo(() => {
+    const map = new Map<string, { amt: number; qty: number }>()
+    for (const p of purchases) {
+      const k = normName(p.item_name)
+      const cur = map.get(k) ?? { amt: 0, qty: 0 }
+      cur.amt += p.amount
+      cur.qty += Number(p.qty) || 0
+      map.set(k, cur)
+    }
+    return map
+  }, [purchases])
 
   if (loading) {
     return (
@@ -293,6 +312,12 @@ export default function SaekdongSales() {
             <div className="space-y-1.5">
               {activeProducts.map((p) => {
                 const rate = (p.revenue / maxProdRevenue) * 100
+                // 이익 = 공급가(÷1.1) − 평균 매입단가 × 판매수량
+                const supply = Math.round(p.revenue / 1.1)
+                const c = costMap.get(normName(p.prodName))
+                const avgUnit = c && c.qty > 0 ? c.amt / c.qty : null
+                const profit = avgUnit != null ? supply - Math.round(avgUnit * p.qty) : null
+                const margin = profit != null && supply > 0 ? (profit / supply) * 100 : null
                 return (
                   <div key={p.prodName} className="flex items-center gap-2 text-[12px]">
                     <span
@@ -323,9 +348,39 @@ export default function SaekdongSales() {
                     >
                       {p.qty}개
                     </span>
+                    {/* 이익 · 이익률 (매입 입력 시 자동) */}
+                    <span
+                      className="w-28 shrink-0 text-right tabular-nums text-[11px] font-bold"
+                      title={
+                        profit != null
+                          ? `이익 ${formatKRW(profit)} · 이익률 ${margin!.toFixed(1)}% (공급가 기준)`
+                          : '매입(원가) 미입력'
+                      }
+                      style={{
+                        color:
+                          profit == null
+                            ? 'var(--nv-stone)'
+                            : profit >= 0
+                              ? 'var(--nv-success-deep, #4a7c00)'
+                              : 'var(--nv-error)',
+                      }}
+                    >
+                      {profit != null ? (
+                        <>
+                          {formatKRW(profit)}{' '}
+                          <span className="font-normal">· {margin!.toFixed(0)}%</span>
+                        </>
+                      ) : (
+                        '원가 미입력'
+                      )}
+                    </span>
                   </div>
                 )
               })}
+              <p className="pt-1 text-[10px]" style={{ color: 'var(--nv-stone)' }}>
+                이익 = 공급가(÷1.1) − 평균 매입단가 × 수량 · 매입·비용에서 매입을 입력하면
+                자동 계산됩니다.
+              </p>
             </div>
           )}
         </div>
