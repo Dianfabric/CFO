@@ -5,13 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { formatKRW, formatPercent, getCategoryName, getUnitName } from '@/lib/formatters'
+import { formatKRW, formatPercent, getUnitName } from '@/lib/formatters'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend,
-} from 'recharts'
-import {
-  Compass, TrendingUp, TrendingDown, ArrowRight, DollarSign, Target,
+  Compass, TrendingUp, TrendingDown,
   Banknote, AlertTriangle, ChevronLeft, ChevronRight, Minus,
 } from 'lucide-react'
 import DianOverview from './DianOverview'
@@ -193,17 +189,6 @@ export default function SettlementView() {
   // data가 있을 때만 의미 있는 값들 (null-safe)
   const comparison = data?.comparison ?? { yesterday: { sales: 0, count: 0, contributionMargin: 0 }, lastWeek: { sales: 0, count: 0 } }
   const isSingleDay = data?.isSingleDay ?? true
-  const bepColor = (rate: number) => rate >= 100 ? 'text-green-600' : rate >= 70 ? 'text-yellow-600' : 'text-red-600'
-  const bepBg = (rate: number) => rate >= 100 ? 'bg-green-50 border-green-200' : rate >= 70 ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'
-  const waterfallData = data ? [
-    { name: '매출', value: data.totalSales, fill: '#3b82f6' },
-    { name: '변동비', value: -data.totalVariableCost, fill: '#ef4444' },
-    { name: '해외운송비', value: -data.dailyShippingCost, fill: '#f97316' },
-    { name: '공헌이익', value: data.totalContributionMargin, fill: '#22c55e' },
-    { name: `${lbl.unit}고정비`, value: -data.dailyFixedCost, fill: '#f59e0b' },
-    { name: '영업이익', value: data.dailyOperatingProfit, fill: data.dailyOperatingProfit >= 0 ? '#22c55e' : '#ef4444' },
-  ] : []
-
   return (
     <div className="space-y-6">
       {/* 일일 마감 업로드는 공문/자료 페이지로 이동 (기능 동일) */}
@@ -305,140 +290,6 @@ export default function SettlementView() {
       ) : !data ? (
         <div className="text-center py-20 text-slate-500">데이터를 불러올 수 없습니다</div>
       ) : (<>
-
-      <p className="text-lg font-semibold text-slate-700">{data.dateLabel} 결산</p>
-
-      {/* KPI 카드 4개 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-4">
-            <p className="text-xs text-slate-500">{lbl.unit} 매출</p>
-            <p className="text-xl font-bold">{formatKRW(data.totalSales)}</p>
-            <div className="flex items-center gap-1 mt-1 text-xs">
-              <TrendIcon current={data.totalSales} previous={comparison.yesterday.sales} />
-              <span className="text-slate-500">{lbl.prev} {changeRate(data.totalSales, comparison.yesterday.sales)}</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-4">
-            <p className="text-xs text-slate-500">공헌이익</p>
-            <p className="text-xl font-bold text-green-700">{formatKRW(data.totalContributionMargin)}</p>
-            <p className="text-xs text-slate-400 mt-1">공헌이익률 {formatPercent(data.contributionMarginRate)}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="p-4">
-            <p className="text-xs text-slate-500">영업이익 (고정비 차감)</p>
-            <p className={`text-xl font-bold ${data.dailyOperatingProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-              {formatKRW(data.dailyOperatingProfit)}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">{lbl.fixed} {formatKRW(data.dailyFixedCost)}</p>
-          </CardContent>
-        </Card>
-        <Card className={`border-l-4 ${data.dailyBEPRate >= 100 ? 'border-l-green-500' : 'border-l-red-500'}`}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1">
-              <Target className="w-3.5 h-3.5 text-slate-400" />
-              <p className="text-xs text-slate-500">{lbl.bep}</p>
-            </div>
-            <p className={`text-xl font-bold ${bepColor(data.dailyBEPRate)}`}>{formatPercent(data.dailyBEPRate)}</p>
-            <p className="text-xs text-slate-400 mt-1">월 누적 {formatPercent(data.monthlyBEPRate)}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 공헌이익 구조 + BEP */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 공헌이익 워터폴 */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">공헌이익 구조 ({lbl.unit}간)</CardTitle></CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={waterfallData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={v => `${(Math.abs(v) / 10000).toFixed(0)}만`} />
-                  <Tooltip formatter={(v: unknown) => formatKRW(Math.abs(v as number))} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {waterfallData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm space-y-1">
-              <div className="flex justify-between"><span>매출</span><span className="font-medium">{formatKRW(data.totalSales)}</span></div>
-              <div className="flex justify-between text-red-600"><span>(-) 변동비 (원단 매입원가)</span><span>{formatKRW(data.totalVariableCost)}</span></div>
-              {(data.variableCostBreakdown?.expenses.amount ?? 0) > 0 && (
-                <div className="flex justify-between text-orange-600 text-xs pl-2"><span>  ㄴ 당일 비용</span><span>{formatKRW(data.variableCostBreakdown?.expenses.amount ?? 0)}</span></div>
-              )}
-              <div className="flex justify-between text-red-500"><span>(-) 해외운송비 배분</span><span>{formatKRW(data.dailyShippingCost)}</span></div>
-              <div className="flex justify-between font-bold text-green-700 border-t pt-1"><span>= 공헌이익</span><span>{formatKRW(data.totalContributionMargin)}</span></div>
-              <div className="flex justify-between text-yellow-600"><span>(-) {lbl.fixed}</span><span>{formatKRW(data.dailyFixedCost)}</span></div>
-              <div className="flex justify-between font-bold border-t pt-1">
-                <span>= 영업이익</span>
-                <span className={data.dailyOperatingProfit >= 0 ? 'text-green-700' : 'text-red-600'}>{formatKRW(data.dailyOperatingProfit)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* BEP 달성 현황 */}
-        <Card className={bepBg(data.dailyBEPRate)}>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Target className="w-5 h-5" />손익분기(BEP) 달성 현황</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            {/* 기간 BEP */}
-            <div>
-              <p className="text-sm font-semibold mb-2">{data.dateLabel} BEP</p>
-              <div className="w-full bg-white/60 rounded-full h-6 relative overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500" style={{
-                  width: `${Math.min(data.dailyBEPRate, 100)}%`,
-                  backgroundColor: data.dailyBEPRate >= 100 ? '#22c55e' : data.dailyBEPRate >= 70 ? '#f59e0b' : '#ef4444',
-                }} />
-                <div className="absolute left-1/2 top-0 h-full w-0.5 bg-slate-800" title="BEP 100%" />
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{formatPercent(data.dailyBEPRate)}</span>
-              </div>
-              <div className="flex justify-between text-xs text-slate-500 mt-1">
-                <span>공헌이익: {formatKRW(data.totalContributionMargin)}</span>
-                <span>{lbl.fixed}: {formatKRW(data.dailyFixedCost)}</span>
-              </div>
-            </div>
-            {/* 월간 BEP */}
-            <div>
-              <p className="text-sm font-semibold mb-2">이번 달 누적 BEP</p>
-              <div className="w-full bg-white/60 rounded-full h-6 relative overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500" style={{
-                  width: `${Math.min(data.monthlyBEPRate, 100)}%`,
-                  backgroundColor: data.monthlyBEPRate >= 100 ? '#22c55e' : data.monthlyBEPRate >= 70 ? '#f59e0b' : '#ef4444',
-                }} />
-                <div className="absolute left-1/2 top-0 h-full w-0.5 bg-slate-800" title="BEP 100%" />
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">{formatPercent(data.monthlyBEPRate)}</span>
-              </div>
-              <div className="flex justify-between text-xs text-slate-500 mt-1">
-                <span>누적 공헌이익: {formatKRW(data.monthCumulativeCM)}</span>
-                <span>월 고정비: {formatKRW(data.monthlyFixedCost)}</span>
-              </div>
-            </div>
-            {/* 고정비 상세 */}
-            <div className="pt-2 border-t">
-              <p className="text-xs font-semibold mb-2 text-slate-600">고정비 내역 ({lbl.unit}간 배분)</p>
-              <div className="space-y-1">
-                {(data.fixedCostBreakdown ?? []).map((fc, i) => (
-                  <div key={i} className="flex justify-between text-xs">
-                    <span className="text-slate-600">{fc.description}</span>
-                    <span className="font-medium">{formatKRW(fc.dailyAmount)}/{lbl.unit}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between text-xs font-bold border-t pt-1">
-                  <span>합계</span>
-                  <span>{formatKRW(data.dailyFixedCost)}/{lbl.unit}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* 제품별 공헌이익 */}
       <Card>
