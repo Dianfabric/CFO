@@ -136,7 +136,11 @@ export default async function SaekdongPage() {
       </div>
 
       {/* 색동 경영 지표 계기판 — 12주 목표와 쇼핑몰 매출 사이 (주/월/분기/년) */}
-      <SaekdongKpi purchases={costs.purchases} expenses={costs.expenses} />
+      <SaekdongKpi
+        purchases={costs.purchases}
+        expenses={costs.expenses}
+        itemCosts={costs.itemCosts}
+      />
 
       {/* 색동 쇼핑몰 매출 (아임웹 실시간) — 제품별 이익은 매입·기준단가로 자동 계산 */}
       <SaekdongSales purchases={costs.purchases} itemCosts={costs.itemCosts} />

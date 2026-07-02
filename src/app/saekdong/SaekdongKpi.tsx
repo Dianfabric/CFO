@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Gauge, Loader2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 import { fetchSharedSales, fetchSharedOffline } from './sharedFetch'
-import type { SaekdongPurchase, SaekdongExpense } from './actions'
+import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from './actions'
 
 type Period = 'week' | 'month' | 'quarter' | 'year'
 
@@ -81,12 +81,17 @@ function periodRevenue(
   return d.monthly.filter((mo) => mo.month.startsWith(String(y))).reduce((s, mo) => s + mo.revenue, 0)
 }
 
+function normName(s: string): string {
+  return String(s || '').replace(/\[[^\]]*\]/g, '').toLowerCase().replace(/\s+/g, '')
+}
+
 interface Props {
   purchases: SaekdongPurchase[]
   expenses: SaekdongExpense[]
+  itemCosts?: SaekdongItemCost[]
 }
 
-export default function SaekdongKpi({ purchases, expenses }: Props) {
+export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Props) {
   const [period, setPeriod] = useState<Period>('month')
   const [sales, setSales] = useState<SalesData | null>(null)
   const [offline, setOffline] = useState<OfflineData | null>(null)
@@ -135,9 +140,29 @@ export default function SaekdongKpi({ purchases, expenses }: Props) {
           ),
       )
 
+    // 기준단가 기반 추정 매출원가 — 매입 기록이 없는 품목만.
+    // 올해 (판매수량 × 기준단가) 로 원가율을 구해 기간 온라인 매출에 비례 배분
+    // (년 선택 시 = 올해 추정 원가 그대로).
+    const purchasedKeys = new Set(purchases.map((p) => normName(p.item_name)))
+    const stdMap = new Map(itemCosts.map((c) => [normName(c.item_name), c.unit_cost]))
+    let yearStdCogs = 0
+    if (sales && !sales.error) {
+      for (const pr of sales.products ?? []) {
+        const k = normName(pr.prodName)
+        if (purchasedKeys.has(k)) continue
+        const uc = stdMap.get(k)
+        if (uc != null) yearStdCogs += uc * pr.qty
+      }
+    }
+    const yearOnlineSupply =
+      sales && !sales.error ? Math.round((sales.thisYear ?? 0) / 1.1) : 0
+    const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
+    const stdCogs = Math.round((onlineRaw / 1.1) * stdRate)
+
     const cogs =
       purchases.filter((p) => inPeriod(p.purchase_date)).reduce((s, p) => s + p.amount, 0) +
-      expSum((e) => e.nature === '매출원가')
+      expSum((e) => e.nature === '매출원가') +
+      stdCogs
     const variable = expSum((e) => e.cost_type === 'variable' && e.nature === '판관비')
     const fixed = expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비')
     const nonOp = expSum((e) => e.nature === '영업외비용')
@@ -149,7 +174,7 @@ export default function SaekdongKpi({ purchases, expenses }: Props) {
     const rate = (v: number) => (revenue > 0 ? (v / revenue) * 100 : 0)
 
     return { info, revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, net, rate }
-  }, [period, sales, offline, purchases, expenses])
+  }, [period, sales, offline, purchases, expenses, itemCosts])
 
   return (
     <div className="space-y-3">
@@ -213,9 +238,9 @@ export default function SaekdongKpi({ purchases, expenses }: Props) {
       </div>
 
       <p className="text-[10px] text-right" style={{ color: 'var(--nv-stone)' }}>
-        온라인 매출 부가세 제외 환산(÷1.1) · 매출원가 = 기간 매입액(재고 미반영) · 고정비 월
-        등록액 기간 비례 배분 · 순이익은 이자·세금 반영 전 근사치 · 제품별 이익은 아래 ‘
-        {sales?.productYear ?? '올해'}년 제품 매출’에 표시
+        온라인 매출 부가세 제외 환산(÷1.1) · 매출원가 = 기간 매입액 + 기준단가×판매수량
+        추정(재고 미반영) · 고정비 월 등록액 기간 비례 배분 · 순이익은 이자·세금 반영 전
+        근사치 · 제품별 이익은 아래 ‘{sales?.productYear ?? '올해'}년 제품 매출’에 표시
       </p>
     </div>
   )

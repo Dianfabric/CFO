@@ -9,11 +9,12 @@
  *   고정비는 '매월 반복' 한 번 등록, 일회성은 발생일 기준.
  * - 상단 요약: 이번 달 매출원가 / 월 고정비 / 이번 달 변동비 한눈에.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Package, Receipt, Plus, Trash2, Loader2, CheckCircle2, Circle, AlertTriangle,
 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import { fetchSharedSales } from './sharedFetch'
 import {
   addSaekdongPurchase, updateSaekdongPurchase, deleteSaekdongPurchase,
   addSaekdongExpense, deleteSaekdongExpense,
@@ -641,6 +642,18 @@ function ExpenseList({
 
 // ═══════════ 품목 기준단가 — 매입으로 잡지 않는 원가 (이익 계산 전용) ═══════════
 
+const CUSTOM = '__custom__'
+
+function normItemName(s: string): string {
+  return String(s || '').replace(/\[[^\]]*\]/g, '').toLowerCase().replace(/\s+/g, '')
+}
+
+interface SoldProduct {
+  prodName: string
+  revenue: number
+  qty: number
+}
+
 function ItemCostBlock({
   itemCosts, setItemCosts, setError,
 }: {
@@ -650,11 +663,38 @@ function ItemCostBlock({
 }) {
   const [saving, setSaving] = useState(false)
   const [busyName, setBusyName] = useState<string | null>(null)
-  const [name, setName] = useState('')
+  const [picked, setPicked] = useState<string>('') // 드롭다운 선택값 (또는 CUSTOM)
+  const [customName, setCustomName] = useState('')
   const [cost, setCost] = useState('')
+  const [products, setProducts] = useState<SoldProduct[]>([])
+  const [productYear, setProductYear] = useState('')
+
+  // 2026년 판매 제품 목록 — 매출 섹션과 같은 요청 공유 (추가 호출 없음)
+  useEffect(() => {
+    fetchSharedSales<{ products?: SoldProduct[]; productYear?: string; error?: string }>()
+      .then((s) => {
+        if (!s.error && Array.isArray(s.products)) {
+          setProducts(s.products)
+          setProductYear(s.productYear ?? '')
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const name = picked === CUSTOM ? customName : picked
+  const unitCost = Number(cost) || 0
+  // 선택 제품의 판매수량 → 매출원가·이익 미리보기
+  const preview = useMemo(() => {
+    if (!name.trim() || unitCost <= 0) return null
+    const pr = products.find((p) => normItemName(p.prodName) === normItemName(name))
+    if (!pr) return null
+    const estCogs = Math.round(unitCost * pr.qty)
+    const supply = Math.round(pr.revenue / 1.1)
+    const profit = supply - estCogs
+    return { qty: pr.qty, estCogs, profit, margin: supply > 0 ? (profit / supply) * 100 : 0 }
+  }, [name, unitCost, products])
 
   const add = async () => {
-    const unitCost = Number(cost) || 0
     if (!name.trim() || unitCost <= 0) {
       setError('품목명과 개당 원가를 입력하세요.')
       return
@@ -679,7 +719,8 @@ function ItemCostBlock({
       ...prev.filter((c) => c.item_name !== name.trim()),
       { item_name: name.trim(), unit_cost: unitCost, memo: null },
     ].sort((a, b) => a.item_name.localeCompare(b.item_name)))
-    setName('')
+    setPicked('')
+    setCustomName('')
     setCost('')
   }
 
@@ -701,17 +742,35 @@ function ItemCostBlock({
         </span>
       </p>
       <p className="mt-0.5 mb-2.5 text-[11px]" style={{ color: 'var(--nv-stone)' }}>
-        실제 매입 기록이 있는 품목은 매입 평균단가가 우선 적용됩니다. 계기판 매출원가에는
-        반영되지 않습니다.
+        {productYear || '올해'}년 판매 제품에서 선택하면 판매수량으로 매출원가·이익이 자동
+        계산됩니다. 실제 매입 기록이 있는 품목은 매입 평균단가가 우선 적용됩니다.
       </p>
       <div className="flex flex-wrap items-center gap-2 mb-2.5">
-        <input
-          placeholder="품목명 (금빛단, 복주머니…)"
-          className={inputCls + ' w-48'}
+        <select
+          className={inputCls + ' w-52'}
           style={inputStyle}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+          value={picked}
+          onChange={(e) => setPicked(e.target.value)}
+        >
+          <option value="">
+            {products.length > 0 ? `제품 선택 (${productYear}년 판매)` : '제품 목록 불러오는 중...'}
+          </option>
+          {products.map((p) => (
+            <option key={p.prodName} value={p.prodName}>
+              {p.prodName} · {p.qty}개 판매
+            </option>
+          ))}
+          <option value={CUSTOM}>직접 입력 (미판매 품목)</option>
+        </select>
+        {picked === CUSTOM && (
+          <input
+            placeholder="품목명 직접 입력"
+            className={inputCls + ' w-40'}
+            style={inputStyle}
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+          />
+        )}
         <input
           type="number"
           placeholder="개당 원가"
@@ -731,37 +790,63 @@ function ItemCostBlock({
           등록
         </button>
       </div>
+
+      {/* 자동 계산 미리보기 — 판매수량 × 단가 */}
+      {preview && (
+        <p
+          className="mb-2.5 px-3 py-2 text-[12px] tabular-nums"
+          style={{ backgroundColor: 'rgba(118,185,0,0.08)', borderRadius: '2px', color: 'var(--nv-ink)' }}
+        >
+          {productYear}년 판매 <b>{preview.qty}개</b> × {formatKRW(unitCost)} = 매출원가{' '}
+          <b>{formatKRW(preview.estCogs)}</b> → 이익{' '}
+          <b style={{ color: preview.profit >= 0 ? 'var(--nv-success-deep, #4a7c00)' : 'var(--nv-error)' }}>
+            {formatKRW(preview.profit)} ({preview.margin.toFixed(1)}%)
+          </b>
+        </p>
+      )}
+
       {itemCosts.length === 0 ? (
         <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>
           등록된 기준단가가 없습니다. 같은 품목명을 다시 등록하면 수정됩니다.
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
-          {itemCosts.map((c) => (
-            <span
-              key={c.item_name}
-              className="inline-flex items-center gap-1.5 px-2 py-1 text-[12px]"
-              style={{ backgroundColor: 'var(--nv-surface-soft)', borderRadius: '2px' }}
-            >
-              <b style={{ color: 'var(--nv-ink)' }}>{c.item_name}</b>
-              <span className="tabular-nums" style={{ color: 'var(--nv-mute)' }}>
-                {formatKRW(c.unit_cost)}/개
-              </span>
-              <button
-                type="button"
-                onClick={() => remove(c.item_name)}
-                disabled={busyName === c.item_name}
-                title="삭제"
-                style={{ color: 'var(--nv-stone)' }}
+          {itemCosts.map((c) => {
+            const pr = products.find(
+              (p) => normItemName(p.prodName) === normItemName(c.item_name),
+            )
+            const estCogs = pr ? Math.round(c.unit_cost * pr.qty) : null
+            return (
+              <span
+                key={c.item_name}
+                className="inline-flex items-center gap-1.5 px-2 py-1 text-[12px]"
+                style={{ backgroundColor: 'var(--nv-surface-soft)', borderRadius: '2px' }}
               >
-                {busyName === c.item_name ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Trash2 className="w-3 h-3" />
+                <b style={{ color: 'var(--nv-ink)' }}>{c.item_name}</b>
+                <span className="tabular-nums" style={{ color: 'var(--nv-mute)' }}>
+                  {formatKRW(c.unit_cost)}/개
+                </span>
+                {estCogs != null && (
+                  <span className="tabular-nums text-[11px]" style={{ color: 'var(--nv-stone)' }}>
+                    · {pr!.qty}개 → 원가 {formatKRW(estCogs)}
+                  </span>
                 )}
-              </button>
-            </span>
-          ))}
+                <button
+                  type="button"
+                  onClick={() => remove(c.item_name)}
+                  disabled={busyName === c.item_name}
+                  title="삭제"
+                  style={{ color: 'var(--nv-stone)' }}
+                >
+                  {busyName === c.item_name ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3 h-3" />
+                  )}
+                </button>
+              </span>
+            )
+          })}
         </div>
       )}
     </div>
