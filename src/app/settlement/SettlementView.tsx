@@ -15,6 +15,7 @@ import {
   Banknote, AlertTriangle, ChevronLeft, ChevronRight, Minus,
 } from 'lucide-react'
 import DianOverview from './DianOverview'
+import IntegratedSections from './IntegratedSections'
 import UpcomingSections from './UpcomingSections'
 
 type PeriodType = 'day' | 'week' | 'month' | 'custom'
@@ -566,7 +567,10 @@ export default function SettlementView() {
       </div>
       </>)} {/* data content end */}
 
-      {/* ③~ 단계적 통합 섹션 골격 — 법인·입금확인·발행·매입·고정비·변동비·재고 */}
+      {/* ③ 비용 구조 · 입금·발행 확인 · 재고 — 본체+색동 통합 */}
+      <IntegratedSections />
+
+      {/* ④ 연동 예정 (엔에이아이디 · 본체 스와치/샘플 재고) */}
       <UpcomingSections />
     </div>
   )
