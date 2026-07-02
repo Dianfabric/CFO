@@ -14,6 +14,8 @@ import {
   Compass, TrendingUp, TrendingDown, ArrowRight, DollarSign, Target,
   Banknote, AlertTriangle, ChevronLeft, ChevronRight, Minus,
 } from 'lucide-react'
+import DianOverview from './DianOverview'
+import UpcomingSections from './UpcomingSections'
 
 type PeriodType = 'day' | 'week' | 'month' | 'custom'
 
@@ -205,9 +207,8 @@ export default function SettlementView() {
     <div className="space-y-6">
       {/* 일일 마감 업로드는 공문/자료 페이지로 이동 (기능 동일) */}
 
-      {/* 헤더 + 날짜 선택 */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="max-w-2xl">
+      {/* 헤더 */}
+      <div className="max-w-2xl">
           <div className="mb-1 flex items-center gap-1.5">
             <Compass className="h-3.5 w-3.5 text-blue-600" />
             <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">
@@ -225,7 +226,14 @@ export default function SettlementView() {
           <p className="mt-2 border-l-2 border-slate-200 pl-2.5 text-xs italic text-slate-400">
             “측정할 수 없으면, 관리할 수 없다.” — 피터 드러커
           </p>
-        </div>
+      </div>
+
+      {/* ① 디안 전체 경영지표 + DIAN PULSE — 본체+색동 통합 (엔에이아이디 연동 예정) */}
+      <DianOverview />
+
+      {/* ② 디안 매출 — 일일 결산 (기간 선택) */}
+      <div className="flex items-center justify-between flex-wrap gap-3 pt-1">
+        <h2 className="text-base font-semibold text-slate-900">디안 매출 — 결산 상세</h2>
         <div className="flex items-center gap-2 flex-wrap">
           {/* 기간 선택 */}
           <div className="flex rounded-md overflow-hidden border border-slate-200">
@@ -557,6 +565,9 @@ export default function SettlementView() {
         </Card>
       </div>
       </>)} {/* data content end */}
+
+      {/* ③~ 단계적 통합 섹션 골격 — 법인·입금확인·발행·매입·고정비·변동비·재고 */}
+      <UpcomingSections />
     </div>
   )
 }
