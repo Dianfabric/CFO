@@ -15,7 +15,9 @@ import SaekdongOkr from './SaekdongOkr'
 import SaekdongSales from './SaekdongSales'
 import SaekdongOfflineSales from './SaekdongOfflineSales'
 import SaekdongVision from './SaekdongVision'
-import { getSaekdongVision } from './actions'
+import SaekdongKpi from './SaekdongKpi'
+import SaekdongCosts from './SaekdongCosts'
+import { getSaekdongVision, listSaekdongCosts } from './actions'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -56,9 +58,10 @@ async function loadCycleAndProject(): Promise<{
 }
 
 export default async function SaekdongPage() {
-  const [{ cycle, project }, vision] = await Promise.all([
+  const [{ cycle, project }, vision, costs] = await Promise.all([
     loadCycleAndProject(),
     getSaekdongVision(),
+    listSaekdongCosts(),
   ])
 
   return (
@@ -132,11 +135,21 @@ export default async function SaekdongPage() {
         )}
       </div>
 
+      {/* 색동 경영 지표 계기판 — 12주 목표와 쇼핑몰 매출 사이 (주/월/분기/년) */}
+      <SaekdongKpi purchases={costs.purchases} expenses={costs.expenses} />
+
       {/* 색동 쇼핑몰 매출 (아임웹 실시간) */}
       <SaekdongSales />
 
       {/* 색동 오프라인 매출 (경영 계기판 일계표 매칭) */}
       <SaekdongOfflineSales />
+
+      {/* 색동 매입·비용 — 매출원가(원단·완제품) + 고정비·변동비 */}
+      <SaekdongCosts
+        initialPurchases={costs.purchases}
+        initialExpenses={costs.expenses}
+        tableMissing={costs.tableMissing}
+      />
 
       {/* 바로가기 */}
       <div>
