@@ -17,8 +17,9 @@ import { formatKRW } from '@/lib/formatters'
 import {
   addSaekdongPurchase, updateSaekdongPurchase, deleteSaekdongPurchase,
   addSaekdongExpense, deleteSaekdongExpense,
+  upsertSaekdongItemCost, deleteSaekdongItemCost,
 } from './actions'
-import type { SaekdongPurchase, SaekdongExpense } from './actions'
+import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from './actions'
 
 // 디안 관리회계 엑셀 분류 준용
 export const EXPENSE_CATEGORIES = [
@@ -42,12 +43,16 @@ function thisMonthKey(): string {
 interface Props {
   initialPurchases: SaekdongPurchase[]
   initialExpenses: SaekdongExpense[]
+  initialItemCosts?: SaekdongItemCost[]
   tableMissing?: boolean
 }
 
-export default function SaekdongCosts({ initialPurchases, initialExpenses, tableMissing }: Props) {
+export default function SaekdongCosts({
+  initialPurchases, initialExpenses, initialItemCosts = [], tableMissing,
+}: Props) {
   const [purchases, setPurchases] = useState(initialPurchases)
   const [expenses, setExpenses] = useState(initialExpenses)
+  const [itemCosts, setItemCosts] = useState(initialItemCosts)
   const [tab, setTab] = useState<'purchase' | 'expense'>('purchase')
   const [error, setError] = useState<string | null>(null)
 
@@ -148,7 +153,10 @@ export default function SaekdongCosts({ initialPurchases, initialExpenses, table
       </div>
 
       {tab === 'purchase' ? (
-        <PurchaseTab purchases={purchases} setPurchases={setPurchases} setError={setError} />
+        <>
+          <PurchaseTab purchases={purchases} setPurchases={setPurchases} setError={setError} />
+          <ItemCostBlock itemCosts={itemCosts} setItemCosts={setItemCosts} setError={setError} />
+        </>
       ) : (
         <ExpenseTab expenses={expenses} setExpenses={setExpenses} setError={setError} />
       )}
@@ -624,6 +632,135 @@ function ExpenseList({
                 {busyId === e.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
               </button>
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════ 품목 기준단가 — 매입으로 잡지 않는 원가 (이익 계산 전용) ═══════════
+
+function ItemCostBlock({
+  itemCosts, setItemCosts, setError,
+}: {
+  itemCosts: SaekdongItemCost[]
+  setItemCosts: React.Dispatch<React.SetStateAction<SaekdongItemCost[]>>
+  setError: (m: string | null) => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [busyName, setBusyName] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  const [cost, setCost] = useState('')
+
+  const add = async () => {
+    const unitCost = Number(cost) || 0
+    if (!name.trim() || unitCost <= 0) {
+      setError('품목명과 개당 원가를 입력하세요.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    const res = await upsertSaekdongItemCost({
+      item_name: name.trim(),
+      unit_cost: unitCost,
+      memo: null,
+    })
+    setSaving(false)
+    if (!res.ok) {
+      setError(
+        /find the table|does not exist/i.test(res.error ?? '')
+          ? '기준단가 테이블이 없습니다 — supabase/migrations/2026-07-02_saekdong_item_costs.sql 을 실행해 주세요.'
+          : (res.error ?? '저장 실패'),
+      )
+      return
+    }
+    setItemCosts((prev) => [
+      ...prev.filter((c) => c.item_name !== name.trim()),
+      { item_name: name.trim(), unit_cost: unitCost, memo: null },
+    ].sort((a, b) => a.item_name.localeCompare(b.item_name)))
+    setName('')
+    setCost('')
+  }
+
+  const remove = async (itemName: string) => {
+    if (!confirm(`'${itemName}' 기준단가를 삭제할까요?`)) return
+    setBusyName(itemName)
+    const res = await deleteSaekdongItemCost(itemName)
+    setBusyName(null)
+    if (!res.ok) { setError(res.error ?? '삭제 실패'); return }
+    setItemCosts((prev) => prev.filter((c) => c.item_name !== itemName))
+  }
+
+  return (
+    <div className="bg-white p-4" style={box}>
+      <p className="text-[12px] font-bold" style={{ color: 'var(--nv-ink)' }}>
+        품목 기준단가{' '}
+        <span className="font-normal text-[11px]" style={{ color: 'var(--nv-stone)' }}>
+          · 매입(지출)으로 잡지 않고 제품별 이익 계산에만 쓰는 개당 원가
+        </span>
+      </p>
+      <p className="mt-0.5 mb-2.5 text-[11px]" style={{ color: 'var(--nv-stone)' }}>
+        실제 매입 기록이 있는 품목은 매입 평균단가가 우선 적용됩니다. 계기판 매출원가에는
+        반영되지 않습니다.
+      </p>
+      <div className="flex flex-wrap items-center gap-2 mb-2.5">
+        <input
+          placeholder="품목명 (금빛단, 복주머니…)"
+          className={inputCls + ' w-48'}
+          style={inputStyle}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          type="number"
+          placeholder="개당 원가"
+          className={inputCls + ' w-28'}
+          style={inputStyle}
+          value={cost}
+          onChange={(e) => setCost(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={add}
+          disabled={saving}
+          className="h-8 px-3 text-[12px] font-bold inline-flex items-center gap-1"
+          style={{ backgroundColor: 'var(--nv-primary)', color: '#000', borderRadius: '2px' }}
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          등록
+        </button>
+      </div>
+      {itemCosts.length === 0 ? (
+        <p className="text-[12px] italic" style={{ color: 'var(--nv-stone)' }}>
+          등록된 기준단가가 없습니다. 같은 품목명을 다시 등록하면 수정됩니다.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {itemCosts.map((c) => (
+            <span
+              key={c.item_name}
+              className="inline-flex items-center gap-1.5 px-2 py-1 text-[12px]"
+              style={{ backgroundColor: 'var(--nv-surface-soft)', borderRadius: '2px' }}
+            >
+              <b style={{ color: 'var(--nv-ink)' }}>{c.item_name}</b>
+              <span className="tabular-nums" style={{ color: 'var(--nv-mute)' }}>
+                {formatKRW(c.unit_cost)}/개
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(c.item_name)}
+                disabled={busyName === c.item_name}
+                title="삭제"
+                style={{ color: 'var(--nv-stone)' }}
+              >
+                {busyName === c.item_name ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3 h-3" />
+                )}
+              </button>
+            </span>
           ))}
         </div>
       )}

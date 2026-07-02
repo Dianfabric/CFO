@@ -17,7 +17,7 @@ import {
 import { ShoppingBag, RefreshCw, Loader2, Banknote, CheckCircle2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 import { fetchSharedSales } from './sharedFetch'
-import type { SaekdongPurchase } from './actions'
+import type { SaekdongPurchase, SaekdongItemCost } from './actions'
 
 interface MonthlyPoint {
   month: string // YYYY-MM
@@ -98,7 +98,13 @@ function normName(s: string): string {
   return String(s || '').replace(/\[[^\]]*\]/g, '').toLowerCase().replace(/\s+/g, '')
 }
 
-export default function SaekdongSales({ purchases = [] }: { purchases?: SaekdongPurchase[] }) {
+export default function SaekdongSales({
+  purchases = [],
+  itemCosts = [],
+}: {
+  purchases?: SaekdongPurchase[]
+  itemCosts?: SaekdongItemCost[]
+}) {
   const [data, setData] = useState<SalesData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -150,6 +156,13 @@ export default function SaekdongSales({ purchases = [] }: { purchases?: Saekdong
     }
     return map
   }, [purchases])
+
+  // 품목 기준단가 (매입 기록 없는 품목의 폴백)
+  const stdCostMap = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const c of itemCosts) map.set(normName(c.item_name), c.unit_cost)
+    return map
+  }, [itemCosts])
 
   if (loading) {
     return (
@@ -312,10 +325,13 @@ export default function SaekdongSales({ purchases = [] }: { purchases?: Saekdong
             <div className="space-y-1.5">
               {activeProducts.map((p) => {
                 const rate = (p.revenue / maxProdRevenue) * 100
-                // 이익 = 공급가(÷1.1) − 평균 매입단가 × 판매수량
+                // 이익 = 공급가(÷1.1) − 단가 × 판매수량
+                // 단가: 실제 매입 평균단가 우선, 없으면 품목 기준단가
                 const supply = Math.round(p.revenue / 1.1)
-                const c = costMap.get(normName(p.prodName))
-                const avgUnit = c && c.qty > 0 ? c.amt / c.qty : null
+                const key = normName(p.prodName)
+                const c = costMap.get(key)
+                const avgUnit =
+                  c && c.qty > 0 ? c.amt / c.qty : (stdCostMap.get(key) ?? null)
                 const profit = avgUnit != null ? supply - Math.round(avgUnit * p.qty) : null
                 const margin = profit != null && supply > 0 ? (profit / supply) * 100 : null
                 return (
@@ -378,8 +394,8 @@ export default function SaekdongSales({ purchases = [] }: { purchases?: Saekdong
                 )
               })}
               <p className="pt-1 text-[10px]" style={{ color: 'var(--nv-stone)' }}>
-                이익 = 공급가(÷1.1) − 평균 매입단가 × 수량 · 매입·비용에서 매입을 입력하면
-                자동 계산됩니다.
+                이익 = 공급가(÷1.1) − 단가 × 수량 · 단가는 매입 평균단가 우선, 없으면 품목
+                기준단가 · 매입·비용에서 매입 또는 기준단가를 입력하면 자동 계산됩니다.
               </p>
             </div>
           )}

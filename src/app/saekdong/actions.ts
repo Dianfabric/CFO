@@ -93,15 +93,23 @@ export interface ExpenseInput {
   memo?: string | null
 }
 
-/** 매입 + 비용 전체 조회 (테이블 없으면 빈 배열 + 안내). */
+// 품목 기준단가 — 매입으로 잡지 않는 제품별 원가 (이익 계산 전용)
+export interface SaekdongItemCost {
+  item_name: string
+  unit_cost: number
+  memo: string | null
+}
+
+/** 매입 + 비용 + 기준단가 전체 조회 (테이블 없으면 빈 배열 + 안내). */
 export async function listSaekdongCosts(): Promise<{
   purchases: SaekdongPurchase[]
   expenses: SaekdongExpense[]
+  itemCosts: SaekdongItemCost[]
   tableMissing?: boolean
 }> {
   try {
     const supabase = await createClient()
-    const [p, e] = await Promise.all([
+    const [p, e, c] = await Promise.all([
       supabase
         .from('saekdong_purchases')
         .select('*')
@@ -114,17 +122,63 @@ export async function listSaekdongCosts(): Promise<{
         .order('is_monthly', { ascending: false })
         .order('expense_date', { ascending: false })
         .limit(500),
+      supabase
+        .from('saekdong_item_costs')
+        .select('item_name, unit_cost, memo')
+        .order('item_name'),
     ])
     if (p.error || e.error) {
       const msg = p.error?.message ?? e.error?.message ?? ''
-      return { purchases: [], expenses: [], tableMissing: /find the table|does not exist/i.test(msg) }
+      return {
+        purchases: [], expenses: [], itemCosts: [],
+        tableMissing: /find the table|does not exist/i.test(msg),
+      }
     }
     return {
       purchases: (p.data ?? []) as SaekdongPurchase[],
       expenses: (e.data ?? []) as SaekdongExpense[],
+      // 기준단가 테이블은 없어도 매입·비용은 정상 동작
+      itemCosts: (c.error ? [] : (c.data ?? [])) as SaekdongItemCost[],
     }
   } catch {
-    return { purchases: [], expenses: [], tableMissing: true }
+    return { purchases: [], expenses: [], itemCosts: [], tableMissing: true }
+  }
+}
+
+/** 품목 기준단가 등록/수정 (매입 아님 — 이익 계산 전용) */
+export async function upsertSaekdongItemCost(
+  input: SaekdongItemCost,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.from('saekdong_item_costs').upsert(
+      {
+        item_name: input.item_name.trim(),
+        unit_cost: input.unit_cost,
+        memo: input.memo ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'item_name' },
+    )
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/saekdong')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export async function deleteSaekdongItemCost(
+  itemName: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.from('saekdong_item_costs').delete().eq('item_name', itemName)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/saekdong')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 
