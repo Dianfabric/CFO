@@ -9,21 +9,24 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { Store, RefreshCw, Loader2, Banknote, FileText } from 'lucide-react'
+import { Store, RefreshCw, Loader2, Banknote, FileText, CheckCircle2, Undo2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 import { fetchSharedOffline } from './sharedFetch'
+import { setSaekdongOfflineOverride } from './actions'
 
 interface MonthlyPoint { month: string; revenue: number; orders: number }
 interface ProductSales { prodName: string; revenue: number; qty: number }
 interface StatusItem {
-  date: string; client: string; productNames: string[]; amount: number
+  id: string; date: string; client: string; productNames: string[]; amount: number
   paid: boolean; issued: boolean
+  manualPaid?: boolean; manualIssued?: boolean
 }
 interface OfflineData {
   today: number; thisWeek: number; thisMonth: number
   monthly: MonthlyPoint[]; products: ProductSales[]; productYear: string
   paidAmount: number; unpaidAmount: number; issuedAmount: number; unissuedAmount: number
   unpaid: StatusItem[]; unissued: StatusItem[]
+  manualPaid: StatusItem[]; manualIssued: StatusItem[]
   orderCount: number; fetchedAt: string; error?: string
 }
 
@@ -31,6 +34,8 @@ export default function SaekdongOfflineSales() {
   const [data, setData] = useState<OfflineData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [ovError, setOvError] = useState<string | null>(null)
 
   const fetchData = useCallback(async (force = false) => {
     if (force) setRefreshing(true)
@@ -46,6 +51,22 @@ export default function SaekdongOfflineSales() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // 수동 완료 처리 / 되돌리기 (자동 대사가 서류를 못 찾은 경우)
+  const setOverride = useCallback(
+    async (txId: string, patch: { paid?: boolean; issued?: boolean }) => {
+      setBusyId(txId)
+      setOvError(null)
+      const res = await setSaekdongOfflineOverride(txId, patch)
+      if (!res.ok) {
+        setOvError(res.error ?? '처리 실패')
+      } else {
+        await fetchData(true) // 서버 재집계 반영
+      }
+      setBusyId(null)
+    },
+    [fetchData],
+  )
 
   if (loading) {
     return (
@@ -197,10 +218,36 @@ export default function SaekdongOfflineSales() {
         />
       </div>
 
-      {/* 미입금 / 미발행 내역 — 한 줄 (2열) */}
+      {/* 수동 처리 오류 안내 */}
+      {ovError && (
+        <div
+          className="px-3 py-2 text-[12px]"
+          style={{ border: '1px solid var(--nv-error)', backgroundColor: '#fef2f2', color: 'var(--nv-error)', borderRadius: '2px' }}
+        >
+          ⚠ {ovError}
+        </div>
+      )}
+
+      {/* 미입금 / 미발행 내역 — 한 줄 (2열), 수동 완료 처리 가능 */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <StatusList title="미입금 내역" tone="warn" items={data.unpaid} />
-        <StatusList title="미발행 내역" tone="warn" items={data.unissued} />
+        <StatusList
+          title="미입금 내역"
+          items={data.unpaid}
+          manualItems={data.manualPaid ?? []}
+          busyId={busyId}
+          completeLabel="입금 완료 처리"
+          onComplete={(id) => setOverride(id, { paid: true })}
+          onUndo={(id) => setOverride(id, { paid: false })}
+        />
+        <StatusList
+          title="미발행 내역"
+          items={data.unissued}
+          manualItems={data.manualIssued ?? []}
+          busyId={busyId}
+          completeLabel="발행 완료 처리"
+          onComplete={(id) => setOverride(id, { issued: true })}
+          onUndo={(id) => setOverride(id, { issued: false })}
+        />
       </div>
 
       <p className="text-[10px] text-right" style={{ color: 'var(--nv-stone)' }}>
@@ -253,7 +300,17 @@ function StatusSummary({
   )
 }
 
-function StatusList({ title, items, tone }: { title: string; items: StatusItem[]; tone: 'warn' }) {
+function StatusList({
+  title, items, manualItems, busyId, completeLabel, onComplete, onUndo,
+}: {
+  title: string
+  items: StatusItem[]
+  manualItems: StatusItem[]
+  busyId: string | null
+  completeLabel: string
+  onComplete: (id: string) => void
+  onUndo: (id: string) => void
+}) {
   const total = items.reduce((s, it) => s + it.amount, 0)
   return (
     <div className="bg-white p-4" style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px' }}>
@@ -274,8 +331,8 @@ function StatusList({ title, items, tone }: { title: string; items: StatusItem[]
         </p>
       ) : (
         <div className="max-h-56 overflow-y-auto space-y-1.5">
-          {items.map((it, i) => (
-            <div key={i} className="flex items-start gap-2 text-[12px]">
+          {items.map((it) => (
+            <div key={it.id} className="flex items-start gap-2 text-[12px]">
               <span className="w-14 shrink-0 tabular-nums" style={{ color: 'var(--nv-stone)' }}>
                 {it.date.slice(5)}
               </span>
@@ -290,8 +347,61 @@ function StatusList({ title, items, tone }: { title: string; items: StatusItem[]
               <span className="shrink-0 text-right tabular-nums font-bold" style={{ color: 'var(--nv-error)' }}>
                 {formatKRW(it.amount)}
               </span>
+              {/* 수동 완료 처리 — 자동 대사가 서류를 못 찾은 경우 */}
+              <button
+                type="button"
+                onClick={() => onComplete(it.id)}
+                disabled={busyId === it.id}
+                className="shrink-0 p-1 transition-colors"
+                title={`${completeLabel} (자동 매칭이 서류를 못 찾은 경우 수동 처리)`}
+                style={{ color: 'var(--nv-stone)' }}
+              >
+                {busyId === it.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 hover:stroke-[#76b900]" />
+                )}
+              </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 수동 완료 처리된 내역 — 되돌리기 가능 */}
+      {manualItems.length > 0 && (
+        <div className="mt-3 pt-2" style={{ borderTop: '1px solid var(--nv-hairline)' }}>
+          <p className="mb-1.5 text-[11px] font-bold" style={{ color: 'var(--nv-mute)' }}>
+            수동 완료 처리 {manualItems.length}건
+          </p>
+          <div className="space-y-1">
+            {manualItems.map((it) => (
+              <div key={it.id} className="flex items-center gap-2 text-[12px]" style={{ opacity: 0.75 }}>
+                <span className="w-14 shrink-0 tabular-nums" style={{ color: 'var(--nv-stone)' }}>
+                  {it.date.slice(5)}
+                </span>
+                <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--nv-mute)' }}>
+                  {it.client} · {it.productNames.join(', ')}
+                </span>
+                <span className="shrink-0 tabular-nums font-bold" style={{ color: 'var(--nv-success-deep, #4a7c00)' }}>
+                  {formatKRW(it.amount)} ✓
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onUndo(it.id)}
+                  disabled={busyId === it.id}
+                  className="shrink-0 p-1"
+                  title="되돌리기 (자동 판정으로 복귀)"
+                  style={{ color: 'var(--nv-stone)' }}
+                >
+                  {busyId === it.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Undo2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

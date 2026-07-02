@@ -9,16 +9,20 @@
  * 스키마 무변경 읽기 레이어 (v1.0 데이터 보존).
  */
 import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { getSaekdongProductNames } from '@/lib/saekdong-imweb'
 import type { MonthlyPoint, ProductSales } from '@/lib/saekdong-imweb'
 
 export interface OfflineStatusItem {
+  id: string // v1.0 Transaction.id (수동 완료 처리용)
   date: string // YYYY-MM-DD (KST)
   client: string
   productNames: string[] // 그 거래의 색동 품목명들
   amount: number // 색동 품목 합계 (원금)
   paid: boolean
   issued: boolean
+  manualPaid?: boolean // 수동 입금 완료 처리됨
+  manualIssued?: boolean // 수동 발행 완료 처리됨
 }
 
 export interface SaekdongOfflineSales {
@@ -28,16 +32,36 @@ export interface SaekdongOfflineSales {
   monthly: MonthlyPoint[] // 최근 12개월 색동 오프라인 매출
   products: ProductSales[] // 올해 색동 오프라인 제품별
   productYear: string
-  // 입금/발행 현황 (최근 12개월 색동 거래 기준)
+  // 입금/발행 현황 (최근 12개월 색동 거래 기준, 수동 처리 반영)
   paidAmount: number
   unpaidAmount: number
   issuedAmount: number
   unissuedAmount: number
   unpaid: OfflineStatusItem[] // 미입금 내역
   unissued: OfflineStatusItem[] // 미발행 내역
+  manualPaid: OfflineStatusItem[] // 수동 입금 완료 (되돌리기용)
+  manualIssued: OfflineStatusItem[] // 수동 발행 완료 (되돌리기용)
   orderCount: number
   fetchedAt: string
   error?: string
+}
+
+// 수동 완료 처리 override (Supabase — 테이블 없으면 빈 맵)
+interface OverrideRow {
+  tx_id: string
+  paid_override: boolean
+  issued_override: boolean
+}
+
+async function fetchOverrides(): Promise<Map<string, OverrideRow>> {
+  try {
+    const sb = await createClient()
+    const { data, error } = await sb.from('saekdong_offline_overrides').select('*')
+    if (error || !data) return new Map()
+    return new Map((data as OverrideRow[]).map((r) => [r.tx_id, r]))
+  } catch {
+    return new Map()
+  }
 }
 
 // ── 품목명 매칭 ──
@@ -96,12 +120,15 @@ export async function getSaekdongOfflineSales(
     today: 0, thisWeek: 0, thisMonth: 0,
     monthly: [], products: [], productYear: thisYear,
     paidAmount: 0, unpaidAmount: 0, issuedAmount: 0, unissuedAmount: 0,
-    unpaid: [], unissued: [],
+    unpaid: [], unissued: [], manualPaid: [], manualIssued: [],
     orderCount: 0, fetchedAt: new Date().toISOString(), error,
   })
 
   try {
-    const catalogNames = await getSaekdongProductNames()
+    const [catalogNames, overrides] = await Promise.all([
+      getSaekdongProductNames(),
+      fetchOverrides(),
+    ])
     const catalog: CatalogEntry[] = catalogNames
       .map((raw) => ({ raw, n: normName(raw) }))
       .filter((c) => c.n.length >= 2)
@@ -126,6 +153,8 @@ export async function getSaekdongOfflineSales(
     let paidAmount = 0, unpaidAmount = 0, issuedAmount = 0, unissuedAmount = 0
     const unpaid: OfflineStatusItem[] = []
     const unissued: OfflineStatusItem[] = []
+    const manualPaid: OfflineStatusItem[] = []
+    const manualIssued: OfflineStatusItem[] = []
     let orderCount = 0
 
     for (const tx of txs) {
@@ -163,27 +192,35 @@ export async function getSaekdongOfflineSales(
       if (day >= mondayStr) thisWeek += sakAmount
       if (day >= monthStart) thisMonth += sakAmount
 
-      // 입금/발행 상태
-      const paid = tx.paymentStatus === 'PAID'
-      const issued =
+      // 입금/발행 상태 — 자동 판정 + 수동 완료 처리(override) 반영
+      const ov = overrides.get(tx.id)
+      const autoPaid = tx.paymentStatus === 'PAID'
+      const autoIssued =
         tx.taxStatus === 'ISSUED' ||
         tx.taxStatus === 'COMPLETED' ||
         tx.taxInvoices.length > 0
+      const paid = autoPaid || !!ov?.paid_override
+      const issued = autoIssued || !!ov?.issued_override
       if (paid) paidAmount += sakAmount
       else unpaidAmount += sakAmount
       if (issued) issuedAmount += sakAmount
       else unissuedAmount += sakAmount
 
       const statusItem: OfflineStatusItem = {
+        id: tx.id,
         date: day,
         client: tx.client?.name ?? '거래처 미상',
         productNames: [...new Set(sakNames)],
         amount: sakAmount,
         paid,
         issued,
+        manualPaid: paid && !autoPaid,
+        manualIssued: issued && !autoIssued,
       }
       if (!paid) unpaid.push(statusItem)
       if (!issued) unissued.push(statusItem)
+      if (paid && !autoPaid) manualPaid.push(statusItem)
+      if (issued && !autoIssued) manualIssued.push(statusItem)
     }
 
     // 최근 monthRange 개월 연속 배열
@@ -204,7 +241,7 @@ export async function getSaekdongOfflineSales(
       today, thisWeek, thisMonth,
       monthly, products, productYear: thisYear,
       paidAmount, unpaidAmount, issuedAmount, unissuedAmount,
-      unpaid, unissued,
+      unpaid, unissued, manualPaid, manualIssued,
       orderCount,
       fetchedAt: new Date().toISOString(),
     }

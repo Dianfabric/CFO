@@ -196,6 +196,55 @@ export async function deleteSaekdongGift(id: number): Promise<{ ok: boolean; err
   }
 }
 
+/**
+ * 오프라인 매출 입금/발행 수동 완료 처리 (override).
+ * 자동 대사가 서류를 못 찾은 거래를 화면에서 완료로 표시. v1.0 데이터 무변경.
+ * 두 플래그가 모두 false 가 되면 행 삭제 → 자동 판정으로 복귀.
+ */
+export async function setSaekdongOfflineOverride(
+  txId: string,
+  patch: { paid?: boolean; issued?: boolean },
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: existing, error: selErr } = await supabase
+      .from('saekdong_offline_overrides')
+      .select('paid_override, issued_override')
+      .eq('tx_id', txId)
+      .maybeSingle()
+    if (selErr) {
+      return {
+        ok: false,
+        error: /find the table|does not exist/i.test(selErr.message)
+          ? 'override 테이블이 없습니다 — supabase/migrations/2026-07-02_saekdong_offline_overrides.sql 을 실행해 주세요.'
+          : selErr.message,
+      }
+    }
+    const merged = {
+      tx_id: txId,
+      paid_override: patch.paid ?? existing?.paid_override ?? false,
+      issued_override: patch.issued ?? existing?.issued_override ?? false,
+      updated_at: new Date().toISOString(),
+    }
+    if (!merged.paid_override && !merged.issued_override) {
+      const { error } = await supabase
+        .from('saekdong_offline_overrides')
+        .delete()
+        .eq('tx_id', txId)
+      if (error) return { ok: false, error: error.message }
+    } else {
+      const { error } = await supabase
+        .from('saekdong_offline_overrides')
+        .upsert(merged, { onConflict: 'tx_id' })
+      if (error) return { ok: false, error: error.message }
+    }
+    revalidatePath('/saekdong')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 /** 품목 기준단가 등록/수정 (매입 아님 — 이익 계산 전용) */
 export async function upsertSaekdongItemCost(
   input: SaekdongItemCost,
