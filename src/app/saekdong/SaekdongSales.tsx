@@ -74,11 +74,18 @@ interface UnconfirmedSale {
   payType: string
   imwebPaid: boolean
 }
+interface PgDeposit {
+  date: string
+  name: string
+  amount: number
+}
 interface PayCheckData {
   since: string
   totalSales: number
   imwebPaidCount: number
   confirmedCount: number
+  pgConfirmedCount: number
+  pgDeposits: PgDeposit[]
   unconfirmed: UnconfirmedSale[]
   fetchedAt: string
   error?: string
@@ -343,7 +350,8 @@ export default function SaekdongSales() {
               style={{ color: 'var(--nv-mute)' }}
             >
               매출 {payCheck.totalSales}건 · 아임웹 결제 {payCheck.imwebPaidCount}건 · 통장 확인{' '}
-              {payCheck.confirmedCount}건
+              {payCheck.confirmedCount + payCheck.pgConfirmedCount}건
+              {payCheck.pgConfirmedCount > 0 && ` (PG 정산 ${payCheck.pgConfirmedCount}건 포함)`}
             </span>
           )}
         </div>
@@ -423,11 +431,39 @@ export default function SaekdongSales() {
             </div>
           </>
         )}
+        {payCheck && !payCheck.error && payCheck.pgDeposits.length > 0 && (
+          <div
+            className="mt-3 pt-2"
+            style={{ borderTop: '1px solid var(--nv-hairline)' }}
+          >
+            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--nv-mute)' }}>
+              최근 PG 정산 입금 (통장)
+            </p>
+            <div className="space-y-1">
+              {payCheck.pgDeposits.map((d, i) => (
+                <div key={i} className="flex items-center gap-2 text-[11px]">
+                  <span className="w-12 shrink-0 tabular-nums" style={{ color: 'var(--nv-stone)' }}>
+                    {d.date.slice(5).replace('-', '.')}
+                  </span>
+                  <span className="flex-1 truncate" style={{ color: 'var(--nv-mute)' }}>
+                    {d.name}
+                  </span>
+                  <span
+                    className="shrink-0 tabular-nums font-bold"
+                    style={{ color: 'var(--nv-ink)' }}
+                  >
+                    {formatKRW(d.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <p className="mt-2 text-[10px]" style={{ color: 'var(--nv-stone)' }}>
           <b>아임웹 결제 ✓</b> = 쇼핑몰에서 고객 결제 완료 · <b>통장 확인</b> = 실제 계좌 입금
-          확인. 경영 계기판에 통장 내역을 업로드하면 같은 금액의 입금이 확인된 매출은 자동으로
-          사라집니다. 네이버페이·카드 정산이 여러 주문 묶음으로 입금되면 금액이 달라 미확인으로
-          남을 수 있습니다.
+          확인(정확 일치 + PG 묶음 정산). 네이버파이낸셜 등 PG 정산 입금은 수수료가 차감돼도
+          주문 조합과 자동 대사합니다. 경영 계기판에 통장 내역을 업로드하면 확인된 매출은
+          자동으로 사라집니다.
         </p>
       </div>
 
