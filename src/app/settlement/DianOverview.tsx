@@ -433,8 +433,12 @@ export default function DianOverview() {
     const operating = contribution - fixed
     const nonOp = saekChain.nonOp + (body.interest ?? 0)
     const net = operating - nonOp
+    // BEP — 공헌이익 관점: BEP 매출 = 고정비 ÷ 공헌이익률, 달성률 = 공헌이익 ÷ 고정비
+    const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
+    const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
     return {
       revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net,
+      bep, bepRate,
       interestMissing: !!body.interestMissing,
     }
   }, [bodyPnl, rangeKey, saekChain])
@@ -581,6 +585,8 @@ export default function DianOverview() {
               operating={chain.operating}
               nonOp={chain.nonOp}
               net={chain.net}
+              bep={chain.bep}
+              bepRate={chain.bepRate}
               periodKey={rangeKey}
             />
             {/* 숫자 스트립 — 다이어그램과 동일 사슬 (색동·법인 개별 스트립은 추후 아래에) */}
@@ -599,6 +605,25 @@ export default function DianOverview() {
                     <StripMetric label="순이익" value={chain.net} rate={pct(chain.net, chain.revenue)} big />
                   </>
                 )}
+                {/* BEP — 공헌이익 ÷ 고정비 */}
+                <div className="px-4 sm:px-5" style={{ borderLeft: '1px solid rgba(255,255,255,0.14)' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                    BEP 달성률
+                  </p>
+                  <p
+                    className="mt-1 font-bold tabular-nums leading-none text-[24px] sm:text-[28px]"
+                    style={{ color: chain.bepRate == null ? 'rgba(255,255,255,0.35)' : chain.bepRate >= 100 ? '#76b900' : '#f87171' }}
+                  >
+                    {chain.bepRate == null ? '—' : `${chain.bepRate.toFixed(1)}%`}
+                  </p>
+                  <p className="mt-1 text-[11px] tabular-nums" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    {chain.bepRate == null
+                      ? '고정비 미등록'
+                      : chain.bep == null
+                        ? 'BEP 매출 산출 불가 (공헌이익 적자)'
+                        : `BEP 매출 ${formatKRW(chain.bep)}`}
+                  </p>
+                </div>
               </div>
             </div>
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">

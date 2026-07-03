@@ -20,6 +20,10 @@ interface Props {
   operating: number
   nonOp: number
   net: number
+  /** BEP 매출 (고정비 ÷ 공헌이익률) — 산출 불가 시 null */
+  bep: number | null
+  /** BEP 달성률 % (공헌이익 ÷ 고정비) — 고정비 미등록 시 null */
+  bepRate: number | null
   periodKey: string
 }
 
@@ -82,6 +86,48 @@ export default function ProfitFlow(p: Props) {
         role="img"
         aria-label="손익 흐름: 총매출에서 순이익까지"
       >
+        {/* BEP 점선 마커 — 총매출 막대 위 '여기까지가 본전' 지점 */}
+        {p.bep != null && p.bep <= p.revenue && (() => {
+          const y = FLOW_TOP + (p.bep / p.revenue) * mh[0]
+          return (
+            <g className="pf-el" style={{ animationDelay: '0.8s' }}>
+              <line
+                x1={COL_X[0] - 8} x2={COL_X[0] + NODE_W + 8} y1={y} y2={y}
+                stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2"
+              />
+              <text x={COL_X[0] - 11} y={y + 3.5} textAnchor="end" fontSize="9" fontWeight="700" fill="#475569">
+                BEP
+              </text>
+            </g>
+          )
+        })()}
+
+        {/* BEP 블록 — 좌하단: 본전 매출 + 달성률 게이지 */}
+        <g className="pf-el" style={{ animationDelay: '0.7s' }}>
+          <text x={40} y={COST_Y + 10} fontSize="11" fontWeight="600" fill="#64748b" style={{ letterSpacing: '0.04em' }}>
+            손익분기점 (BEP)
+          </text>
+          {p.bepRate == null ? (
+            <text x={40} y={COST_Y + 30} fontSize="11" fill="#94a3b8">고정비 미등록 — 산출 불가</text>
+          ) : (
+            <>
+              <text x={40} y={COST_Y + 31} fontSize="13" fontWeight="700" fill="#0f172a" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {p.bep == null ? '공헌이익 적자' : formatKRW(p.bep)}
+              </text>
+              <text x={40} y={COST_Y + 48} fontSize="11" fontWeight="700" fill={p.bepRate >= 100 ? '#3d7a00' : '#dc2626'}>
+                달성률 {p.bepRate.toFixed(1)}% {p.bepRate >= 100 ? '· 본전 넘김' : '· 본전 미달'}
+              </text>
+              <rect x={40} y={COST_Y + 56} width={150} height={6} fill="#f1f5f9" rx="3" />
+              <rect
+                x={40} y={COST_Y + 56}
+                width={Math.max(2, Math.min(150, (p.bepRate / 100) * 150))}
+                height={6} fill={p.bepRate >= 100 ? '#76b900' : '#ef4444'} rx="3"
+              />
+              <line x1={190} x2={190} y1={COST_Y + 53} y2={COST_Y + 65} stroke="#334155" strokeWidth="1" strokeDasharray="2 2" />
+            </>
+          )}
+        </g>
+
         {mains.map((m, i) => {
           const x = COL_X[i]
           const cx = x + NODE_W / 2
