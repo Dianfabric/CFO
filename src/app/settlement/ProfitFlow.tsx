@@ -25,6 +25,10 @@ interface Props {
   /** BEP 달성률 % (공헌이익 ÷ 고정비) — 고정비 미등록 시 null */
   bepRate: number | null
   periodKey: string
+  /** 마지막 노드 라벨 (기본 '순이익' — 사업부 뷰는 '세전이익') */
+  netLabel?: string
+  /** 영업외 분기 라벨 (기본 '영업외·이자') */
+  nonOpLabel?: string
 }
 
 const COL_X = [60, 280, 500, 720, 940] // 메인 노드 x
@@ -58,13 +62,13 @@ export default function ProfitFlow(p: Props) {
     { label: '매출총이익', v: p.gross },
     { label: '공헌이익', v: p.contribution },
     { label: '영업이익', v: p.operating },
-    { label: '순이익', v: p.net },
+    { label: p.netLabel ?? '순이익', v: p.net },
   ]
   const costs = [
     { label: '매출원가', v: p.cogs, rateName: '원가율' },
     { label: '변동비', v: p.variable, rateName: '매출 대비' },
     { label: '고정비', v: p.fixed, rateName: '매출 대비' },
-    { label: '영업외·이자', v: p.nonOp, rateName: '매출 대비' },
+    { label: p.nonOpLabel ?? '영업외·이자', v: p.nonOp, rateName: '매출 대비' },
   ]
   const mh = mains.map((m) => barH(m.v))
 

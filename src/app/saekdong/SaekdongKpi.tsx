@@ -12,6 +12,7 @@ import { Gauge, Loader2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 import { fetchSharedSales, fetchSharedOffline } from './sharedFetch'
 import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from './actions'
+import ProfitFlow from '@/app/settlement/ProfitFlow'
 
 type Period = 'week' | 'month' | 'quarter' | 'year'
 
@@ -173,8 +174,11 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     // 세전이익 = 영업이익 − 영업외비용 (영업외수익·법인세는 법인 단위 — 사업부 지표에선 제외)
     const pretax = operating - nonOp
     const rate = (v: number) => (revenue > 0 ? (v / revenue) * 100 : 0)
+    // BEP — 공헌이익 관점
+    const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
+    const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
 
-    return { info, revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, pretax, rate }
+    return { info, revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, pretax, rate, bep, bepRate }
   }, [period, sales, offline, purchases, expenses, itemCosts])
 
   return (
@@ -204,6 +208,44 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 손익 흐름 생키 — 색동은 이렇게 벌고 쓴다 */}
+      <div
+        className="bg-white p-4 sm:p-5"
+        style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }}
+      >
+        <div className="flex items-baseline gap-2 flex-wrap mb-1">
+          <h3 className="text-[14px] font-bold" style={{ color: 'var(--nv-ink)' }}>
+            색동은 이렇게 벌고 쓴다
+          </h3>
+          <span className="text-[11px]" style={{ color: 'var(--nv-stone)' }}>
+            · {m.info.label} · 온라인(공급가 환산) + 오프라인
+          </span>
+        </div>
+        {loading ? (
+          <p className="py-8 text-center text-[12px]" style={{ color: 'var(--nv-mute)' }}>
+            <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+            손익 흐름 계산 중...
+          </p>
+        ) : (
+          <ProfitFlow
+            revenue={m.revenue}
+            cogs={m.cogs}
+            gross={m.gross}
+            variable={m.variable}
+            contribution={m.contribution}
+            fixed={m.fixed}
+            operating={m.operating}
+            nonOp={m.nonOp}
+            net={m.pretax}
+            bep={m.bep}
+            bepRate={m.bepRate}
+            periodKey={`saek-${period}`}
+            netLabel="세전이익"
+            nonOpLabel="영업외비용"
+          />
+        )}
       </div>
 
       {/* 계기판 — 한 줄 타이포 스트립 */}
