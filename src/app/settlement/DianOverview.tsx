@@ -16,6 +16,7 @@ import { formatKRW } from '@/lib/formatters'
 import { fetchSharedSales, fetchSharedOffline } from '@/app/saekdong/sharedFetch'
 import { listSaekdongCosts } from '@/app/saekdong/actions'
 import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from '@/app/saekdong/actions'
+import ProfitFlow from './ProfitFlow'
 
 type Period = 'week' | 'month' | 'quarter' | 'year'
 
@@ -53,6 +54,37 @@ const PERIODS: { key: Period; label: string }[] = [
 
 function kstToday(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
+}
+
+/** 기간 시작일 + 고정비 월 등록액 배분 계수 (색동 계기판과 동일 규칙) */
+function periodInfo(period: Period): { start: string; monthMult: number } {
+  const today = kstToday()
+  const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))]
+  if (period === 'week') {
+    const now = new Date(today + 'T00:00:00')
+    const dow = now.getDay()
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1))
+    return { start: monday.toLocaleDateString('sv-SE'), monthMult: 12 / 52 }
+  }
+  if (period === 'month') return { start: `${today.slice(0, 7)}-01`, monthMult: 1 }
+  if (period === 'quarter') {
+    const qStartMonth = Math.floor((m - 1) / 3) * 3 + 1
+    return { start: `${y}-${String(qStartMonth).padStart(2, '0')}-01`, monthMult: m - qStartMonth + 1 }
+  }
+  return { start: `${y}-01-01`, monthMult: m }
+}
+
+/** 본체(일계표) 기간 손익 재료 — /api/settlement/pnl 응답 */
+interface BodyPnl {
+  sales: number
+  fabricCogs: number
+  expenses: number
+  shipping: number
+  fixed: number
+  interest: number
+  interestMissing?: boolean
+  error?: string
 }
 
 function periodLabel(period: Period): string {
@@ -128,7 +160,20 @@ export default function DianOverview() {
     expenses: SaekdongExpense[]
     itemCosts: SaekdongItemCost[]
   } | null>(null)
+  const [bodyPnl, setBodyPnl] = useState<Partial<Record<Period, BodyPnl>>>({})
   const [loading, setLoading] = useState(true)
+
+  // 기간 변경 시 본체 손익 재료 조회 (기간별 1회 캐시)
+  useEffect(() => {
+    if (bodyPnl[period]) return
+    const info = periodInfo(period)
+    fetch(`/api/settlement/pnl?start=${info.start}&end=${kstToday()}`)
+      .then((r) => r.json())
+      .then((d: BodyPnl) => {
+        if (!d.error) setBodyPnl((prev) => ({ ...prev, [period]: d }))
+      })
+      .catch(() => {})
+  }, [period, bodyPnl])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -237,6 +282,72 @@ export default function DianOverview() {
     }
   }, [dian, saekOn, saekOff, period, bodyOpPrev, saekCosts])
 
+  // ── 색동 기간 손익 사슬 (색동 계기판과 동일 규칙) ──
+  const saekChain = useMemo(() => {
+    const info = periodInfo(period)
+    const curMonth = kstToday().slice(0, 7)
+    const purchases = saekCosts?.purchases ?? []
+    const expenses = saekCosts?.expenses ?? []
+    const itemCosts = saekCosts?.itemCosts ?? []
+    const onlineRaw = saekOn && !saekOn.error ? periodRevenue(saekOn, period) : 0
+    const onlineSupply = Math.round(onlineRaw / 1.1)
+    const inPeriod = (dt?: string | null) => !!dt && dt >= info.start
+    const monthlyActive = (e: SaekdongExpense) =>
+      (!e.start_month || e.start_month <= curMonth) && (!e.end_month || e.end_month >= curMonth)
+    const expSum = (filter: (e: SaekdongExpense) => boolean) =>
+      Math.round(
+        expenses
+          .filter(filter)
+          .reduce(
+            (s, e) =>
+              s + (e.is_monthly ? (monthlyActive(e) ? e.amount * info.monthMult : 0) : inPeriod(e.expense_date) ? e.amount : 0),
+            0,
+          ),
+      )
+    // 기준단가 추정 원가 — 매입 기록 없는 품목만, 올해 원가율을 기간 온라인 매출에 비례 배분
+    const purchasedKeys = new Set(purchases.map((p) => normName(p.item_name)))
+    const stdMap = new Map(itemCosts.map((c) => [normName(c.item_name), c.unit_cost]))
+    let yearStdCogs = 0
+    for (const pr of saekOn?.products ?? []) {
+      const k = normName(pr.prodName)
+      if (purchasedKeys.has(k)) continue
+      const uc = stdMap.get(k)
+      if (uc != null) yearStdCogs += uc * pr.qty
+    }
+    const yearOnlineSupply = saekOn && !saekOn.error ? Math.round((saekOn.thisYear ?? 0) / 1.1) : 0
+    const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
+    const cogs =
+      purchases.filter((pu) => inPeriod(pu.purchase_date)).reduce((s, pu) => s + pu.amount, 0) +
+      expSum((e) => e.nature === '매출원가') +
+      Math.round(onlineSupply * stdRate)
+    return {
+      onlineSupply,
+      cogs,
+      variable: expSum((e) => e.cost_type === 'variable' && e.nature === '판관비'),
+      fixed: expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비'),
+      nonOp: expSum((e) => e.nature === '영업외비용'),
+    }
+  }, [saekCosts, saekOn, period])
+
+  // ── 회사 전체 손익 사슬 = 본체(일계표) + 색동 (오프라인은 본체에 포함 — 이중계상 없음) ──
+  const chain = useMemo(() => {
+    const body = bodyPnl[period]
+    if (!body) return null
+    const revenue = body.sales + saekChain.onlineSupply
+    const cogs = body.fabricCogs + saekChain.cogs
+    const gross = revenue - cogs
+    const variable = body.expenses + body.shipping + saekChain.variable
+    const contribution = gross - variable
+    const fixed = body.fixed + saekChain.fixed
+    const operating = contribution - fixed
+    const nonOp = saekChain.nonOp + (body.interest ?? 0)
+    const net = operating - nonOp
+    return {
+      revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net,
+      interestMissing: !!body.interestMissing,
+    }
+  }, [bodyPnl, period, saekChain])
+
   const lastRevCount = useCountUp(m.lastRev)
 
   return (
@@ -273,6 +384,48 @@ export default function DianOverview() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 손익 흐름 생키 — 디안은 이렇게 벌고 쓴다 */}
+      <div
+        className="bg-white p-4 sm:p-5"
+        style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }}
+      >
+        <div className="flex items-baseline gap-2 flex-wrap mb-1">
+          <h3 className="text-[14px] font-bold text-slate-900">
+            디안은 이렇게 벌고 쓴다
+          </h3>
+          <span className="text-[11px] text-slate-400">
+            · {periodLabel(period)} · 본체 + 색동 통합 (엔에이아이디 연동 예정)
+          </span>
+        </div>
+        {loading || !chain ? (
+          <p className="py-8 text-center text-[12px] text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+            손익 흐름 계산 중...
+          </p>
+        ) : (
+          <>
+            <ProfitFlow
+              revenue={chain.revenue}
+              cogs={chain.cogs}
+              gross={chain.gross}
+              variable={chain.variable}
+              contribution={chain.contribution}
+              fixed={chain.fixed}
+              operating={chain.operating}
+              nonOp={chain.nonOp}
+              net={chain.net}
+              periodKey={period}
+            />
+            <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+              공급가 기준 · 매출원가 = 본체 원단 매입원가 + 색동 매입·기준단가 추정 · 변동비 =
+              본체 당일지출·해외운송비 + 색동 변동 판관비 · 고정비 = 월 등록액 기간 배분 ·
+              순이익 = 영업이익 − 영업외비용(색동 등록분 + 대출이자) — 종소세·법인세 반영 전
+              {chain.interestMissing && ' · ⚠ 대출 이자 미연동 (loan_payments SQL 실행 대기)'}
+            </p>
+          </>
+        )}
       </div>
 
       {/* 밴드 1 — 통합 매출 스트립 */}
