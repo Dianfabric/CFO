@@ -12,6 +12,7 @@ import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/
 import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
 import UploadSection from '@/components/upload/UploadSection'
 import DailyChecklist from '@/components/documents/DailyChecklist'
+import SimpleReceipts from '@/components/documents/SimpleReceipts'
 
 interface DocRow {
   id: string
@@ -165,6 +166,9 @@ export default function DocumentsPage() {
         <UploadSection />
         <DailyChecklist />
       </div>
+
+      {/* 간이영수증 대장 — 사진 + 분류, 분기별 신고용 엑셀 */}
+      <SimpleReceipts />
 
       {/* 새 공문 작성 카드 */}
       <Card>
