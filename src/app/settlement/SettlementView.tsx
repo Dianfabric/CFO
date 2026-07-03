@@ -15,6 +15,7 @@ import IntegratedSections from './IntegratedSections'
 import ReconCenter from './ReconCenter'
 import BankInbox from './BankInbox'
 import TaxPrep from './TaxPrep'
+import MagamInsights from './MagamInsights'
 import UpcomingSections from './UpcomingSections'
 
 type PeriodType = 'day' | 'week' | 'month' | 'custom'
@@ -432,6 +433,9 @@ export default function SettlementView() {
 
       {/* 세금 준비 — 분기 부가세 예상 + 미발행/미수취 파악 */}
       <TaxPrep />
+
+      {/* 출고·마감 인사이트 — 메타 분석 + 미표기 추적 + 출고&미수 (거래 관리 연동 예정) */}
+      <MagamInsights />
 
       {/* ⑤ 연동 예정 (엔에이아이디) */}
       <UpcomingSections />
