@@ -189,10 +189,15 @@ export default function NotificationBell() {
                           {relTime(n.time)}
                         </span>
                       </div>
-                      {n.kind === 'review' && n.text && (
+                      {/* 주문 = 품명·수량 (바로 준비용), 후기 = 본문 요약 */}
+                      {n.text && (
                         <p
                           className="mt-0.5 text-[11px] line-clamp-2"
-                          style={{ color: 'var(--nv-mute)' }}
+                          style={{
+                            color: n.kind === 'order' ? 'var(--nv-ink)' : 'var(--nv-mute)',
+                            fontWeight: n.kind === 'order' ? 600 : undefined,
+                          }}
+                          title={n.text}
                         >
                           {n.text}
                         </p>

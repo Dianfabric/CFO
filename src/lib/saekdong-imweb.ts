@@ -394,14 +394,33 @@ export async function getSaekdongNotices(dayRange = 3): Promise<{
 
     // 신규 주문
     const orders = await fetchOrders(from, to)
-    for (const o of orders) {
-      if (o.order_time < cutoff) continue
+    // 주문 품목 요약 포함 — 알림만 보고 바로 준비 가능하도록 (호출 보호 상한 10건)
+    const recentOrders = orders.filter((o) => o.order_time >= cutoff)
+    const DETAIL_CAP = 10
+    for (let i = 0; i < recentOrders.length; i++) {
+      const o = recentOrders[i]
+      let itemsText = ''
+      if (i < DETAIL_CAP) {
+        try {
+          const rows = await api<ProdOrderRow[]>(`/shop/orders/${o.order_no}/prod-orders`)
+          const parts: string[] = []
+          for (const row of rows ?? []) {
+            for (const it of row.items ?? []) {
+              const name = it.prod_name || `상품#${it.prod_no}`
+              parts.push(`${name} ${it.payment?.count ?? 1}개`)
+            }
+          }
+          itemsText = parts.join(' · ')
+        } catch {
+          // 품목 조회 실패해도 주문 알림 자체는 유지
+        }
+      }
       notices.push({
         id: `order:${o.order_no}`,
         kind: 'order',
         time: o.order_time,
         amount: o.payment?.payment_amount ?? 0,
-        text: '',
+        text: itemsText,
       })
     }
 
