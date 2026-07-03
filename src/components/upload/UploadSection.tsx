@@ -76,6 +76,12 @@ function formatPurchaseResult(json: Record<string, unknown>): { message: string;
       detail: `매칭 ${(json.matched as number) ?? 0}건 | 미매칭 ${(json.unmatched as number) ?? 0}건 | 중복 ${(json.duplicate as number) ?? 0}건 | 총 ${formatKRW((json.totalAmount as number) ?? 0)}`,
     }
   }
+  if (type === 'purchase_tax_invoice') {
+    return {
+      message: `매입 세금계산서 ${(json.created as number) ?? 0}건 등록`,
+      detail: `매칭 ${(json.matched as number) ?? 0}건 | 미매칭 ${(json.unmatched as number) ?? 0}건 | 중복 ${(json.duplicate as number) ?? 0}건 | 총 ${formatKRW((json.totalAmount as number) ?? 0)}`,
+    }
+  }
   if (type === 'bank') {
     return {
       message: `통장내역 ${(json.created as number) ?? 0}건 등록`,
@@ -249,7 +255,7 @@ export default function UploadSection({ onUploadSuccess }: { onUploadSuccess?: (
           <Upload className="w-4 h-4 text-blue-600" />
           일일 마감 업로드
           <span className="text-xs font-normal text-slate-400 ml-1">
-            일계표 · 디안 마감(담당자) · 관세 · 로드썬 · 글로지텍 · 수입세금계산서 — 어떤 파일이든 드래그
+            일계표 · 디안 마감 · 통장 · 세금계산서(매출/매입 자동 구분) · 관세 · 운임 — 어떤 파일이든 드래그
           </span>
         </CardTitle>
       </CardHeader>

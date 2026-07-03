@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
+
+// 디안 사업자등록번호 — 매출/매입 목록 자동 구분에 사용
+const DIAN_BIZ_NO = '211-08-78685'
 
 function normName(name: string): string {
   return String(name ?? '')
@@ -61,6 +65,106 @@ export async function POST(request: NextRequest) {
       if (String(rows[i]?.[0] ?? '').includes('작성일자')) { dataStartRow = i + 1; break }
     }
     if (dataStartRow < 0) return NextResponse.json({ error: '세금계산서 헤더를 찾을 수 없습니다' }, { status: 400 })
+
+    // ── 매출/매입 자동 구분 ──
+    // 1) 제목 행에 '매입'/'매출' 명시 여부  2) 데이터 행의 공급자 사업자번호가
+    //    디안이면 매출, 공급받는자가 디안이면 매입
+    let direction: 'sales' | 'purchase' | null = null
+    for (let i = 0; i < Math.min(dataStartRow, rows.length); i++) {
+      const line = (rows[i] ?? []).map((c) => String(c ?? '')).join(' ')
+      if (/매입\s*전자.*세금계산서/.test(line)) { direction = 'purchase'; break }
+      if (/매출\s*전자.*세금계산서/.test(line)) { direction = 'sales'; break }
+    }
+    if (!direction) {
+      const probe = rows[dataStartRow] ?? []
+      const supplierBiz = String(probe[4] ?? '').trim()
+      const buyerBiz = String(probe[9] ?? '').trim()
+      direction = buyerBiz === DIAN_BIZ_NO && supplierBiz !== DIAN_BIZ_NO ? 'purchase' : 'sales'
+    }
+
+    // ── 매입 세금계산서 → Supabase 저장 + 일계표 매입 거래 대사 ──
+    if (direction === 'purchase') {
+      const supabase = await createClient()
+      let pCreated = 0, pDup = 0, pMatched = 0, pUnmatched = 0, pSum = 0
+      for (let i = dataStartRow; i < rows.length; i++) {
+        const r = rows[i]
+        const approvalNumber = String(r[1] ?? '').trim()
+        if (!approvalNumber) continue
+        const issueDate = parseDate(r[0]) ?? new Date()
+        const supplierNameRaw = String(r[6] ?? '').trim() // 공급자 상호
+        const supplierBizNo = String(r[4] ?? '').trim()
+        const totalAmount = parseNum(r[14])
+        const supplyAmount = parseNum(r[15])
+        const taxAmount = parseNum(r[16])
+        const itemName = String(r[26] ?? '').trim() || null
+        if (!supplierNameRaw || totalAmount === 0) continue
+
+        // 중복 체크
+        const { data: exists, error: selErr } = await supabase
+          .from('purchase_tax_invoices')
+          .select('approval_number')
+          .eq('approval_number', approvalNumber)
+          .maybeSingle()
+        if (selErr) {
+          const missing = /find the table|does not exist/i.test(selErr.message)
+          return NextResponse.json(
+            {
+              error: missing
+                ? '매입 계산서 테이블이 없습니다 — supabase/migrations/2026-07-03_purchase_tax_invoices.sql 을 실행해 주세요.'
+                : selErr.message,
+            },
+            { status: 400 },
+          )
+        }
+        if (exists) { pDup++; continue }
+
+        // 매입 거래 대사 — 거래처(사업자번호→이름) → PURCHASE 공급가·±3일
+        let client: { id: string } | null = supplierBizNo
+          ? await prisma.client.findFirst({ where: { businessNumber: supplierBizNo }, select: { id: true } })
+          : null
+        if (!client) {
+          const all = await prisma.client.findMany({ select: { id: true, name: true } })
+          const k = normName(supplierNameRaw)
+          client = all.find((c) => normName(c.name) === k) ?? null
+        }
+        let matchedTxId: string | null = null
+        if (client) {
+          const ds = new Date(issueDate); ds.setDate(ds.getDate() - 3)
+          const de = new Date(issueDate); de.setDate(de.getDate() + 3)
+          const tx = await prisma.transaction.findFirst({
+            where: {
+              type: 'PURCHASE',
+              clientId: client.id,
+              totalAmount: supplyAmount,
+              date: { gte: ds, lte: de },
+            },
+          })
+          matchedTxId = tx?.id ?? null
+        }
+
+        const { error: insErr } = await supabase.from('purchase_tax_invoices').insert({
+          approval_number: approvalNumber,
+          issue_date: issueDate.toLocaleDateString('sv-SE'),
+          supplier_name_raw: supplierNameRaw,
+          supplier_biz_no: supplierBizNo || null,
+          supply_amount: supplyAmount,
+          tax_amount: taxAmount,
+          total_amount: totalAmount,
+          item_name: itemName,
+          matched_tx_id: matchedTxId,
+          status: matchedTxId ? 'MATCHED' : 'UNMATCHED',
+        })
+        if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
+        pCreated++
+        pSum += totalAmount
+        if (matchedTxId) pMatched++; else pUnmatched++
+      }
+      return NextResponse.json({
+        success: true, type: 'purchase_tax_invoice',
+        created: pCreated, duplicate: pDup, matched: pMatched, unmatched: pUnmatched,
+        totalAmount: pSum,
+      })
+    }
 
     let created = 0, dup = 0, matched = 0, unmatched = 0
     let totalSum = 0
