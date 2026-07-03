@@ -360,6 +360,34 @@ export default function DianOverview() {
     }
   }, [bodyPnl, rangeKey, saekChain])
 
+  // ── 디안 본체(원단) 단독 손익 사슬 — 색동 오프라인 매출 제외 (원가는 색동에서 관리) ──
+  const bodyChain = useMemo(() => {
+    const body = bodyPnl[rangeKey]
+    if (!body) return null
+    const saekOffline = seriesRevenue(saekOff, range)
+    const revenue = body.sales - saekOffline
+    const cogs = body.fabricCogs
+    const gross = revenue - cogs
+    const variable = body.expenses + body.shipping
+    const contribution = gross - variable
+    const fixed = body.fixed
+    const operating = contribution - fixed
+    const nonOp = body.interest ?? 0
+    const net = operating - nonOp
+    const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
+    const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
+    const breakdowns = {
+      cogs: [{ label: '원단 매입', amount: body.fabricCogs }],
+      variable: [
+        { label: '당일지출', amount: body.expenses },
+        { label: '해외운송비', amount: body.shipping },
+      ],
+      fixed: body.fixedBreakdown ?? [],
+      nonOp: [{ label: '대출 이자', amount: body.interest ?? 0 }],
+    }
+    return { revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net, bep, bepRate, breakdowns }
+  }, [bodyPnl, rangeKey, saekOff, range])
+
   const lastRevCount = useCountUp(m.lastRev)
 
   return (
@@ -507,43 +535,8 @@ export default function DianOverview() {
               breakdowns={chain.breakdowns}
               periodKey={rangeKey}
             />
-            {/* 숫자 스트립 — 다이어그램과 동일 사슬 (색동·법인 개별 스트립은 추후 아래에) */}
-            <div className="mt-3 px-4 py-5 sm:px-6" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
-              <div className="flex flex-wrap items-stretch gap-y-5">
-                <StripMetric label="매출" value={chain.revenue} big first />
-                <StripMetric label="매출원가" value={chain.cogs} negative dim />
-                <StripMetric label="매출총이익" value={chain.gross} rate={pct(chain.gross, chain.revenue)} />
-                <StripMetric label="변동비" value={chain.variable} negative dim />
-                <StripMetric label="공헌이익" value={chain.contribution} rate={pct(chain.contribution, chain.revenue)} />
-                <StripMetric label="고정비" value={chain.fixed} negative dim />
-                <StripMetric label="영업이익" value={chain.operating} rate={pct(chain.operating, chain.revenue)} big />
-                {chain.nonOp > 0 && (
-                  <>
-                    <StripMetric label="영업외·이자" value={chain.nonOp} negative dim />
-                    <StripMetric label="순이익" value={chain.net} rate={pct(chain.net, chain.revenue)} big />
-                  </>
-                )}
-                {/* BEP — 공헌이익 ÷ 고정비 */}
-                <div className="px-4 sm:px-5" style={{ borderLeft: '1px solid rgba(255,255,255,0.14)' }}>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                    BEP 달성률
-                  </p>
-                  <p
-                    className="mt-1 font-bold tabular-nums leading-none text-[24px] sm:text-[28px]"
-                    style={{ color: chain.bepRate == null ? 'rgba(255,255,255,0.35)' : chain.bepRate >= 100 ? '#76b900' : '#f87171' }}
-                  >
-                    {chain.bepRate == null ? '—' : `${chain.bepRate.toFixed(1)}%`}
-                  </p>
-                  <p className="mt-1 text-[11px] tabular-nums" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    {chain.bepRate == null
-                      ? '고정비 미등록'
-                      : chain.bep == null
-                        ? 'BEP 매출 산출 불가 (공헌이익 적자)'
-                        : `BEP 매출 ${formatKRW(chain.bep)}`}
-                  </p>
-                </div>
-              </div>
-            </div>
+            {/* 숫자 스트립 — 다이어그램과 동일 사슬 */}
+            <ChainStrip chain={chain} />
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
               공급가 기준 · 매출원가 = 본체 원단 매입원가 + 색동 매입·기준단가 추정 · 변동비 =
               본체 당일지출·해외운송비 + 색동 변동 판관비 · 고정비 = 월 등록액 기간 배분 ·
@@ -553,6 +546,70 @@ export default function DianOverview() {
             </p>
           </>
         )}
+      </div>
+
+      {/* 디안 본체 — 원단 사업 단독 (사업체별 전략용) */}
+      <div
+        className="bg-white p-4 sm:p-5"
+        style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }}
+      >
+        <div className="flex items-baseline gap-2 flex-wrap mb-1">
+          <h3 className="text-[14px] font-bold text-slate-900">
+            디안 본체는 이렇게 벌고 쓴다
+          </h3>
+          <span className="text-[11px] text-slate-400">
+            · {range.label} · 일계표 기준 (색동 오프라인 매출 제외)
+          </span>
+        </div>
+        {loading || !bodyChain ? (
+          <p className="py-8 text-center text-[12px] text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+            본체 손익 계산 중...
+          </p>
+        ) : (
+          <>
+            <ProfitFlow
+              revenue={bodyChain.revenue}
+              cogs={bodyChain.cogs}
+              gross={bodyChain.gross}
+              variable={bodyChain.variable}
+              contribution={bodyChain.contribution}
+              fixed={bodyChain.fixed}
+              operating={bodyChain.operating}
+              nonOp={bodyChain.nonOp}
+              net={bodyChain.net}
+              bep={bodyChain.bep}
+              bepRate={bodyChain.bepRate}
+              breakdowns={bodyChain.breakdowns}
+              nonOpLabel="대출 이자"
+              periodKey={`body-${rangeKey}`}
+            />
+            <ChainStrip chain={bodyChain} nonOpLabel="대출 이자" />
+            <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+              일계표 기준 · 색동 오프라인 매출 제외(해당 원가는 색동에서 관리) · 변동비 =
+              당일지출 + 해외운송비 · 고정비 = 비용 관리 등록액 기간 배분 · 순이익 = 영업이익 −
+              대출 이자 (종합소득세 반영 전)
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* 엔에이아이디 (법인) — 연동 예정 슬롯 */}
+      <div
+        className="bg-white p-4 sm:p-5"
+        style={{ border: '1px dashed var(--nv-hairline, #cbd5e1)', borderRadius: '2px' }}
+      >
+        <div className="flex items-baseline gap-2 flex-wrap mb-1">
+          <h3 className="text-[14px] font-bold text-slate-400">
+            엔에이아이디(법인)는 이렇게 벌고 쓴다
+          </h3>
+          <span className="text-[11px] text-slate-400">· 연동 예정</span>
+        </div>
+        <p className="py-4 text-[12px] leading-relaxed text-slate-400">
+          법인 자료(매출·매입 세금계산서, 법인 통장, 법인 대출)가 들어오면 위와 똑같은 형식
+          — 생키 + 숫자 스트립 + BEP + 주/월/분기/년 과거 조회 — 으로 자동 표시됩니다.
+          대출·이자 원장은 이미 법인(naid)을 지원하므로 법인 대출 파일부터 업로드할 수 있습니다.
+        </p>
       </div>
 
       {/* 밴드 1 — 통합 매출 스트립 */}
@@ -674,6 +731,69 @@ export default function DianOverview() {
 
 function pct(v: number, base: number): number {
   return base > 0 ? (v / base) * 100 : 0
+}
+
+/** 손익 사슬 데이터 — 통합·본체·(추후) 법인 스트립이 공유 */
+interface ChainData {
+  revenue: number
+  cogs: number
+  gross: number
+  variable: number
+  contribution: number
+  fixed: number
+  operating: number
+  nonOp: number
+  net: number
+  bep: number | null
+  bepRate: number | null
+}
+
+/** 검은 숫자 스트립 — 사슬 전체 + BEP (색동 계기판과 동일 포맷) */
+function ChainStrip({
+  chain, netLabel = '순이익', nonOpLabel = '영업외·이자',
+}: {
+  chain: ChainData
+  netLabel?: string
+  nonOpLabel?: string
+}) {
+  return (
+    <div className="mt-3 px-4 py-5 sm:px-6" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
+      <div className="flex flex-wrap items-stretch gap-y-5">
+        <StripMetric label="매출" value={chain.revenue} big first />
+        <StripMetric label="매출원가" value={chain.cogs} negative dim />
+        <StripMetric label="매출총이익" value={chain.gross} rate={pct(chain.gross, chain.revenue)} />
+        <StripMetric label="변동비" value={chain.variable} negative dim />
+        <StripMetric label="공헌이익" value={chain.contribution} rate={pct(chain.contribution, chain.revenue)} />
+        <StripMetric label="고정비" value={chain.fixed} negative dim />
+        <StripMetric label="영업이익" value={chain.operating} rate={pct(chain.operating, chain.revenue)} big />
+        {chain.nonOp > 0 && (
+          <>
+            <StripMetric label={nonOpLabel} value={chain.nonOp} negative dim />
+            <StripMetric label={netLabel} value={chain.net} rate={pct(chain.net, chain.revenue)} big />
+          </>
+        )}
+        {/* BEP — 공헌이익 ÷ 고정비 */}
+        <div className="px-4 sm:px-5" style={{ borderLeft: '1px solid rgba(255,255,255,0.14)' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            BEP 달성률
+          </p>
+          <p
+            className="mt-1 font-bold tabular-nums leading-none text-[24px] sm:text-[28px]"
+            style={{ color: chain.bepRate == null ? 'rgba(255,255,255,0.35)' : chain.bepRate >= 100 ? '#76b900' : '#f87171' }}
+          >
+            {chain.bepRate == null ? '—' : `${chain.bepRate.toFixed(1)}%`}
+          </p>
+          <p className="mt-1 text-[11px] tabular-nums" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            {chain.bepRate == null
+              ? '고정비 미등록'
+              : chain.bep == null
+                ? 'BEP 매출 산출 불가 (공헌이익 적자)'
+                : `BEP 매출 ${formatKRW(chain.bep)}`}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /** 검은 스트립 숫자 셀 — 색동 계기판과 동일 포맷 */
