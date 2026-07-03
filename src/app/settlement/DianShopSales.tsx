@@ -10,6 +10,7 @@ import {
 } from 'recharts'
 import { Store, RefreshCw, Loader2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import { fetchSharedDianShop } from '@/app/saekdong/sharedFetch'
 
 interface SalesData {
   today: number
@@ -32,9 +33,8 @@ export default function DianShopSales() {
   const fetchData = useCallback(async (force = false) => {
     if (force) setRefreshing(true)
     try {
-      const r = await fetch(force ? '/api/dianshop/sales?refresh=1' : '/api/dianshop/sales',
-        force ? { cache: 'no-store' } : {})
-      setData((await r.json()) as SalesData)
+      // 경영지표(DianOverview)와 같은 요청 공유 — 페이지당 1회
+      setData(await fetchSharedDianShop<SalesData>(force))
     } catch {
       setData(null)
     } finally {

@@ -37,3 +37,21 @@ export function fetchSharedOffline<T>(force = false): Promise<T> {
   }
   return offlinePromise as Promise<T>
 }
+
+// 디안 원단몰(아임웹 2호점) — 경영 계기판의 DianOverview·DianShopSales 가 공유
+let dianShopPromise: Promise<unknown> | null = null
+
+export function fetchSharedDianShop<T>(force = false): Promise<T> {
+  if (force || !dianShopPromise) {
+    dianShopPromise = fetch(
+      force ? '/api/dianshop/sales?refresh=1' : '/api/dianshop/sales',
+      force ? { cache: 'no-store' } : {},
+    )
+      .then((r) => r.json())
+      .catch((e) => {
+        dianShopPromise = null
+        throw e
+      })
+  }
+  return dianShopPromise as Promise<T>
+}

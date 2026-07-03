@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Gauge, Loader2 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
-import { fetchSharedSales, fetchSharedOffline } from '@/app/saekdong/sharedFetch'
+import { fetchSharedSales, fetchSharedOffline, fetchSharedDianShop } from '@/app/saekdong/sharedFetch'
 import { listSaekdongCosts } from '@/app/saekdong/actions'
 import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from '@/app/saekdong/actions'
 import ProfitFlow from './ProfitFlow'
@@ -107,6 +107,7 @@ export default function DianOverview() {
   const [dian, setDian] = useState<SeriesData | null>(null)
   const [saekOn, setSaekOn] = useState<SeriesData | null>(null)
   const [saekOff, setSaekOff] = useState<SeriesData | null>(null)
+  const [dianShop, setDianShop] = useState<SeriesData | null>(null) // 디안 원단몰 — 본체 매출에 편입
   const [bodyOpPrev, setBodyOpPrev] = useState<number | null>(null) // 본체 확정월 영업이익
   const [saekCosts, setSaekCosts] = useState<{
     purchases: SaekdongPurchase[]
@@ -145,7 +146,7 @@ export default function DianOverview() {
     setLoading(true)
     try {
       const pm = prevMonthRange()
-      const [d, s, o, st, sc, pp] = await Promise.all([
+      const [d, s, o, st, sc, pp, ds] = await Promise.all([
         fetch('/api/settlement/monthly').then((r) => r.json()),
         fetchSharedSales<SeriesData>().catch(() => null),
         fetchSharedOffline<SeriesData>().catch(() => null),
@@ -158,10 +159,13 @@ export default function DianOverview() {
         fetch(`/api/settlement/pnl?start=${pm.start}&end=${pm.end}`)
           .then((r) => r.json())
           .catch(() => null),
+        // 디안 원단몰 (아임웹 2호점) — 본체 매출에 편입
+        fetchSharedDianShop<SeriesData>().catch(() => null),
       ])
       setDian(d)
       setSaekOn(s)
       setSaekOff(o)
+      setDianShop(ds)
       setBodyOpPrev(
         st && typeof st.dailyOperatingProfit === 'number' ? st.dailyOperatingProfit : null,
       )
@@ -182,14 +186,19 @@ export default function DianOverview() {
     const dianBody = bodyForRange ? bodyForRange.sales : seriesRevenue(dian, range) // 일계표 전체 (색동 오프라인 포함)
     const saekOnline = Math.round(seriesRevenue(saekOn, range) / 1.1)
     const saekOffline = seriesRevenue(saekOff, range)
-    const total = dianBody + saekOnline // 색동 오프라인은 dianBody 에 포함 — 이중계상 방지
+    const shopSupply = Math.round(seriesRevenue(dianShop, range) / 1.1) // 디안 원단몰 — 본체 소속
+    const total = dianBody + saekOnline + shopSupply // 색동 오프라인은 dianBody 에 포함 — 이중계상 방지
     const saekTotal = saekOnline + saekOffline
-    const dianFabric = dianBody - saekOffline
+    const dianFabric = dianBody - saekOffline + shopSupply
 
-    // 12개월 통합 시계열 (본체 + 색동 온라인 공급가)
+    // 12개월 통합 시계열 (본체 + 색동 온라인 + 디안몰 공급가)
     const onMap = new Map((saekOn?.monthly ?? []).map((x) => [x.month, x.revenue]))
+    const shopMap = new Map((dianShop?.monthly ?? []).map((x) => [x.month, x.revenue]))
     const series = (dian?.monthly ?? []).map(
-      (x) => x.revenue + Math.round((onMap.get(x.month) ?? 0) / 1.1),
+      (x) =>
+        x.revenue +
+        Math.round((onMap.get(x.month) ?? 0) / 1.1) +
+        Math.round((shopMap.get(x.month) ?? 0) / 1.1),
     )
     const months = (dian?.monthly ?? []).map((x) => x.month)
 
@@ -272,7 +281,7 @@ export default function DianOverview() {
       dianBody, saekOnline, saekOffline, total, saekTotal, dianFabric,
       series, lastRev, growth, lastLabel, saekShare, profit, profitRate, pulseCosts,
     }
-  }, [dian, saekOn, saekOff, range, rangeKey, bodyPnl, bodyOpPrev, saekCosts, pulsePnl])
+  }, [dian, saekOn, saekOff, dianShop, range, rangeKey, bodyPnl, bodyOpPrev, saekCosts, pulsePnl])
 
   // ── 색동 기간 손익 사슬 (색동 계기판과 동일 규칙, 과거 기간 지원) ──
   const saekChain = useMemo(() => {
@@ -317,11 +326,12 @@ export default function DianOverview() {
     }
   }, [saekCosts, saekOn, range])
 
-  // ── 회사 전체 손익 사슬 = 본체(일계표) + 색동 (오프라인은 본체에 포함 — 이중계상 없음) ──
+  // ── 회사 전체 손익 사슬 = 본체(일계표 + 디안몰) + 색동 (오프라인은 본체에 포함 — 이중계상 없음) ──
   const chain = useMemo(() => {
     const body = bodyPnl[rangeKey]
     if (!body) return null
-    const revenue = body.sales + saekChain.onlineSupply
+    const shopSupply = Math.round(seriesRevenue(dianShop, range) / 1.1) // 디안 원단몰 — 본체 소속 (원가 미연동)
+    const revenue = body.sales + saekChain.onlineSupply + shopSupply
     const cogs = body.fabricCogs + saekChain.cogs
     const gross = revenue - cogs
     const variable = body.expenses + body.shipping + saekChain.variable
@@ -358,14 +368,15 @@ export default function DianOverview() {
       bep, bepRate, breakdowns,
       interestMissing: !!body.interestMissing,
     }
-  }, [bodyPnl, rangeKey, saekChain])
+  }, [bodyPnl, rangeKey, saekChain, dianShop, range])
 
-  // ── 디안 본체(원단) 단독 손익 사슬 — 색동 오프라인 매출 제외 (원가는 색동에서 관리) ──
+  // ── 디안 본체(원단 + 디안몰) 단독 손익 사슬 — 색동 오프라인 매출 제외 (원가는 색동에서 관리) ──
   const bodyChain = useMemo(() => {
     const body = bodyPnl[rangeKey]
     if (!body) return null
     const saekOffline = seriesRevenue(saekOff, range)
-    const revenue = body.sales - saekOffline
+    const shopSupply = Math.round(seriesRevenue(dianShop, range) / 1.1) // 디안 원단몰 — 본체 매출 편입
+    const revenue = body.sales - saekOffline + shopSupply
     const cogs = body.fabricCogs
     const gross = revenue - cogs
     const variable = body.expenses + body.shipping
@@ -386,7 +397,7 @@ export default function DianOverview() {
       nonOp: [{ label: '대출 이자', amount: body.interest ?? 0 }],
     }
     return { revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net, bep, bepRate, breakdowns }
-  }, [bodyPnl, rangeKey, saekOff, range])
+  }, [bodyPnl, rangeKey, saekOff, dianShop, range])
 
   const lastRevCount = useCountUp(m.lastRev)
 
@@ -538,7 +549,8 @@ export default function DianOverview() {
             {/* 숫자 스트립 — 다이어그램과 동일 사슬 */}
             <ChainStrip chain={chain} />
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-              공급가 기준 · 매출원가 = 본체 원단 매입원가 + 색동 매입·기준단가 추정 · 변동비 =
+              공급가 기준 · 총매출 = 일계표 + 색동 온라인 + 디안 쇼핑몰(÷1.1 환산, 원가 미연동) ·
+              매출원가 = 본체 원단 매입원가 + 색동 매입·기준단가 추정 · 변동비 =
               본체 당일지출·해외운송비 + 색동 변동 판관비 · 고정비 = 월 등록액 기간 배분 ·
               순이익 = 영업이익 − 영업외비용(색동 등록분 + 대출이자) — 종소세·법인세 반영 전
               {range.weekMode && !range.isCurrentWeek && ' · 지난 주의 색동 온라인 매출은 월 매출 일할 배분 근사'}
@@ -558,7 +570,7 @@ export default function DianOverview() {
             디안 본체는 이렇게 벌고 쓴다
           </h3>
           <span className="text-[11px] text-slate-400">
-            · {range.label} · 일계표 기준 (색동 오프라인 매출 제외)
+            · {range.label} · 일계표 + 디안 쇼핑몰 (색동 오프라인 매출 제외)
           </span>
         </div>
         {loading || !bodyChain ? (
@@ -586,9 +598,9 @@ export default function DianOverview() {
             />
             <ChainStrip chain={bodyChain} nonOpLabel="대출 이자" />
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-              일계표 기준 · 색동 오프라인 매출 제외(해당 원가는 색동에서 관리) · 변동비 =
-              당일지출 + 해외운송비 · 고정비 = 비용 관리 등록액 기간 배분 · 순이익 = 영업이익 −
-              대출 이자 (종합소득세 반영 전)
+              매출 = 일계표 + 디안 쇼핑몰(÷1.1 공급가 환산, 원가 미연동) − 색동 오프라인(해당
+              원가는 색동에서 관리) · 변동비 = 당일지출 + 해외운송비 · 고정비 = 비용 관리
+              등록액 기간 배분 · 순이익 = 영업이익 − 대출 이자 (종합소득세 반영 전)
             </p>
           </>
         )}
@@ -624,7 +636,7 @@ export default function DianOverview() {
             <Cell first label={`총매출 · ${range.label}`} big>
               <span style={{ color: '#76b900' }}>{formatKRW(m.total)}</span>
             </Cell>
-            <Cell label="디안 원단 (본체)">
+            <Cell label="디안 본체 (원단 + 쇼핑몰)">
               <span className="text-white">{formatKRW(m.dianFabric)}</span>
             </Cell>
             <Cell label="색동 (온라인+오프라인)">
