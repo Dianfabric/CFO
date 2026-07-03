@@ -161,6 +161,7 @@ export default function DianOverview() {
     itemCosts: SaekdongItemCost[]
   } | null>(null)
   const [bodyPnl, setBodyPnl] = useState<Partial<Record<Period, BodyPnl>>>({})
+  const [pulsePnl, setPulsePnl] = useState<BodyPnl | null>(null) // 확정월(전월) 본체 손익 재료
   const [loading, setLoading] = useState(true)
 
   // 기간 변경 시 본체 손익 재료 조회 (기간별 1회 캐시)
@@ -179,7 +180,7 @@ export default function DianOverview() {
     setLoading(true)
     try {
       const pm = prevMonthRange()
-      const [d, s, o, st, sc] = await Promise.all([
+      const [d, s, o, st, sc, pp] = await Promise.all([
         fetch('/api/settlement/monthly').then((r) => r.json()),
         fetchSharedSales<SeriesData>().catch(() => null),
         fetchSharedOffline<SeriesData>().catch(() => null),
@@ -188,6 +189,10 @@ export default function DianOverview() {
           .then((r) => r.json())
           .catch(() => null),
         listSaekdongCosts().catch(() => null),
+        // 확정월 본체 비용 구조 (PULSE 비용 표시용)
+        fetch(`/api/settlement/pnl?start=${pm.start}&end=${pm.end}`)
+          .then((r) => r.json())
+          .catch(() => null),
       ])
       setDian(d)
       setSaekOn(s)
@@ -196,6 +201,7 @@ export default function DianOverview() {
         st && typeof st.dailyOperatingProfit === 'number' ? st.dailyOperatingProfit : null,
       )
       if (sc) setSaekCosts({ purchases: sc.purchases, expenses: sc.expenses, itemCosts: sc.itemCosts })
+      if (pp && !pp.error) setPulsePnl(pp as BodyPnl)
     } catch {
       // 부가 표시 — 실패 시 0
     } finally {
@@ -235,13 +241,11 @@ export default function DianOverview() {
     const lastSaekOff = lastIdx >= 0 ? (offMap.get(months[lastIdx]) ?? 0) : 0
     const saekShare = lastRev > 0 ? ((lastSaekOn + lastSaekOff) / lastRev) * 100 : null
 
-    // ── 확정월 통합 영업이익 (근사) ──
-    // = 본체 영업이익(결산 API) + 색동 영업이익 − 색동 오프라인 매출(이중계상 제거)
-    let profit: number | null = null
-    let profitRate: number | null = null
-    if (bodyOpPrev != null && lastIdx >= 0) {
+    // ── 확정월 색동 비용 (매출원가·변동·고정) — 통합 영업이익과 PULSE 비용 구조가 공유 ──
+    let saekPm = { cogs: 0, variable: 0, fixed: 0 }
+    if (lastIdx >= 0 && saekCosts) {
       const pmKey = months[lastIdx]
-      const exps = saekCosts?.expenses ?? []
+      const exps = saekCosts.expenses
       const monthlyActive = (e: SaekdongExpense) =>
         (!e.start_month || e.start_month <= pmKey) && (!e.end_month || e.end_month >= pmKey)
       const expSum = (filter: (e: SaekdongExpense) => boolean) =>
@@ -254,11 +258,11 @@ export default function DianOverview() {
           0,
         )
       // 색동 매출원가: 확정월 매입 + 성격=매출원가 비용 + 기준단가 추정(올해 원가율 × 확정월 온라인)
-      const purch = (saekCosts?.purchases ?? [])
+      const purch = saekCosts.purchases
         .filter((p) => p.purchase_date.startsWith(pmKey))
         .reduce((s, p) => s + p.amount, 0)
-      const purchasedKeys = new Set((saekCosts?.purchases ?? []).map((p) => normName(p.item_name)))
-      const stdMap = new Map((saekCosts?.itemCosts ?? []).map((c) => [normName(c.item_name), c.unit_cost]))
+      const purchasedKeys = new Set(saekCosts.purchases.map((p) => normName(p.item_name)))
+      const stdMap = new Map(saekCosts.itemCosts.map((c) => [normName(c.item_name), c.unit_cost]))
       let yearStdCogs = 0
       for (const pr of saekOn?.products ?? []) {
         const k = normName(pr.prodName)
@@ -268,19 +272,41 @@ export default function DianOverview() {
       }
       const yearOnlineSupply = Math.round((saekOn?.thisYear ?? 0) / 1.1)
       const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
-      const saekCogs = purch + expSum((e) => e.nature === '매출원가') + Math.round(lastSaekOn * stdRate)
-      const saekVar = expSum((e) => e.cost_type === 'variable' && e.nature === '판관비')
-      const saekFixed = expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비')
-      const saekOp = lastSaekOn + lastSaekOff - saekCogs - saekVar - saekFixed
+      saekPm = {
+        cogs: purch + expSum((e) => e.nature === '매출원가') + Math.round(lastSaekOn * stdRate),
+        variable: expSum((e) => e.cost_type === 'variable' && e.nature === '판관비'),
+        fixed: expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비'),
+      }
+    }
+
+    // ── 확정월 통합 영업이익 (근사) ──
+    // = 본체 영업이익(결산 API) + 색동 영업이익 − 색동 오프라인 매출(이중계상 제거)
+    let profit: number | null = null
+    let profitRate: number | null = null
+    if (bodyOpPrev != null && lastIdx >= 0) {
+      const saekOp = lastSaekOn + lastSaekOff - saekPm.cogs - saekPm.variable - saekPm.fixed
       profit = bodyOpPrev + saekOp - lastSaekOff // 오프라인 매출 이중계상 제거
       profitRate = lastRev > 0 ? (profit / lastRev) * 100 : null
     }
 
+    // ── 확정월 통합 비용 구조 (본체 pnl + 색동) — PULSE 표시용 ──
+    let pulseCosts: { cogs: number; variable: number; fixed: number; total: number; rate: number | null } | null = null
+    if (pulsePnl && lastIdx >= 0) {
+      const cogs = pulsePnl.fabricCogs + saekPm.cogs
+      const variable = pulsePnl.expenses + pulsePnl.shipping + saekPm.variable
+      const fixed = pulsePnl.fixed + saekPm.fixed
+      const totalCost = cogs + variable + fixed
+      pulseCosts = {
+        cogs, variable, fixed, total: totalCost,
+        rate: lastRev > 0 ? (totalCost / lastRev) * 100 : null,
+      }
+    }
+
     return {
       dianBody, saekOnline, saekOffline, total, saekTotal, dianFabric,
-      series, lastRev, growth, lastLabel, saekShare, profit, profitRate,
+      series, lastRev, growth, lastLabel, saekShare, profit, profitRate, pulseCosts,
     }
-  }, [dian, saekOn, saekOff, period, bodyOpPrev, saekCosts])
+  }, [dian, saekOn, saekOff, period, bodyOpPrev, saekCosts, pulsePnl])
 
   // ── 색동 기간 손익 사슬 (색동 계기판과 동일 규칙) ──
   const saekChain = useMemo(() => {
@@ -418,6 +444,24 @@ export default function DianOverview() {
               net={chain.net}
               periodKey={period}
             />
+            {/* 숫자 스트립 — 다이어그램과 동일 사슬 (색동·법인 개별 스트립은 추후 아래에) */}
+            <div className="mt-3 px-4 py-5 sm:px-6" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
+              <div className="flex flex-wrap items-stretch gap-y-5">
+                <StripMetric label="매출" value={chain.revenue} big first />
+                <StripMetric label="매출원가" value={chain.cogs} negative dim />
+                <StripMetric label="매출총이익" value={chain.gross} rate={pct(chain.gross, chain.revenue)} />
+                <StripMetric label="변동비" value={chain.variable} negative dim />
+                <StripMetric label="공헌이익" value={chain.contribution} rate={pct(chain.contribution, chain.revenue)} />
+                <StripMetric label="고정비" value={chain.fixed} negative dim />
+                <StripMetric label="영업이익" value={chain.operating} rate={pct(chain.operating, chain.revenue)} big />
+                {chain.nonOp > 0 && (
+                  <>
+                    <StripMetric label="영업외·이자" value={chain.nonOp} negative dim />
+                    <StripMetric label="순이익" value={chain.net} rate={pct(chain.net, chain.revenue)} big />
+                  </>
+                )}
+              </div>
+            </div>
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
               공급가 기준 · 매출원가 = 본체 원단 매입원가 + 색동 매입·기준단가 추정 · 변동비 =
               본체 당일지출·해외운송비 + 색동 변동 판관비 · 고정비 = 월 등록액 기간 배분 ·
@@ -495,6 +539,21 @@ export default function DianOverview() {
                 {m.lastLabel} 총매출 중 색동
               </p>
             </Cell>
+            <Cell label={`${m.lastLabel} 총비용`}>
+              {m.pulseCosts == null ? (
+                <span style={{ color: 'rgba(255,255,255,0.35)' }}>—</span>
+              ) : (
+                <>
+                  <span style={{ color: '#f87171' }}>{formatKRW(m.pulseCosts.total)}</span>
+                  <p className="mt-1 text-[11px] font-bold tabular-nums" style={{ color: 'rgba(248,113,113,0.85)' }}>
+                    매출 대비 {m.pulseCosts.rate == null ? '—' : `${m.pulseCosts.rate.toFixed(1)}%`}
+                  </p>
+                  <p className="mt-0.5 text-[10px] tabular-nums" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                    원가 {formatKRW(m.pulseCosts.cogs)} · 변동 {formatKRW(m.pulseCosts.variable)} · 고정 {formatKRW(m.pulseCosts.fixed)}
+                  </p>
+                </>
+              )}
+            </Cell>
             <Cell label={`${m.lastLabel} 통합 영업이익`}>
               {m.profit == null ? (
                 <>
@@ -526,6 +585,52 @@ export default function DianOverview() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function pct(v: number, base: number): number {
+  return base > 0 ? (v / base) * 100 : 0
+}
+
+/** 검은 스트립 숫자 셀 — 색동 계기판과 동일 포맷 */
+function StripMetric({
+  label, value, rate, big, dim, negative, first,
+}: {
+  label: string
+  value: number
+  rate?: number
+  big?: boolean
+  dim?: boolean
+  negative?: boolean
+  first?: boolean
+}) {
+  const color = dim
+    ? 'rgba(255,255,255,0.55)'
+    : value >= 0
+      ? big
+        ? '#76b900'
+        : '#ffffff'
+      : '#f87171'
+  return (
+    <div
+      className="px-4 sm:px-5 first:pl-0"
+      style={{ borderLeft: first ? 'none' : '1px solid rgba(255,255,255,0.14)' }}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+        {negative ? `(-) ${label}` : label}
+      </p>
+      <p
+        className={`mt-1 font-bold tabular-nums leading-none ${big ? 'text-[24px] sm:text-[28px]' : 'text-[19px] sm:text-[22px]'}`}
+        style={{ color }}
+      >
+        {formatKRW(Math.abs(value))}
+      </p>
+      {rate != null && (
+        <p className="mt-1 text-[11px] font-bold tabular-nums" style={{ color: value >= 0 ? 'rgba(118,185,0,0.9)' : '#f87171' }}>
+          {rate.toFixed(1)}%
+        </p>
+      )}
     </div>
   )
 }
