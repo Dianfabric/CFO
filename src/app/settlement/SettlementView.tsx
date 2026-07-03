@@ -13,6 +13,7 @@ import {
 import DianOverview from './DianOverview'
 import IntegratedSections from './IntegratedSections'
 import CostIntel from './CostIntel'
+import LoanSection from './LoanSection'
 import ReconCenter from './ReconCenter'
 import BankInbox from './BankInbox'
 import TaxPrep from './TaxPrep'
@@ -428,6 +429,9 @@ export default function SettlementView() {
 
       {/* 비용 인텔리전스 — 관리회계 원장 (재량 절감·구독료 트래커) */}
       <CostIntel />
+
+      {/* 대출·이자 — 원금/이자 상환 + 통장 크로스체크 (디안/법인) */}
+      <LoanSection />
 
       {/* ④ 대사 센터 — 퍼지 매칭 제안 (매출↔세금계산서 · 통장입금↔미수) */}
       <ReconCenter />

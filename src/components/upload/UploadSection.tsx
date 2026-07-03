@@ -76,6 +76,13 @@ function formatPurchaseResult(json: Record<string, unknown>): { message: string;
       detail: `매칭 ${(json.matched as number) ?? 0}건 | 미매칭 ${(json.unmatched as number) ?? 0}건 | 중복 ${(json.duplicate as number) ?? 0}건 | 총 ${formatKRW((json.totalAmount as number) ?? 0)}`,
     }
   }
+  if (type === 'loan_payments') {
+    const lenders = (json.lenders as string[] | undefined)?.join('·') ?? ''
+    return {
+      message: `대출 상환내역 ${(json.created as number) ?? 0}건 흡수 (${json.year}년 ${json.entity === 'naid' ? '법인' : '디안'})`,
+      detail: `${lenders} | 이자 ${formatKRW((json.totalInterest as number) ?? 0)} · 원금 ${formatKRW((json.totalPrincipal as number) ?? 0)} | 확인필요 ${json.needsReview}건 | 중복 ${json.duplicate}건`,
+    }
+  }
   if (type === 'mgmt_ledger') {
     const months = (json.months as string[] | undefined)?.join(', ') ?? ''
     return {
@@ -121,13 +128,15 @@ async function processFile(item: FileItem): Promise<{ message: string; detail?: 
   const isTaxInvoice = /세금계산서/.test(name)
   const isBank = /통장|거래내역조회/.test(name)
   const isMgmt = /관리\s*회계/.test(name)
+  const isLoan = /대출.*(상환|이자)|이자상환/.test(name)
   // 파일 종류 자동 라우팅:
   // - 세금계산서 → /api/upload/tax-invoice
   // - 통장내역 → /api/upload/bank
   // - "디안_마감_*.xlsx" → 담당자 마감 엑셀
   // - 다른 .xls/.xlsx → 일계표
   // - .pdf 등 → 매입 PDF
-  const endpoint = isMgmt ? '/api/upload/mgmt-accounting'
+  const endpoint = isLoan ? '/api/upload/loan-payments'
+    : isMgmt ? '/api/upload/mgmt-accounting'
     : isTaxInvoice ? '/api/upload/tax-invoice'
     : isBank ? '/api/upload/bank'
     : isMagam ? '/api/upload/sales-person'
