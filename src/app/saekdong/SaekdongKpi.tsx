@@ -13,8 +13,7 @@ import { formatKRW } from '@/lib/formatters'
 import { fetchSharedSales, fetchSharedOffline } from './sharedFetch'
 import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from './actions'
 import ProfitFlow from '@/app/settlement/ProfitFlow'
-
-type Period = 'week' | 'month' | 'quarter' | 'year'
+import { rangeFor, seriesRevenue, kstToday, type Period } from '@/lib/period-range'
 
 interface MonthlyPoint { month: string; revenue: number; orders: number }
 interface ProductSales { prodName: string; revenue: number; qty: number }
@@ -35,53 +34,6 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'year', label: '년' },
 ]
 
-function kstToday(): string {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
-}
-
-/** 기간 시작일(YYYY-MM-DD)과 고정비 월배분 계수 */
-function periodInfo(period: Period): { start: string; monthMult: number; label: string } {
-  const today = kstToday()
-  const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))]
-  if (period === 'week') {
-    const now = new Date(today + 'T00:00:00')
-    const dow = now.getDay()
-    const monday = new Date(now)
-    monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1))
-    return { start: monday.toLocaleDateString('sv-SE'), monthMult: 12 / 52, label: '이번 주' }
-  }
-  if (period === 'month') {
-    return { start: `${today.slice(0, 7)}-01`, monthMult: 1, label: '이번 달' }
-  }
-  if (period === 'quarter') {
-    const qStartMonth = Math.floor((m - 1) / 3) * 3 + 1
-    return {
-      start: `${y}-${String(qStartMonth).padStart(2, '0')}-01`,
-      monthMult: m - qStartMonth + 1,
-      label: `${Math.floor((m - 1) / 3) + 1}분기`,
-    }
-  }
-  return { start: `${y}-01-01`, monthMult: m, label: `${y}년` }
-}
-
-/** 매출 데이터에서 기간 매출 추출 (온라인은 부가세 포함 → 호출부에서 환산) */
-function periodRevenue(
-  d: { thisWeek: number; thisMonth: number; monthly: MonthlyPoint[]; thisYear?: number },
-  period: Period,
-): number {
-  const today = kstToday()
-  const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))]
-  if (period === 'week') return d.thisWeek
-  if (period === 'month') return d.thisMonth
-  if (period === 'quarter') {
-    const qStart = Math.floor((m - 1) / 3) * 3 + 1
-    const keys = [0, 1, 2].map((i) => `${y}-${String(qStart + i).padStart(2, '0')}`)
-    return d.monthly.filter((mo) => keys.includes(mo.month)).reduce((s, mo) => s + mo.revenue, 0)
-  }
-  if (d.thisYear != null) return d.thisYear
-  return d.monthly.filter((mo) => mo.month.startsWith(String(y))).reduce((s, mo) => s + mo.revenue, 0)
-}
-
 function normName(s: string): string {
   return String(s || '').replace(/\[[^\]]*\]/g, '').toLowerCase().replace(/\s+/g, '')
 }
@@ -97,6 +49,18 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
   const [sales, setSales] = useState<SalesData | null>(null)
   const [offline, setOffline] = useState<OfflineData | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // 과거 기간 선택 (26년 내) — 월 1~12 / 분기 1~4 / 주 offset(0=이번 주)
+  const nowM = Number(kstToday().slice(5, 7))
+  const curQ = Math.floor((nowM - 1) / 3) + 1
+  const [selMonth, setSelMonth] = useState(nowM)
+  const [selQuarter, setSelQuarter] = useState(curQ)
+  const [weekOffset, setWeekOffset] = useState(0)
+
+  const range = useMemo(
+    () => rangeFor(period, selMonth, selQuarter, weekOffset),
+    [period, selMonth, selQuarter, weekOffset],
+  )
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -118,27 +82,22 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
   useEffect(() => { fetchAll() }, [fetchAll])
 
   const m = useMemo(() => {
-    const info = periodInfo(period)
-    const curMonth = kstToday().slice(0, 7)
-
-    // 매출 (공급가): 온라인 ÷1.1 + 오프라인
-    const onlineRaw = sales && !sales.error ? periodRevenue(sales, period) : 0
-    const offlineRaw = offline && !offline.error ? periodRevenue(offline, period) : 0
+    // 매출 (공급가): 온라인 ÷1.1 + 오프라인 — 선택 기간(과거 포함)
+    const onlineRaw = sales && !sales.error ? seriesRevenue(sales, range) : 0
+    const offlineRaw = offline && !offline.error ? seriesRevenue(offline, range) : 0
     const revenue = Math.round(onlineRaw / 1.1) + offlineRaw
 
     // 매출원가: 기간 매입 + 성격=매출원가 비용
-    const inPeriod = (dt: string | null | undefined) => !!dt && dt >= info.start
-    const monthlyActive = (e: SaekdongExpense) =>
-      (!e.start_month || e.start_month <= curMonth) && (!e.end_month || e.end_month >= curMonth)
+    const inPeriod = (dt: string | null | undefined) => !!dt && dt >= range.start && dt <= range.end
+    // 월 등록 비용: 기간에 걸친 달마다 (그 달에 활성일 때) 가중치만큼 배분
+    const monthlyActive = (e: SaekdongExpense, ym: string) =>
+      (!e.start_month || e.start_month <= ym) && (!e.end_month || e.end_month >= ym)
     const expSum = (filter: (e: SaekdongExpense) => boolean) =>
       Math.round(
-        expenses
-          .filter(filter)
-          .reduce(
-            (s, e) =>
-              s + (e.is_monthly ? (monthlyActive(e) ? e.amount * info.monthMult : 0) : inPeriod(e.expense_date) ? e.amount : 0),
-            0,
-          ),
+        expenses.filter(filter).reduce((s, e) => {
+          if (!e.is_monthly) return s + (inPeriod(e.expense_date) ? e.amount : 0)
+          return s + range.months.reduce((ms, mw) => ms + (monthlyActive(e, mw.ym) ? e.amount * mw.w : 0), 0)
+        }, 0),
       )
 
     // 기준단가 기반 추정 매출원가 — 매입 기록이 없는 품목만.
@@ -178,8 +137,8 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
     const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
 
-    return { info, revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, pretax, rate, bep, bepRate }
-  }, [period, sales, offline, purchases, expenses, itemCosts])
+    return { revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, pretax, rate, bep, bepRate }
+  }, [range, sales, offline, purchases, expenses, itemCosts])
 
   return (
     <div className="space-y-3">
@@ -190,7 +149,7 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
           색동 경영 지표
         </h2>
         <span className="text-xs" style={{ color: 'var(--nv-stone)' }}>
-          · {m.info.label} · 공급가 기준
+          · {range.label} · 공급가 기준
         </span>
         <div className="ml-auto inline-flex" style={{ border: '1px solid var(--nv-hairline)', borderRadius: '2px', overflow: 'hidden' }}>
           {PERIODS.map((p) => (
@@ -210,6 +169,80 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
         </div>
       </div>
 
+      {/* 과거 기간 선택 — 26년 내 지나간 주·월·분기 조회 */}
+      {period !== 'year' && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {period === 'month' &&
+            Array.from({ length: 12 }, (_, i) => i + 1).map((mm) => {
+              const active = Math.min(selMonth, nowM) === mm
+              return (
+                <button
+                  key={mm}
+                  type="button"
+                  disabled={mm > nowM}
+                  onClick={() => setSelMonth(mm)}
+                  className="h-7 px-2.5 text-[11px] font-bold transition-colors disabled:opacity-25"
+                  style={{
+                    border: '1px solid var(--nv-hairline, #e2e8f0)',
+                    borderRadius: '2px',
+                    backgroundColor: active ? '#000' : 'white',
+                    color: active ? '#fff' : '#64748b',
+                  }}
+                >
+                  {mm}월
+                </button>
+              )
+            })}
+          {period === 'quarter' &&
+            [1, 2, 3, 4].map((q) => {
+              const active = Math.min(selQuarter, curQ) === q
+              return (
+                <button
+                  key={q}
+                  type="button"
+                  disabled={q > curQ}
+                  onClick={() => setSelQuarter(q)}
+                  className="h-7 px-3 text-[11px] font-bold transition-colors disabled:opacity-25"
+                  style={{
+                    border: '1px solid var(--nv-hairline, #e2e8f0)',
+                    borderRadius: '2px',
+                    backgroundColor: active ? '#000' : 'white',
+                    color: active ? '#fff' : '#64748b',
+                  }}
+                >
+                  {q}분기
+                </button>
+              )
+            })}
+          {period === 'week' && (
+            <>
+              <button
+                type="button"
+                disabled={range.start <= `${kstToday().slice(0, 4)}-01-01`}
+                onClick={() => setWeekOffset((o) => o + 1)}
+                className="h-7 px-2.5 text-[11px] font-bold bg-white disabled:opacity-25"
+                style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px', color: '#64748b' }}
+              >
+                ◀ 이전 주
+              </button>
+              <span className="px-1 text-[12px] font-bold tabular-nums" style={{ color: 'var(--nv-ink)' }}>
+                {range.label}
+                {weekOffset === 0 && <span className="ml-1 text-[10px] font-normal" style={{ color: 'var(--nv-stone)' }}>(이번 주)</span>}
+              </span>
+              <button
+                type="button"
+                disabled={weekOffset === 0}
+                onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
+                className="h-7 px-2.5 text-[11px] font-bold bg-white disabled:opacity-25"
+                style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px', color: '#64748b' }}
+              >
+                다음 주 ▶
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* 손익 흐름 생키 — 색동은 이렇게 벌고 쓴다 */}
       <div
         className="bg-white p-4 sm:p-5"
@@ -220,7 +253,7 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
             색동은 이렇게 벌고 쓴다
           </h3>
           <span className="text-[11px]" style={{ color: 'var(--nv-stone)' }}>
-            · {m.info.label} · 온라인(공급가 환산) + 오프라인
+            · {range.label} · 온라인(공급가 환산) + 오프라인
           </span>
         </div>
         {loading ? (
@@ -241,7 +274,7 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
             net={m.pretax}
             bep={m.bep}
             bepRate={m.bepRate}
-            periodKey={`saek-${period}`}
+            periodKey={`saek-${range.start}_${range.end}`}
             netLabel="세전이익"
             nonOpLabel="영업외비용"
           />
@@ -288,7 +321,8 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
 
       <p className="text-[10px] text-right" style={{ color: 'var(--nv-stone)' }}>
         온라인 매출 부가세 제외 환산(÷1.1) · 매출원가 = 기간 매입액 + 기준단가×판매수량
-        추정(재고 미반영) · 고정비 월 등록액 기간 비례 배분 · 영업외비용 등록 시 세전이익
+        추정(재고 미반영) · 고정비 월 등록액 기간 비례 배분 · 지난 주 조회 시 온라인 매출은
+        월 매출 일할 배분 근사 · 영업외비용 등록 시 세전이익
         표시 (영업외수익·법인세는 법인 단위라 사업부 지표에서 제외) · 제품별 이익은 아래 ‘
         {sales?.productYear ?? '올해'}년 제품 매출’에 표시
       </p>
