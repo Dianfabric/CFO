@@ -56,25 +56,6 @@ function kstToday(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
 }
 
-/** 기간 시작일 + 고정비 월 등록액 배분 계수 (색동 계기판과 동일 규칙) */
-function periodInfo(period: Period): { start: string; monthMult: number } {
-  const today = kstToday()
-  const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))]
-  if (period === 'week') {
-    const now = new Date(today + 'T00:00:00')
-    const dow = now.getDay()
-    const monday = new Date(now)
-    monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1))
-    return { start: monday.toLocaleDateString('sv-SE'), monthMult: 12 / 52 }
-  }
-  if (period === 'month') return { start: `${today.slice(0, 7)}-01`, monthMult: 1 }
-  if (period === 'quarter') {
-    const qStartMonth = Math.floor((m - 1) / 3) * 3 + 1
-    return { start: `${y}-${String(qStartMonth).padStart(2, '0')}-01`, monthMult: m - qStartMonth + 1 }
-  }
-  return { start: `${y}-01-01`, monthMult: m }
-}
-
 /** 본체(일계표) 기간 손익 재료 — /api/settlement/pnl 응답 */
 interface BodyPnl {
   sales: number
@@ -87,28 +68,103 @@ interface BodyPnl {
   error?: string
 }
 
-function periodLabel(period: Period): string {
-  const [y, m] = [Number(kstToday().slice(0, 4)), Number(kstToday().slice(5, 7))]
-  if (period === 'week') return '이번 주'
-  if (period === 'month') return '이번 달'
-  if (period === 'quarter') return `${Math.floor((m - 1) / 3) + 1}분기`
-  return `${y}년`
+/**
+ * 선택된 기간(과거 포함)의 실제 범위.
+ * months: 월 등록 비용(고정비 등) 배분용 — { ym, w(가중치) }.
+ * weekOverlaps: 주 선택 시 월별 겹침 일수 (색동 시계열 일할 배분용).
+ */
+interface PeriodRange {
+  start: string
+  end: string
+  label: string
+  months: { ym: string; w: number }[]
+  weekMode: boolean
+  isCurrentWeek: boolean
+  weekOverlaps: { ym: string; days: number }[]
 }
 
-/** 시계열에서 기간 매출 (to-date) */
-function periodRevenue(d: SeriesData | null, period: Period): number {
-  if (!d || d.error) return 0
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+/** 기간 종류 + 과거 선택(월 1~12 / 분기 1~4 / 주 offset)을 실제 날짜 범위로 */
+function rangeFor(period: Period, selMonth: number, selQuarter: number, weekOffset: number): PeriodRange {
   const today = kstToday()
   const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))]
-  if (period === 'week') return d.thisWeek
-  if (period === 'month') return d.thisMonth
-  if (period === 'quarter') {
-    const qStart = Math.floor((m - 1) / 3) * 3 + 1
-    const keys = [0, 1, 2].map((i) => `${y}-${String(qStart + i).padStart(2, '0')}`)
-    return d.monthly.filter((mo) => keys.includes(mo.month)).reduce((s, mo) => s + mo.revenue, 0)
+  const ymd = (d: Date) => d.toLocaleDateString('sv-SE')
+  const now = new Date(today + 'T00:00:00')
+
+  if (period === 'year') {
+    const months = Array.from({ length: m }, (_, i) => ({ ym: `${y}-${pad2(i + 1)}`, w: 1 }))
+    return { start: `${y}-01-01`, end: today, label: `${y}년`, months, weekMode: false, isCurrentWeek: false, weekOverlaps: [] }
   }
-  if (d.thisYear != null) return d.thisYear
-  return d.monthly.filter((mo) => mo.month.startsWith(String(y))).reduce((s, mo) => s + mo.revenue, 0)
+  if (period === 'month') {
+    const mm = Math.min(Math.max(1, selMonth), m)
+    const endD = mm === m ? now : new Date(y, mm, 0)
+    return {
+      start: `${y}-${pad2(mm)}-01`,
+      end: ymd(endD),
+      label: `${mm}월`,
+      months: [{ ym: `${y}-${pad2(mm)}`, w: 1 }],
+      weekMode: false, isCurrentWeek: false, weekOverlaps: [],
+    }
+  }
+  if (period === 'quarter') {
+    const curQ = Math.floor((m - 1) / 3) + 1
+    const q = Math.min(Math.max(1, selQuarter), curQ)
+    const qStart = (q - 1) * 3 + 1
+    const lastM = q === curQ ? m : qStart + 2
+    const endD = q === curQ ? now : new Date(y, qStart + 2, 0)
+    const months = Array.from({ length: lastM - qStart + 1 }, (_, i) => ({ ym: `${y}-${pad2(qStart + i)}`, w: 1 }))
+    return { start: `${y}-${pad2(qStart)}-01`, end: ymd(endD), label: `${q}분기`, months, weekMode: false, isCurrentWeek: false, weekOverlaps: [] }
+  }
+  // 주 — weekOffset 0 = 이번 주, 1 = 지난 주 ...
+  const dow = now.getDay()
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1) - weekOffset * 7)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  const endD = sunday > now ? now : sunday
+  // 월별 겹침 일수 (주가 두 달에 걸칠 수 있음)
+  const weekOverlaps: { ym: string; days: number }[] = []
+  const cur = new Date(monday)
+  while (cur <= endD) {
+    const ym = `${cur.getFullYear()}-${pad2(cur.getMonth() + 1)}`
+    const found = weekOverlaps.find((o) => o.ym === ym)
+    if (found) found.days += 1
+    else weekOverlaps.push({ ym, days: 1 })
+    cur.setDate(cur.getDate() + 1)
+  }
+  const totalDays = weekOverlaps.reduce((s, o) => s + o.days, 0) || 1
+  const months = weekOverlaps.map((o) => ({ ym: o.ym, w: (o.days / totalDays) * (12 / 52) }))
+  const label = `${monday.getMonth() + 1}/${monday.getDate()} ~ ${endD.getMonth() + 1}/${endD.getDate()}`
+  return { start: ymd(monday), end: ymd(endD), label, months, weekMode: true, isCurrentWeek: weekOffset === 0, weekOverlaps }
+}
+
+/**
+ * 시계열에서 선택 기간 매출.
+ * 월/분기/년 = 월 시계열 합. 이번 주 = thisWeek(정확).
+ * 과거 주 = 해당 월 매출 일할 배분 근사 (아임웹 집계가 월 단위라서).
+ */
+function seriesRevenue(d: SeriesData | null, range: PeriodRange): number {
+  if (!d || d.error) return 0
+  if (range.isCurrentWeek) return d.thisWeek
+  const map = new Map(d.monthly.map((x) => [x.month, x.revenue]))
+  if (!range.weekMode) {
+    return range.months.reduce((s, mw) => s + (map.get(mw.ym) ?? 0), 0)
+  }
+  const today = kstToday()
+  let sum = 0
+  for (const o of range.weekOverlaps) {
+    const rev = map.get(o.ym) ?? 0
+    // 진행 중인 달은 경과 일수 기준으로 일할
+    const daysInMonth =
+      o.ym === today.slice(0, 7)
+        ? Number(today.slice(8, 10))
+        : new Date(Number(o.ym.slice(0, 4)), Number(o.ym.slice(5, 7)), 0).getDate()
+    sum += rev * (o.days / Math.max(1, daysInMonth))
+  }
+  return Math.round(sum)
 }
 
 // 카운트업
@@ -160,21 +216,33 @@ export default function DianOverview() {
     expenses: SaekdongExpense[]
     itemCosts: SaekdongItemCost[]
   } | null>(null)
-  const [bodyPnl, setBodyPnl] = useState<Partial<Record<Period, BodyPnl>>>({})
+  const [bodyPnl, setBodyPnl] = useState<Record<string, BodyPnl>>({})
   const [pulsePnl, setPulsePnl] = useState<BodyPnl | null>(null) // 확정월(전월) 본체 손익 재료
   const [loading, setLoading] = useState(true)
 
-  // 기간 변경 시 본체 손익 재료 조회 (기간별 1회 캐시)
+  // 과거 기간 선택 (26년 내) — 월 1~12 / 분기 1~4 / 주 offset(0=이번 주)
+  const nowM = Number(kstToday().slice(5, 7))
+  const curQ = Math.floor((nowM - 1) / 3) + 1
+  const [selMonth, setSelMonth] = useState(nowM)
+  const [selQuarter, setSelQuarter] = useState(curQ)
+  const [weekOffset, setWeekOffset] = useState(0)
+
+  const range = useMemo(
+    () => rangeFor(period, selMonth, selQuarter, weekOffset),
+    [period, selMonth, selQuarter, weekOffset],
+  )
+  const rangeKey = `${range.start}_${range.end}`
+
+  // 기간(과거 포함) 변경 시 본체 손익 재료 조회 (범위별 1회 캐시)
   useEffect(() => {
-    if (bodyPnl[period]) return
-    const info = periodInfo(period)
-    fetch(`/api/settlement/pnl?start=${info.start}&end=${kstToday()}`)
+    if (bodyPnl[rangeKey]) return
+    fetch(`/api/settlement/pnl?start=${range.start}&end=${range.end}`)
       .then((r) => r.json())
       .then((d: BodyPnl) => {
-        if (!d.error) setBodyPnl((prev) => ({ ...prev, [period]: d }))
+        if (!d.error) setBodyPnl((prev) => ({ ...prev, [rangeKey]: d }))
       })
       .catch(() => {})
-  }, [period, bodyPnl])
+  }, [rangeKey, range.start, range.end, bodyPnl])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -212,10 +280,11 @@ export default function DianOverview() {
   useEffect(() => { fetchAll() }, [fetchAll])
 
   const m = useMemo(() => {
-    // 기간 매출 (공급가 기준)
-    const dianBody = periodRevenue(dian, period) // 일계표 전체 (색동 오프라인 포함)
-    const saekOnline = Math.round(periodRevenue(saekOn, period) / 1.1)
-    const saekOffline = periodRevenue(saekOff, period)
+    // 기간 매출 (공급가 기준) — 본체는 DB 집계(pnl) 우선, 없으면 월 시계열
+    const bodyForRange = bodyPnl[rangeKey]
+    const dianBody = bodyForRange ? bodyForRange.sales : seriesRevenue(dian, range) // 일계표 전체 (색동 오프라인 포함)
+    const saekOnline = Math.round(seriesRevenue(saekOn, range) / 1.1)
+    const saekOffline = seriesRevenue(saekOff, range)
     const total = dianBody + saekOnline // 색동 오프라인은 dianBody 에 포함 — 이중계상 방지
     const saekTotal = saekOnline + saekOffline
     const dianFabric = dianBody - saekOffline
@@ -306,29 +375,25 @@ export default function DianOverview() {
       dianBody, saekOnline, saekOffline, total, saekTotal, dianFabric,
       series, lastRev, growth, lastLabel, saekShare, profit, profitRate, pulseCosts,
     }
-  }, [dian, saekOn, saekOff, period, bodyOpPrev, saekCosts, pulsePnl])
+  }, [dian, saekOn, saekOff, range, rangeKey, bodyPnl, bodyOpPrev, saekCosts, pulsePnl])
 
-  // ── 색동 기간 손익 사슬 (색동 계기판과 동일 규칙) ──
+  // ── 색동 기간 손익 사슬 (색동 계기판과 동일 규칙, 과거 기간 지원) ──
   const saekChain = useMemo(() => {
-    const info = periodInfo(period)
-    const curMonth = kstToday().slice(0, 7)
     const purchases = saekCosts?.purchases ?? []
     const expenses = saekCosts?.expenses ?? []
     const itemCosts = saekCosts?.itemCosts ?? []
-    const onlineRaw = saekOn && !saekOn.error ? periodRevenue(saekOn, period) : 0
+    const onlineRaw = saekOn && !saekOn.error ? seriesRevenue(saekOn, range) : 0
     const onlineSupply = Math.round(onlineRaw / 1.1)
-    const inPeriod = (dt?: string | null) => !!dt && dt >= info.start
-    const monthlyActive = (e: SaekdongExpense) =>
-      (!e.start_month || e.start_month <= curMonth) && (!e.end_month || e.end_month >= curMonth)
+    const inPeriod = (dt?: string | null) => !!dt && dt >= range.start && dt <= range.end
+    // 월 등록 비용: 기간에 걸친 달마다 (그 달에 활성일 때) 가중치만큼 배분
+    const monthlyActive = (e: SaekdongExpense, ym: string) =>
+      (!e.start_month || e.start_month <= ym) && (!e.end_month || e.end_month >= ym)
     const expSum = (filter: (e: SaekdongExpense) => boolean) =>
       Math.round(
-        expenses
-          .filter(filter)
-          .reduce(
-            (s, e) =>
-              s + (e.is_monthly ? (monthlyActive(e) ? e.amount * info.monthMult : 0) : inPeriod(e.expense_date) ? e.amount : 0),
-            0,
-          ),
+        expenses.filter(filter).reduce((s, e) => {
+          if (!e.is_monthly) return s + (inPeriod(e.expense_date) ? e.amount : 0)
+          return s + range.months.reduce((ms, mw) => ms + (monthlyActive(e, mw.ym) ? e.amount * mw.w : 0), 0)
+        }, 0),
       )
     // 기준단가 추정 원가 — 매입 기록 없는 품목만, 올해 원가율을 기간 온라인 매출에 비례 배분
     const purchasedKeys = new Set(purchases.map((p) => normName(p.item_name)))
@@ -353,11 +418,11 @@ export default function DianOverview() {
       fixed: expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비'),
       nonOp: expSum((e) => e.nature === '영업외비용'),
     }
-  }, [saekCosts, saekOn, period])
+  }, [saekCosts, saekOn, range])
 
   // ── 회사 전체 손익 사슬 = 본체(일계표) + 색동 (오프라인은 본체에 포함 — 이중계상 없음) ──
   const chain = useMemo(() => {
-    const body = bodyPnl[period]
+    const body = bodyPnl[rangeKey]
     if (!body) return null
     const revenue = body.sales + saekChain.onlineSupply
     const cogs = body.fabricCogs + saekChain.cogs
@@ -372,7 +437,7 @@ export default function DianOverview() {
       revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net,
       interestMissing: !!body.interestMissing,
     }
-  }, [bodyPnl, period, saekChain])
+  }, [bodyPnl, rangeKey, saekChain])
 
   const lastRevCount = useCountUp(m.lastRev)
 
@@ -392,7 +457,7 @@ export default function DianOverview() {
         <Gauge className="w-4 h-4" style={{ color: 'var(--nv-primary)' }} />
         <h2 className="text-base font-semibold text-slate-900">디안 전체 경영지표</h2>
         <span className="text-xs text-slate-400">
-          · {periodLabel(period)} · 공급가 기준 · 디안 본체 + 색동 (엔에이아이디 연동 예정)
+          · {range.label} · 공급가 기준 · 디안 본체 + 색동 (엔에이아이디 연동 예정)
         </span>
         <div className="ml-auto inline-flex overflow-hidden rounded-sm border border-slate-200">
           {PERIODS.map((p) => (
@@ -412,6 +477,80 @@ export default function DianOverview() {
         </div>
       </div>
 
+      {/* 과거 기간 선택 — 26년 내 지나간 주·월·분기 조회 */}
+      {period !== 'year' && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {period === 'month' &&
+            Array.from({ length: 12 }, (_, i) => i + 1).map((mm) => {
+              const active = Math.min(selMonth, nowM) === mm
+              return (
+                <button
+                  key={mm}
+                  type="button"
+                  disabled={mm > nowM}
+                  onClick={() => setSelMonth(mm)}
+                  className="h-7 px-2.5 text-[11px] font-bold transition-colors disabled:opacity-25"
+                  style={{
+                    border: '1px solid var(--nv-hairline, #e2e8f0)',
+                    borderRadius: '2px',
+                    backgroundColor: active ? '#000' : 'white',
+                    color: active ? '#fff' : '#64748b',
+                  }}
+                >
+                  {mm}월
+                </button>
+              )
+            })}
+          {period === 'quarter' &&
+            [1, 2, 3, 4].map((q) => {
+              const active = Math.min(selQuarter, curQ) === q
+              return (
+                <button
+                  key={q}
+                  type="button"
+                  disabled={q > curQ}
+                  onClick={() => setSelQuarter(q)}
+                  className="h-7 px-3 text-[11px] font-bold transition-colors disabled:opacity-25"
+                  style={{
+                    border: '1px solid var(--nv-hairline, #e2e8f0)',
+                    borderRadius: '2px',
+                    backgroundColor: active ? '#000' : 'white',
+                    color: active ? '#fff' : '#64748b',
+                  }}
+                >
+                  {q}분기
+                </button>
+              )
+            })}
+          {period === 'week' && (
+            <>
+              <button
+                type="button"
+                disabled={range.start <= `${kstToday().slice(0, 4)}-01-01`}
+                onClick={() => setWeekOffset((o) => o + 1)}
+                className="h-7 px-2.5 text-[11px] font-bold bg-white disabled:opacity-25"
+                style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px', color: '#64748b' }}
+              >
+                ◀ 이전 주
+              </button>
+              <span className="px-1 text-[12px] font-bold tabular-nums text-slate-800">
+                {range.label}
+                {weekOffset === 0 && <span className="ml-1 text-[10px] font-normal text-slate-400">(이번 주)</span>}
+              </span>
+              <button
+                type="button"
+                disabled={weekOffset === 0}
+                onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
+                className="h-7 px-2.5 text-[11px] font-bold bg-white disabled:opacity-25"
+                style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px', color: '#64748b' }}
+              >
+                다음 주 ▶
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* 손익 흐름 생키 — 디안은 이렇게 벌고 쓴다 */}
       <div
         className="bg-white p-4 sm:p-5"
@@ -422,7 +561,7 @@ export default function DianOverview() {
             디안은 이렇게 벌고 쓴다
           </h3>
           <span className="text-[11px] text-slate-400">
-            · {periodLabel(period)} · 본체 + 색동 통합 (엔에이아이디 연동 예정)
+            · {range.label} · 본체 + 색동 통합 (엔에이아이디 연동 예정)
           </span>
         </div>
         {loading || !chain ? (
@@ -442,7 +581,7 @@ export default function DianOverview() {
               operating={chain.operating}
               nonOp={chain.nonOp}
               net={chain.net}
-              periodKey={period}
+              periodKey={rangeKey}
             />
             {/* 숫자 스트립 — 다이어그램과 동일 사슬 (색동·법인 개별 스트립은 추후 아래에) */}
             <div className="mt-3 px-4 py-5 sm:px-6" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
@@ -466,6 +605,7 @@ export default function DianOverview() {
               공급가 기준 · 매출원가 = 본체 원단 매입원가 + 색동 매입·기준단가 추정 · 변동비 =
               본체 당일지출·해외운송비 + 색동 변동 판관비 · 고정비 = 월 등록액 기간 배분 ·
               순이익 = 영업이익 − 영업외비용(색동 등록분 + 대출이자) — 종소세·법인세 반영 전
+              {range.weekMode && !range.isCurrentWeek && ' · 지난 주의 색동 온라인 매출은 월 매출 일할 배분 근사'}
               {chain.interestMissing && ' · ⚠ 대출 이자 미연동 (loan_payments SQL 실행 대기)'}
             </p>
           </>
@@ -481,7 +621,7 @@ export default function DianOverview() {
           </p>
         ) : (
           <div className="flex flex-wrap items-stretch gap-y-5">
-            <Cell first label={`총매출 · ${periodLabel(period)}`} big>
+            <Cell first label={`총매출 · ${range.label}`} big>
               <span style={{ color: '#76b900' }}>{formatKRW(m.total)}</span>
             </Cell>
             <Cell label="디안 원단 (본체)">
