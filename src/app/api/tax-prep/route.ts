@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const endYmd = kstYmd(end)
 
     const supabase = await createClient()
-    const [salesInv, purchInv, salesTx, purchTx] = await Promise.all([
+    const [salesInv, purchInv, salesTx, purchTx, bankIns] = await Promise.all([
       // 매출 세금계산서 (분기)
       prisma.taxInvoice.findMany({
         where: { issueDate: { gte: start, lte: end } },
@@ -75,6 +75,11 @@ export async function GET(req: NextRequest) {
         include: { client: { select: { name: true } } },
         orderBy: { totalAmount: 'desc' },
       }),
+      // 카드·토스 매출 (통장 정산 입금 — 계산서 없는 매출, 그 자체가 신고 자료)
+      prisma.bankTransaction.findMany({
+        where: { type: 'IN', txDateTime: { gte: start, lte: end } },
+        select: { amount: true, rawCounterparty: true, rawDescription: true },
+      }),
     ])
 
     const salesVat = salesInv.reduce((s, i) => s + i.taxAmount, 0)
@@ -103,10 +108,21 @@ export async function GET(req: NextRequest) {
         amount: t.totalAmount,
       }))
 
+    // 카드리더기·토스페이먼츠 정산 입금 (세금계산서 없는 매출 — 자체가 신고 자료)
+    const CARD_TOSS_RE =
+      /여신금융|신한카드|국민카드|KB국민카드|삼성카드|현대카드|롯데카드|비씨카드|BC카드|하나카드|우리카드|농협카드|NH카드|토스페이먼츠/
+    const cardToss = bankIns.filter(
+      (b) => CARD_TOSS_RE.test(b.rawCounterparty) || CARD_TOSS_RE.test(b.rawDescription),
+    )
+
     return NextResponse.json({
       year,
       q,
       range: { start: startYmd, end: endYmd },
+      cardTossSales: {
+        count: cardToss.length,
+        sum: cardToss.reduce((s, b) => s + b.amount, 0),
+      },
       salesVat,
       salesSupply,
       salesInvoiceCount: salesInv.length,

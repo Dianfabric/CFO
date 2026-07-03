@@ -17,6 +17,7 @@ interface TaxPrepData {
   year: number
   q: number
   range: { start: string; end: string }
+  cardTossSales?: { count: number; sum: number }
   salesVat: number
   salesSupply: number
   salesInvoiceCount: number
@@ -126,6 +127,21 @@ export default function TaxPrep() {
               </p>
               <p className="mt-1 text-[11px] text-slate-400">매출세액 − 매입세액{data.estVat < 0 ? ' (환급 예상)' : ''}</p>
             </div>
+          </div>
+
+          {/* 카드·토스 매출 — 계산서 없는 매출, 그 자체가 신고 자료 */}
+          <div
+            className="mb-3 flex flex-wrap items-center gap-2 px-3 py-2.5 text-[12px]"
+            style={{ ...box, backgroundColor: '#f8fafc' }}
+          >
+            <span className="font-bold text-slate-800">카드·토스 매출 (통장 정산 기준)</span>
+            <span className="tabular-nums text-slate-600">
+              {data.cardTossSales?.count ?? 0}건 ·{' '}
+              <b className="text-slate-900">{formatKRW(data.cardTossSales?.sum ?? 0)}</b>
+            </span>
+            <span className="text-[10px] text-slate-400">
+              카드리더기·토스페이먼츠 정산 입금 — 세금계산서 없이 이 자체가 신고 자료 (참고 집계)
+            </span>
           </div>
 
           {/* 미발행 / 미수취 */}

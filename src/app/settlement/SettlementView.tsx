@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import DianOverview from './DianOverview'
 import IntegratedSections from './IntegratedSections'
+import DianShopSales from './DianShopSales'
 import CostIntel from './CostIntel'
 import LoanSection from './LoanSection'
 import ReconCenter from './ReconCenter'
@@ -423,6 +424,9 @@ export default function SettlementView() {
         </Card>
       </div>
       </>)} {/* data content end */}
+
+      {/* 디안 원단 쇼핑몰 매출 (아임웹 2호점 — 색동과 동일 방식) */}
+      <DianShopSales />
 
       {/* ③ 비용 구조 · 입금·발행 확인 · 재고 — 본체+색동 통합 */}
       <IntegratedSections />

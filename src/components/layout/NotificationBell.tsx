@@ -19,6 +19,7 @@ interface Notice {
   amount?: number
   rating?: number
   text: string
+  shop?: string // 색동 | 디안몰
 }
 
 const SEEN_KEY = 'saekdong_notice_seen' // localStorage: 마지막 확인 시각(ms)
@@ -52,9 +53,16 @@ export default function NotificationBell() {
   const fetchNotices = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch('/api/saekdong/notifications')
-      const j = (await r.json()) as { notices?: Notice[] }
-      setNotices(Array.isArray(j.notices) ? j.notices : [])
+      // 색동 + 디안 원단몰 두 쇼핑몰 알림 통합
+      const [saek, dian] = await Promise.all([
+        fetch('/api/saekdong/notifications').then((r) => r.json()).catch(() => null),
+        fetch('/api/dianshop/notifications').then((r) => r.json()).catch(() => null),
+      ])
+      const merged: Notice[] = [
+        ...((saek?.notices ?? []) as Notice[]).map((n) => ({ ...n, shop: '색동' })),
+        ...((dian?.notices ?? []) as Notice[]).map((n) => ({ ...n, shop: '디안몰' })),
+      ].sort((a, b) => b.time - a.time)
+      setNotices(merged)
     } catch {
       // 조회 실패는 조용히 무시 (알림은 부가 기능)
     } finally {
@@ -125,7 +133,7 @@ export default function NotificationBell() {
             style={{ borderBottom: '1px solid var(--nv-hairline)' }}
           >
             <span className="text-[12px] font-bold" style={{ color: 'var(--nv-ink)' }}>
-              색동 알림
+              쇼핑몰 알림
             </span>
             <span className="text-[10px]" style={{ color: 'var(--nv-stone)' }}>
               최근 3일 · 신규 주문·후기
@@ -182,6 +190,18 @@ export default function NotificationBell() {
                             ? `새 주문 ${formatKRW(n.amount ?? 0)}`
                             : `새 후기 ${'★'.repeat(n.rating ?? 0)}`}
                         </span>
+                        {n.shop && (
+                          <span
+                            className="shrink-0 px-1 py-0.5 text-[9px] font-bold"
+                            style={{
+                              backgroundColor: n.shop === '색동' ? 'rgba(118,185,0,0.12)' : '#eef2ff',
+                              color: n.shop === '색동' ? 'var(--nv-success-deep, #4a7c00)' : '#4338ca',
+                              borderRadius: '2px',
+                            }}
+                          >
+                            {n.shop}
+                          </span>
+                        )}
                         <span
                           className="shrink-0 text-[10px] tabular-nums"
                           style={{ color: 'var(--nv-stone)' }}
