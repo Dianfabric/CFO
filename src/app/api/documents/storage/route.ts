@@ -35,10 +35,10 @@ export async function GET(request: NextRequest) {
     if (category) query = query.eq('category', category)
     if (clientId) query = query.eq('client_id', clientId)
     if (q) {
-      // filename 부분일치 OR tags 배열 매칭 (콤마·괄호 escape)
+      // filename/설명(notes) 부분일치 OR tags 배열 매칭 (콤마·괄호 escape)
       const safe = q.replace(/[,(){}]/g, ' ').trim()
       if (safe) {
-        query = query.or(`filename.ilike.%${safe}%,tags.cs.{${safe}}`)
+        query = query.or(`filename.ilike.%${safe}%,notes.ilike.%${safe}%,tags.cs.{${safe}}`)
       }
     }
 

@@ -52,6 +52,8 @@ export default function StorageView() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   const [preview, setPreview] = useState<DocumentFile | null>(null)
+  // 업로드 대기 목록 — 파일마다 설명(선택)을 적고 나서 업로드
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; note: string }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ─────────────────────────────────────────────
@@ -103,10 +105,16 @@ export default function StorageView() {
     fileInputRef.current?.click()
   }
 
-  const handleFiles = async (fileList: FileList | null) => {
+  // 파일 선택 → 바로 올리지 않고 설명 입력 단계로 (처음 올리는 자료 정리용)
+  const handleFiles = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
-    if (!ROOT_FOLDER_ID) return
+    setError(null)
+    setPendingFiles(Array.from(fileList).map((f) => ({ file: f, note: '' })))
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
+  const doUpload = async () => {
+    if (pendingFiles.length === 0 || !ROOT_FOLDER_ID) return
     setError(null)
     setUploading(true)
 
@@ -134,12 +142,11 @@ export default function StorageView() {
         token,
       )
 
-      // 3. 각 파일 업로드 → Drive + Supabase
-      const filesArr = Array.from(fileList)
-      for (let i = 0; i < filesArr.length; i++) {
-        const f = filesArr[i]
+      // 3. 각 파일 업로드 → Drive + Supabase (설명 포함)
+      for (let i = 0; i < pendingFiles.length; i++) {
+        const { file: f, note } = pendingFiles[i]
         setUploadProgress(
-          `[${i + 1}/${filesArr.length}] ${f.name} Drive 업로드 중...`,
+          `[${i + 1}/${pendingFiles.length}] ${f.name} Drive 업로드 중...`,
         )
         const details = await uploadToDriveWithDetails(
           f,
@@ -149,7 +156,7 @@ export default function StorageView() {
           token,
         )
 
-        setUploadProgress(`[${i + 1}/${filesArr.length}] 메타데이터 저장 중...`)
+        setUploadProgress(`[${i + 1}/${pendingFiles.length}] 메타데이터 저장 중...`)
         const metaRes = await fetch('/api/documents/storage', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -164,6 +171,7 @@ export default function StorageView() {
             size_bytes: details.size,
             category: targetCategory,
             tags: [],
+            notes: note.trim() || null,
           }),
         })
         if (!metaRes.ok) {
@@ -173,13 +181,28 @@ export default function StorageView() {
       }
 
       setUploadProgress(null)
+      setPendingFiles([])
       await fetchFiles()
     } catch (e) {
       setError(e instanceof Error ? e.message : '업로드 실패')
     } finally {
       setUploading(false)
       setUploadProgress(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  // 설명(메모) 저장 — 카드에서 인라인 수정
+  const handleNoteSave = async (file: DocumentFile, note: string) => {
+    try {
+      const res = await fetch(`/api/documents/storage/${file.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: note || null }),
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      await fetchFiles()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '설명 저장 실패')
     }
   }
 
@@ -301,6 +324,63 @@ export default function StorageView() {
         </div>
       )}
 
+      {/* 업로드 대기 — 파일별 설명 입력 (선택) */}
+      {pendingFiles.length > 0 && !uploading && (
+        <div
+          className="border border-[#76b900] bg-white p-4 space-y-3"
+          style={{ borderRadius: '2px' }}
+        >
+          <div>
+            <p className="text-[13px] font-bold text-[#000]">
+              업로드할 서류 {pendingFiles.length}건
+            </p>
+            <p className="text-[11px] text-[#757575] mt-0.5">
+              어떤 자료인지 한 줄 남겨두면 나중에 찾기 쉽습니다 (선택 — 검색에도 잡혀요)
+            </p>
+          </div>
+          <div className="space-y-2">
+            {pendingFiles.map((p, i) => (
+              <div key={`${p.file.name}-${i}`} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span
+                  className="w-full sm:w-52 shrink-0 truncate text-[12px] font-medium text-[#1a1a1a]"
+                  title={p.file.name}
+                >
+                  {p.file.name}
+                </span>
+                <Input
+                  value={p.note}
+                  onChange={(e) =>
+                    setPendingFiles((prev) =>
+                      prev.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)),
+                    )
+                  }
+                  placeholder="예: ○○업체용 방염성적서 (2026년 발급)"
+                  className="flex-1 h-8 text-[12px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
+                  className="h-8 w-8 shrink-0 inline-flex items-center justify-center hover:bg-[#f7f7f7]"
+                  style={{ borderRadius: '2px' }}
+                  title="목록에서 제외"
+                >
+                  <X className="w-3.5 h-3.5 text-[#757575]" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPendingFiles([])}>
+              취소
+            </Button>
+            <Button size="sm" onClick={doUpload} className="gap-1.5">
+              <Upload className="w-3.5 h-3.5" />
+              {pendingFiles.length}건 업로드
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* 결과 */}
       {loading ? (
         <div className="text-center py-10 text-[#757575]">불러오는 중...</div>
@@ -321,6 +401,7 @@ export default function StorageView() {
               onPreview={() => setPreview(f)}
               onDelete={() => handleDelete(f)}
               onCategoryChange={(c) => handleCategoryChange(f, c)}
+              onSaveNote={(note) => handleNoteSave(f, note)}
             />
           ))}
         </div>
@@ -382,14 +463,26 @@ function FileCard({
   onPreview,
   onDelete,
   onCategoryChange,
+  onSaveNote,
 }: {
   file: DocumentFile
   onPreview: () => void
   onDelete: () => void
   onCategoryChange: (c: DocumentFileCategory) => void
+  onSaveNote: (note: string) => Promise<void> | void
 }) {
   const cls = classifyMime(file.mime_type)
   const Icon = cls === 'image' ? ImageIcon : cls === 'pdf' ? FileText : FileIcon
+  const [editingNote, setEditingNote] = useState(false)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+
+  const saveNote = async () => {
+    setSavingNote(true)
+    await onSaveNote(noteDraft.trim())
+    setSavingNote(false)
+    setEditingNote(false)
+  }
 
   return (
     <div
@@ -418,13 +511,75 @@ function FileCard({
       {/* 파일명 */}
       <button
         onClick={onPreview}
-        className="block text-left w-full mb-2"
+        className="block text-left w-full mb-1.5"
         title={file.filename}
       >
         <p className="text-[13px] font-bold tracking-tight text-[#000] line-clamp-2 leading-snug">
           {file.filename}
         </p>
       </button>
+
+      {/* 설명 (어떤 자료인지) — 클릭해서 수정 */}
+      {editingNote ? (
+        <div className="mb-2 space-y-1">
+          <textarea
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            rows={2}
+            autoFocus
+            placeholder="예: ○○업체용 방염성적서 (2026년 발급)"
+            className="w-full text-[11px] leading-snug border border-[#cccccc] p-1.5 outline-none focus:border-[#76b900] resize-none"
+            style={{ borderRadius: '2px' }}
+          />
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => setEditingNote(false)}
+              className="h-6 px-2 text-[10px] font-bold text-[#757575] hover:bg-[#f7f7f7]"
+              style={{ borderRadius: '2px' }}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={saveNote}
+              disabled={savingNote}
+              className="h-6 px-2 text-[10px] font-bold bg-black text-white disabled:opacity-50"
+              style={{ borderRadius: '2px' }}
+            >
+              {savingNote ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        </div>
+      ) : file.notes ? (
+        <button
+          type="button"
+          onClick={() => {
+            setNoteDraft(file.notes ?? '')
+            setEditingNote(true)
+          }}
+          className="block w-full text-left mb-2"
+          title="클릭해서 설명 수정"
+        >
+          <p
+            className="text-[11px] text-[#4b5563] leading-snug line-clamp-2 bg-[#f7f7f7] px-1.5 py-1"
+            style={{ borderRadius: '2px' }}
+          >
+            {file.notes}
+          </p>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setNoteDraft('')
+            setEditingNote(true)
+          }}
+          className="mb-2 text-[10px] font-medium text-[#9ca3af] hover:text-[#4b5563] transition-colors"
+        >
+          ＋ 설명 추가 (어떤 자료인지)
+        </button>
+      )}
 
       {/* 카테고리 선택 + 사이즈 */}
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -557,6 +712,9 @@ function PreviewModal({
               <span className="ml-2">{formatFileSize(file.size_bytes)}</span>
               <span className="ml-2">{file.mime_type}</span>
             </p>
+            {file.notes && (
+              <p className="mt-1 text-[12px] leading-snug text-[#374151]">{file.notes}</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {file.drive_view_url && (
