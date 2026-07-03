@@ -13,6 +13,7 @@ import {
 import DianOverview from './DianOverview'
 import IntegratedSections from './IntegratedSections'
 import ReconCenter from './ReconCenter'
+import BankInbox from './BankInbox'
 import UpcomingSections from './UpcomingSections'
 
 type PeriodType = 'day' | 'week' | 'month' | 'custom'
@@ -424,6 +425,9 @@ export default function SettlementView() {
 
       {/* ④ 대사 센터 — 퍼지 매칭 제안 (매출↔세금계산서 · 통장입금↔미수) */}
       <ReconCenter />
+
+      {/* 통장 미처리 인박스 — 남은 입출금 수동 처리 (거래처 연결 / 사유 분류) */}
+      <BankInbox />
 
       {/* ⑤ 연동 예정 (엔에이아이디) */}
       <UpcomingSections />
