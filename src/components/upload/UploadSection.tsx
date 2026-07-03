@@ -76,6 +76,13 @@ function formatPurchaseResult(json: Record<string, unknown>): { message: string;
       detail: `매칭 ${(json.matched as number) ?? 0}건 | 미매칭 ${(json.unmatched as number) ?? 0}건 | 중복 ${(json.duplicate as number) ?? 0}건 | 총 ${formatKRW((json.totalAmount as number) ?? 0)}`,
     }
   }
+  if (type === 'mgmt_ledger') {
+    const months = (json.months as string[] | undefined)?.join(', ') ?? ''
+    return {
+      message: `관리회계 ${(json.created as number) ?? 0}건 흡수 (${months})`,
+      detail: `카드 ${json.card}건 | 통장 ${json.bank}건 | 개인 ${json.personal}건 | 중복 스킵 ${json.duplicate}건 — 비용 인텔리전스에 반영`,
+    }
+  }
   if (type === 'purchase_tax_invoice') {
     return {
       message: `매입 세금계산서 ${(json.created as number) ?? 0}건 등록`,
@@ -113,13 +120,15 @@ async function processFile(item: FileItem): Promise<{ message: string; detail?: 
   const isMagam = /디안[_ ]?마감|디안마감/i.test(name)
   const isTaxInvoice = /세금계산서/.test(name)
   const isBank = /통장|거래내역조회/.test(name)
+  const isMgmt = /관리\s*회계/.test(name)
   // 파일 종류 자동 라우팅:
   // - 세금계산서 → /api/upload/tax-invoice
   // - 통장내역 → /api/upload/bank
   // - "디안_마감_*.xlsx" → 담당자 마감 엑셀
   // - 다른 .xls/.xlsx → 일계표
   // - .pdf 등 → 매입 PDF
-  const endpoint = isTaxInvoice ? '/api/upload/tax-invoice'
+  const endpoint = isMgmt ? '/api/upload/mgmt-accounting'
+    : isTaxInvoice ? '/api/upload/tax-invoice'
     : isBank ? '/api/upload/bank'
     : isMagam ? '/api/upload/sales-person'
     : isExcel ? '/api/upload/sales'
