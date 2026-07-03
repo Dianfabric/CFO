@@ -102,8 +102,30 @@ function Sparkline({ values, width = 130, height = 36 }: { values: number[]; wid
   )
 }
 
-export default function DianOverview() {
+/** 기간 선택 상태 묶음 — 블록마다 독립 선택 (통합·본체·추후 법인) */
+function usePeriodSel() {
+  const nowM = Number(kstToday().slice(5, 7))
+  const curQ = Math.floor((nowM - 1) / 3) + 1
   const [period, setPeriod] = useState<Period>('month')
+  const [selMonth, setSelMonth] = useState(nowM)
+  const [selQuarter, setSelQuarter] = useState(curQ)
+  const [weekOffset, setWeekOffset] = useState(0)
+  const range = useMemo(
+    () => rangeFor(period, selMonth, selQuarter, weekOffset),
+    [period, selMonth, selQuarter, weekOffset],
+  )
+  return {
+    period, setPeriod, selMonth, setSelMonth, selQuarter, setSelQuarter,
+    weekOffset, setWeekOffset, nowM, curQ, range,
+    rangeKey: `${range.start}_${range.end}`,
+  }
+}
+type PeriodSel = ReturnType<typeof usePeriodSel>
+
+export default function DianOverview() {
+  const main = usePeriodSel()
+  const { period, range, rangeKey } = main
+  const bodySel = usePeriodSel() // 본체 블록 독립 선택
   const [dian, setDian] = useState<SeriesData | null>(null)
   const [saekOn, setSaekOn] = useState<SeriesData | null>(null)
   const [saekOff, setSaekOff] = useState<SeriesData | null>(null)
@@ -118,29 +140,28 @@ export default function DianOverview() {
   const [pulsePnl, setPulsePnl] = useState<BodyPnl | null>(null) // 확정월(전월) 본체 손익 재료
   const [loading, setLoading] = useState(true)
 
-  // 과거 기간 선택 (26년 내) — 월 1~12 / 분기 1~4 / 주 offset(0=이번 주)
-  const nowM = Number(kstToday().slice(5, 7))
-  const curQ = Math.floor((nowM - 1) / 3) + 1
-  const [selMonth, setSelMonth] = useState(nowM)
-  const [selQuarter, setSelQuarter] = useState(curQ)
-  const [weekOffset, setWeekOffset] = useState(0)
-
-  const range = useMemo(
-    () => rangeFor(period, selMonth, selQuarter, weekOffset),
-    [period, selMonth, selQuarter, weekOffset],
+  // 기간(과거 포함) 변경 시 본체 손익 재료 조회 (범위별 1회 캐시 — 통합·본체 선택기 공유)
+  const pnlInflight = useRef(new Set<string>())
+  const fetchPnlFor = useCallback(
+    (key: string, start: string, end: string) => {
+      if (bodyPnl[key] || pnlInflight.current.has(key)) return
+      pnlInflight.current.add(key)
+      fetch(`/api/settlement/pnl?start=${start}&end=${end}`)
+        .then((r) => r.json())
+        .then((d: BodyPnl) => {
+          if (!d.error) setBodyPnl((prev) => ({ ...prev, [key]: d }))
+        })
+        .catch(() => {})
+        .finally(() => pnlInflight.current.delete(key))
+    },
+    [bodyPnl],
   )
-  const rangeKey = `${range.start}_${range.end}`
-
-  // 기간(과거 포함) 변경 시 본체 손익 재료 조회 (범위별 1회 캐시)
   useEffect(() => {
-    if (bodyPnl[rangeKey]) return
-    fetch(`/api/settlement/pnl?start=${range.start}&end=${range.end}`)
-      .then((r) => r.json())
-      .then((d: BodyPnl) => {
-        if (!d.error) setBodyPnl((prev) => ({ ...prev, [rangeKey]: d }))
-      })
-      .catch(() => {})
-  }, [rangeKey, range.start, range.end, bodyPnl])
+    fetchPnlFor(rangeKey, range.start, range.end)
+  }, [rangeKey, range.start, range.end, fetchPnlFor])
+  useEffect(() => {
+    fetchPnlFor(bodySel.rangeKey, bodySel.range.start, bodySel.range.end)
+  }, [bodySel.rangeKey, bodySel.range.start, bodySel.range.end, fetchPnlFor])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -371,11 +392,12 @@ export default function DianOverview() {
   }, [bodyPnl, rangeKey, saekChain, dianShop, range])
 
   // ── 디안 본체(원단 + 디안몰) 단독 손익 사슬 — 색동 오프라인 매출 제외 (원가는 색동에서 관리) ──
+  // 자체 기간 선택기(bodySel) 기준 — 통합과 독립적으로 주/월/분기/년·과거 조회
   const bodyChain = useMemo(() => {
-    const body = bodyPnl[rangeKey]
+    const body = bodyPnl[bodySel.rangeKey]
     if (!body) return null
-    const saekOffline = seriesRevenue(saekOff, range)
-    const shopSupply = Math.round(seriesRevenue(dianShop, range) / 1.1) // 디안 원단몰 — 본체 매출 편입
+    const saekOffline = seriesRevenue(saekOff, bodySel.range)
+    const shopSupply = Math.round(seriesRevenue(dianShop, bodySel.range) / 1.1) // 디안 원단몰 — 본체 매출 편입
     const revenue = body.sales - saekOffline + shopSupply
     const cogs = body.fabricCogs
     const gross = revenue - cogs
@@ -397,7 +419,7 @@ export default function DianOverview() {
       nonOp: [{ label: '대출 이자', amount: body.interest ?? 0 }],
     }
     return { revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net, bep, bepRate, breakdowns }
-  }, [bodyPnl, rangeKey, saekOff, dianShop, range])
+  }, [bodyPnl, bodySel.rangeKey, saekOff, dianShop, bodySel.range])
 
   const lastRevCount = useCountUp(m.lastRev)
 
@@ -419,97 +441,13 @@ export default function DianOverview() {
         <span className="text-xs text-slate-400">
           · {range.label} · 공급가 기준 · 디안 본체 + 색동 (엔에이아이디 연동 예정)
         </span>
-        <div className="ml-auto inline-flex overflow-hidden rounded-sm border border-slate-200">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => setPeriod(p.key)}
-              className="h-8 px-3.5 text-[12px] font-bold transition-colors"
-              style={{
-                backgroundColor: period === p.key ? 'var(--nv-primary)' : 'white',
-                color: period === p.key ? '#000' : 'var(--nv-mute)',
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div className="ml-auto">
+          <PeriodButtons sel={main} />
         </div>
       </div>
 
       {/* 과거 기간 선택 — 26년 내 지나간 주·월·분기 조회 */}
-      {period !== 'year' && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {period === 'month' &&
-            Array.from({ length: 12 }, (_, i) => i + 1).map((mm) => {
-              const active = Math.min(selMonth, nowM) === mm
-              return (
-                <button
-                  key={mm}
-                  type="button"
-                  disabled={mm > nowM}
-                  onClick={() => setSelMonth(mm)}
-                  className="h-7 px-2.5 text-[11px] font-bold transition-colors disabled:opacity-25"
-                  style={{
-                    border: '1px solid var(--nv-hairline, #e2e8f0)',
-                    borderRadius: '2px',
-                    backgroundColor: active ? '#000' : 'white',
-                    color: active ? '#fff' : '#64748b',
-                  }}
-                >
-                  {mm}월
-                </button>
-              )
-            })}
-          {period === 'quarter' &&
-            [1, 2, 3, 4].map((q) => {
-              const active = Math.min(selQuarter, curQ) === q
-              return (
-                <button
-                  key={q}
-                  type="button"
-                  disabled={q > curQ}
-                  onClick={() => setSelQuarter(q)}
-                  className="h-7 px-3 text-[11px] font-bold transition-colors disabled:opacity-25"
-                  style={{
-                    border: '1px solid var(--nv-hairline, #e2e8f0)',
-                    borderRadius: '2px',
-                    backgroundColor: active ? '#000' : 'white',
-                    color: active ? '#fff' : '#64748b',
-                  }}
-                >
-                  {q}분기
-                </button>
-              )
-            })}
-          {period === 'week' && (
-            <>
-              <button
-                type="button"
-                disabled={range.start <= `${kstToday().slice(0, 4)}-01-01`}
-                onClick={() => setWeekOffset((o) => o + 1)}
-                className="h-7 px-2.5 text-[11px] font-bold bg-white disabled:opacity-25"
-                style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px', color: '#64748b' }}
-              >
-                ◀ 이전 주
-              </button>
-              <span className="px-1 text-[12px] font-bold tabular-nums text-slate-800">
-                {range.label}
-                {weekOffset === 0 && <span className="ml-1 text-[10px] font-normal text-slate-400">(이번 주)</span>}
-              </span>
-              <button
-                type="button"
-                disabled={weekOffset === 0}
-                onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
-                className="h-7 px-2.5 text-[11px] font-bold bg-white disabled:opacity-25"
-                style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px', color: '#64748b' }}
-              >
-                다음 주 ▶
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      <PastPicker sel={main} />
 
       {/* 손익 흐름 생키 — 디안은 이렇게 벌고 쓴다 */}
       <div
@@ -565,13 +503,19 @@ export default function DianOverview() {
         className="bg-white p-4 sm:p-5"
         style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }}
       >
-        <div className="flex items-baseline gap-2 flex-wrap mb-1">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
           <h3 className="text-[14px] font-bold text-slate-900">
             디안 본체는 이렇게 벌고 쓴다
           </h3>
           <span className="text-[11px] text-slate-400">
-            · {range.label} · 일계표 + 디안 쇼핑몰 (색동 오프라인 매출 제외)
+            · {bodySel.range.label} · 일계표 + 디안 쇼핑몰 (색동 오프라인 매출 제외)
           </span>
+          <div className="ml-auto">
+            <PeriodButtons sel={bodySel} />
+          </div>
+        </div>
+        <div className="mb-2">
+          <PastPicker sel={bodySel} />
         </div>
         {loading || !bodyChain ? (
           <p className="py-8 text-center text-[12px] text-slate-400">
@@ -594,7 +538,7 @@ export default function DianOverview() {
               bepRate={bodyChain.bepRate}
               breakdowns={bodyChain.breakdowns}
               nonOpLabel="대출 이자"
-              periodKey={`body-${rangeKey}`}
+              periodKey={`body-${bodySel.rangeKey}`}
             />
             <ChainStrip chain={bodyChain} nonOpLabel="대출 이자" />
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
@@ -743,6 +687,105 @@ export default function DianOverview() {
 
 function pct(v: number, base: number): number {
   return base > 0 ? (v / base) * 100 : 0
+}
+
+/** 주/월/분기/년 버튼 — 블록별 독립 선택기 */
+function PeriodButtons({ sel }: { sel: PeriodSel }) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-sm border border-slate-200">
+      {PERIODS.map((p) => (
+        <button
+          key={p.key}
+          type="button"
+          onClick={() => sel.setPeriod(p.key)}
+          className="h-8 px-3.5 text-[12px] font-bold transition-colors"
+          style={{
+            backgroundColor: sel.period === p.key ? 'var(--nv-primary)' : 'white',
+            color: sel.period === p.key ? '#000' : 'var(--nv-mute)',
+          }}
+        >
+          {p.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** 과거 기간 선택 줄 — 월 1~12 / 분기 1~4 / 주 ◀▶ (년은 없음) */
+function PastPicker({ sel }: { sel: PeriodSel }) {
+  if (sel.period === 'year') return null
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {sel.period === 'month' &&
+        Array.from({ length: 12 }, (_, i) => i + 1).map((mm) => {
+          const active = Math.min(sel.selMonth, sel.nowM) === mm
+          return (
+            <button
+              key={mm}
+              type="button"
+              disabled={mm > sel.nowM}
+              onClick={() => sel.setSelMonth(mm)}
+              className="h-7 px-2.5 text-[11px] font-bold transition-colors disabled:opacity-25"
+              style={{
+                border: '1px solid var(--nv-hairline, #e2e8f0)',
+                borderRadius: '2px',
+                backgroundColor: active ? '#000' : 'white',
+                color: active ? '#fff' : '#64748b',
+              }}
+            >
+              {mm}월
+            </button>
+          )
+        })}
+      {sel.period === 'quarter' &&
+        [1, 2, 3, 4].map((q) => {
+          const active = Math.min(sel.selQuarter, sel.curQ) === q
+          return (
+            <button
+              key={q}
+              type="button"
+              disabled={q > sel.curQ}
+              onClick={() => sel.setSelQuarter(q)}
+              className="h-7 px-3 text-[11px] font-bold transition-colors disabled:opacity-25"
+              style={{
+                border: '1px solid var(--nv-hairline, #e2e8f0)',
+                borderRadius: '2px',
+                backgroundColor: active ? '#000' : 'white',
+                color: active ? '#fff' : '#64748b',
+              }}
+            >
+              {q}분기
+            </button>
+          )
+        })}
+      {sel.period === 'week' && (
+        <>
+          <button
+            type="button"
+            disabled={sel.range.start <= `${kstToday().slice(0, 4)}-01-01`}
+            onClick={() => sel.setWeekOffset((o) => o + 1)}
+            className="h-7 px-2.5 text-[11px] font-bold bg-white disabled:opacity-25"
+            style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px', color: '#64748b' }}
+          >
+            ◀ 이전 주
+          </button>
+          <span className="px-1 text-[12px] font-bold tabular-nums text-slate-800">
+            {sel.range.label}
+            {sel.weekOffset === 0 && <span className="ml-1 text-[10px] font-normal text-slate-400">(이번 주)</span>}
+          </span>
+          <button
+            type="button"
+            disabled={sel.weekOffset === 0}
+            onClick={() => sel.setWeekOffset((o) => Math.max(0, o - 1))}
+            className="h-7 px-2.5 text-[11px] font-bold bg-white disabled:opacity-25"
+            style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px', color: '#64748b' }}
+          >
+            다음 주 ▶
+          </button>
+        </>
+      )}
+    </div>
+  )
 }
 
 /** 손익 사슬 데이터 — 통합·본체·(추후) 법인 스트립이 공유 */
