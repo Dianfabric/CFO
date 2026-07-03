@@ -58,6 +58,7 @@ interface BodyPnl {
   expenses: number
   shipping: number
   fixed: number
+  fixedBreakdown?: { label: string; amount: number }[]
   interest: number
   interestMissing?: boolean
   error?: string
@@ -332,9 +333,29 @@ export default function DianOverview() {
     // BEP — 공헌이익 관점: BEP 매출 = 고정비 ÷ 공헌이익률, 달성률 = 공헌이익 ÷ 고정비
     const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
     const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
+    // 비용 세부 구성 — 자료가 등록된 만큼 막대 아래 표시 (자료 늘면 자동 세분화)
+    const breakdowns = {
+      cogs: [
+        { label: '본체 원단 매입', amount: body.fabricCogs },
+        { label: '색동 매입·원가', amount: saekChain.cogs },
+      ],
+      variable: [
+        { label: '본체 당일지출', amount: body.expenses },
+        { label: '해외운송비', amount: body.shipping },
+        { label: '색동 변동비', amount: saekChain.variable },
+      ],
+      fixed: [
+        ...(body.fixedBreakdown ?? []).map((x) => ({ label: `본체 ${x.label}`, amount: x.amount })),
+        { label: '색동 고정비', amount: saekChain.fixed },
+      ],
+      nonOp: [
+        { label: '대출 이자', amount: body.interest ?? 0 },
+        { label: '색동 영업외', amount: saekChain.nonOp },
+      ],
+    }
     return {
       revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net,
-      bep, bepRate,
+      bep, bepRate, breakdowns,
       interestMissing: !!body.interestMissing,
     }
   }, [bodyPnl, rangeKey, saekChain])
@@ -483,6 +504,7 @@ export default function DianOverview() {
               net={chain.net}
               bep={chain.bep}
               bepRate={chain.bepRate}
+              breakdowns={chain.breakdowns}
               periodKey={rangeKey}
             />
             {/* 숫자 스트립 — 다이어그램과 동일 사슬 (색동·법인 개별 스트립은 추후 아래에) */}

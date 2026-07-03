@@ -89,18 +89,29 @@ export async function GET(req: NextRequest) {
         where: { type: 'EXPENSE', date: { gte: rangeStart, lte: rangeEnd } },
         _sum: { totalAmount: true },
       }),
-      prisma.recurringCost.findMany(),
+      prisma.recurringCost.findMany({ include: { costCategory: true } }),
       prisma.costCategory.findFirst({ where: { name: { contains: '해외' } } }),
       supabase.from('loan_payments').select('month_key, interest'),
     ])
 
-    const monthlyFixed = recurring.reduce((s, c) => {
-      if (c.frequency === 'MONTHLY') return s + c.amount
-      if (c.frequency === 'QUARTERLY') return s + Math.round(c.amount / 3)
-      if (c.frequency === 'YEARLY') return s + Math.round(c.amount / 12)
-      return s
-    }, 0)
-    const fixed = Math.round(months.reduce((s, m) => s + monthlyFixed * m.ratio, 0))
+    const monthlyOf = (c: (typeof recurring)[number]) =>
+      c.frequency === 'MONTHLY' ? c.amount
+        : c.frequency === 'QUARTERLY' ? Math.round(c.amount / 3)
+          : c.frequency === 'YEARLY' ? Math.round(c.amount / 12) : 0
+    const monthlyFixed = recurring.reduce((s, c) => s + monthlyOf(c), 0)
+    const ratioSum = months.reduce((s, m) => s + m.ratio, 0)
+    const fixed = Math.round(monthlyFixed * ratioSum)
+
+    // 고정비 카테고리 분해 (임차료·인건비 등 — 등록된 카테고리명 기준)
+    const fixedByCat = new Map<string, number>()
+    for (const c of recurring) {
+      const label = c.costCategory?.name ?? c.description
+      fixedByCat.set(label, (fixedByCat.get(label) ?? 0) + Math.round(monthlyOf(c) * ratioSum))
+    }
+    const fixedBreakdown = [...fixedByCat.entries()]
+      .map(([label, amount]) => ({ label, amount }))
+      .filter((x) => x.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
 
     let shipping = 0
     if (shipCat) {
@@ -135,6 +146,7 @@ export async function GET(req: NextRequest) {
       expenses: expenseAgg._sum.totalAmount ?? 0,
       shipping,
       fixed,
+      fixedBreakdown,
       monthlyFixed,
       interest,
       interestMissing,

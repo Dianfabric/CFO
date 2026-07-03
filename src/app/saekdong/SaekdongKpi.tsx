@@ -119,13 +119,36 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
     const stdCogs = Math.round((onlineRaw / 1.1) * stdRate)
 
-    const cogs =
-      purchases.filter((p) => inPeriod(p.purchase_date)).reduce((s, p) => s + p.amount, 0) +
-      expSum((e) => e.nature === '매출원가') +
-      stdCogs
+    const purchSum = purchases.filter((p) => inPeriod(p.purchase_date)).reduce((s, p) => s + p.amount, 0)
+    const expCogs = expSum((e) => e.nature === '매출원가')
+    const cogs = purchSum + expCogs + stdCogs
     const variable = expSum((e) => e.cost_type === 'variable' && e.nature === '판관비')
     const fixed = expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비')
     const nonOp = expSum((e) => e.nature === '영업외비용')
+
+    // 비용 항목별 세부 구성 (등록된 항목명 기준 — 생키 막대 아래 표시)
+    const expItems = (filter: (e: SaekdongExpense) => boolean) => {
+      const map = new Map<string, number>()
+      for (const e of expenses.filter(filter)) {
+        const amt = e.is_monthly
+          ? range.months.reduce((ms, mw) => ms + (monthlyActive(e, mw.ym) ? e.amount * mw.w : 0), 0)
+          : inPeriod(e.expense_date) ? e.amount : 0
+        if (amt > 0) map.set(e.item, (map.get(e.item) ?? 0) + amt)
+      }
+      return [...map.entries()]
+        .map(([label, amount]) => ({ label, amount: Math.round(amount) }))
+        .sort((a, b) => b.amount - a.amount)
+    }
+    const breakdowns = {
+      cogs: [
+        { label: '기간 매입액', amount: purchSum },
+        { label: '원가성 비용', amount: expCogs },
+        { label: '기준단가 추정', amount: stdCogs },
+      ],
+      variable: expItems((e) => e.cost_type === 'variable' && e.nature === '판관비'),
+      fixed: expItems((e) => e.cost_type === 'fixed' && e.nature === '판관비'),
+      nonOp: expItems((e) => e.nature === '영업외비용'),
+    }
 
     const gross = revenue - cogs // 매출총이익
     const contribution = gross - variable // 공헌이익
@@ -137,7 +160,7 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
     const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
 
-    return { revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, pretax, rate, bep, bepRate }
+    return { revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, pretax, rate, bep, bepRate, breakdowns }
   }, [range, sales, offline, purchases, expenses, itemCosts])
 
   return (
@@ -274,6 +297,7 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
             net={m.pretax}
             bep={m.bep}
             bepRate={m.bepRate}
+            breakdowns={m.breakdowns}
             periodKey={`saek-${range.start}_${range.end}`}
             netLabel="세전이익"
             nonOpLabel="영업외비용"
