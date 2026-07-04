@@ -13,6 +13,7 @@
 import { Compass } from 'lucide-react'
 import DianOverview from './DianOverview'
 import BizTrends from './BizTrends'
+import HistorySales from './HistorySales'
 import IntegratedSections from './IntegratedSections'
 import DianShopSales from './DianShopSales'
 import CostIntel from './CostIntel'
@@ -52,6 +53,9 @@ export default function SettlementView() {
 
       {/* ② 경영 그래프 — 사업체별 매출·지출·이익 추이 + 직군·품목·가공 */}
       <BizTrends />
+
+      {/* 과거 매출 아카이브 — 2016~2025 10년 월매출 (참고용) */}
+      <HistorySales />
 
       {/* 디안 원단 쇼핑몰 매출 (아임웹 2호점 — 색동과 동일 방식) */}
       <DianShopSales />
