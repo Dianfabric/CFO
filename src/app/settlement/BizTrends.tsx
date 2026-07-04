@@ -19,6 +19,9 @@ import { formatKRW } from '@/lib/formatters'
 import { fetchSharedSales, fetchSharedOffline, fetchSharedDianShop } from '@/app/saekdong/sharedFetch'
 import { listSaekdongCosts } from '@/app/saekdong/actions'
 import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from '@/app/saekdong/actions'
+import { HISTORY_SALES } from './history-sales'
+
+const LIVE_FROM = 2026 // 이 해부터 시스템 실시간 — 이전은 관리 장부 아카이브로 백필
 
 const box: React.CSSProperties = { border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }
 
@@ -222,9 +225,40 @@ export default function BizTrends() {
         rev = b.sales - saekOffline + shopSupply
         spend = bodySpend
       } // naid = 0
-      return { label: b.label, 매출: rev, 지출: spend, 이익: rev - spend }
+      return { key: b.key, label: b.label, 매출: rev, 지출: spend, 이익: rev - spend }
     })
   }, [trends, unit, entity, saekOn, saekOff, dianShop, saekCosts])
+
+  // ── 26년 이전 관리 장부 백필 (통합·본체 공통 — 당시엔 색동·법인 없음) ──
+  const finalData = useMemo(() => {
+    if (!chartData) return null
+    if (entity === 'naid') return chartData
+    const archByYm = new Map(HISTORY_SALES.map((h) => [h.ym, h]))
+    if (unit === 'month') {
+      return chartData.map((row) => {
+        if (Number(row.key.slice(0, 4)) >= LIVE_FROM) return row
+        const h = archByYm.get(row.key)
+        if (!h) return row
+        const spend = h.purchase + h.expense
+        return { ...row, 매출: h.sales, 지출: spend, 이익: h.sales - spend }
+      })
+    }
+    if (unit === 'year') {
+      // 아카이브 연도(16~25) + 시스템 연도(26~)
+      const byYear = new Map<string, { sales: number; spend: number }>()
+      for (const h of HISTORY_SALES) {
+        const y = h.ym.slice(0, 4)
+        const cur = byYear.get(y) ?? { sales: 0, spend: 0 }
+        byYear.set(y, { sales: cur.sales + h.sales, spend: cur.spend + h.purchase + h.expense })
+      }
+      const arch = [...byYear.entries()].map(([y, v]) => ({
+        key: y, label: `${y}년`, 매출: v.sales, 지출: v.spend, 이익: v.sales - v.spend,
+      }))
+      const sys = chartData.filter((row) => Number(row.key) >= LIVE_FROM)
+      return [...arch, ...sys]
+    }
+    return chartData // 주별은 26년 시스템 데이터부터
+  }, [chartData, unit, entity])
 
   const magamCharts: { title: string; rows: AggRow[] }[] = useMemo(() => {
     if (!magam || magam.error) return []
@@ -291,7 +325,7 @@ export default function BizTrends() {
             <br />
             같은 그래프로 자동 표시됩니다.
           </div>
-        ) : !chartData ? (
+        ) : !finalData ? (
           <div className="h-64 flex items-center justify-center text-[12px] text-slate-400">
             <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
             추이 불러오는 중...
@@ -299,7 +333,7 @@ export default function BizTrends() {
         ) : (
           <div className="h-72 -ml-2">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData}>
+              <ComposedChart data={finalData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#999' }} />
                 <YAxis
@@ -322,7 +356,9 @@ export default function BizTrends() {
           공급가 기준 · 지출 = 매출원가 + 변동비 + 고정비(월 등록액 배분) + 대출이자 · 이익 = 매출 − 지출 (세금 반영 전)
           {entity === 'total' && ' · 통합 = 본체(일계표+디안몰) + 색동(온라인+오프라인·비용 포함), 이중계상 방지'}
           {entity === 'body' && ' · 본체 = 일계표 + 디안 쇼핑몰 − 색동 오프라인 (디안몰 원가 미연동)'}
-          {unit === 'week' && ' · 주별 색동·디안몰 매출은 월 매출 일할 배분 근사'}
+          {unit === 'week' && ' · 주별 색동·디안몰 매출은 월 매출 일할 배분 근사 (26년 시스템 데이터부터)'}
+          {entity !== 'naid' && unit === 'month' && ' · 26년 이전 달은 관리 장부(매출·매입·경비) 백필'}
+          {entity !== 'naid' && unit === 'year' && ' · 16~25년은 관리 장부(매출·매입·경비) 기준 — 이익 = 매출 − (매입+경비)'}
         </p>
       </div>
 
