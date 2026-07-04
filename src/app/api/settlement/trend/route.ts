@@ -1,0 +1,214 @@
+/**
+ * GET /api/settlement/trend?unit=month|week|year
+ *
+ * 본체(일계표) 기간별 손익 추이 — 경영 그래프용 버킷 집계.
+ * - month: 최근 12개월 · week: 최근 12주(월~일) · year: 데이터 시작 연도~올해
+ * - 버킷마다: sales(잔액 보정 제외) / fabricCogs / expenses / shipping /
+ *   fixed(영업일 배분) / interest(대출 이자)
+ * 색동·디안몰 매출 합성은 클라이언트에서 (아임웹 공유 캐시 재사용).
+ */
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import { EXCLUDE_BALANCE_CORRECTION } from '@/lib/sales-filter'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+function ymd(d: Date): string {
+  return d.toLocaleDateString('sv-SE')
+}
+
+function bizDaysInMonth(y: number, m0: number): number {
+  const days = new Date(y, m0 + 1, 0).getDate()
+  let c = 0
+  for (let d = 1; d <= days; d++) {
+    const dow = new Date(y, m0, d).getDay()
+    if (dow !== 0 && dow !== 6) c++
+  }
+  return c
+}
+
+function bizDaysInRange(start: Date, end: Date): number {
+  let c = 0
+  const cur = new Date(start)
+  cur.setHours(0, 0, 0, 0)
+  const e = new Date(end)
+  e.setHours(23, 59, 59, 999)
+  while (cur <= e) {
+    const dow = cur.getDay()
+    if (dow !== 0 && dow !== 6) c++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return c
+}
+
+/** 버킷이 걸친 월 목록 + 영업일 겹침 비율 (고정비·운송비·이자 월 단위 배분) */
+function monthRatios(start: Date, end: Date): { ym: string; ratio: number }[] {
+  const out: { ym: string; ratio: number }[] = []
+  const cur = new Date(start.getFullYear(), start.getMonth(), 1)
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1)
+  while (cur <= endMonth) {
+    const y = cur.getFullYear()
+    const m0 = cur.getMonth()
+    const mStart = new Date(y, m0, 1)
+    const mEnd = new Date(y, m0 + 1, 0, 23, 59, 59)
+    const oStart = start > mStart ? start : mStart
+    const oEnd = end < mEnd ? end : mEnd
+    const total = bizDaysInMonth(y, m0)
+    out.push({
+      ym: `${y}-${String(m0 + 1).padStart(2, '0')}`,
+      ratio: total > 0 ? bizDaysInRange(oStart, oEnd) / total : 0,
+    })
+    cur.setMonth(cur.getMonth() + 1)
+  }
+  return out
+}
+
+interface Bucket {
+  key: string
+  label: string
+  start: string
+  end: string
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const unit = (req.nextUrl.searchParams.get('unit') ?? 'month') as 'month' | 'week' | 'year'
+    const now = new Date()
+    now.setHours(23, 59, 59, 999)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const buckets: Bucket[] = []
+    if (unit === 'week') {
+      // 최근 12주 — 월요일 시작
+      const dow = today.getDay()
+      const thisMonday = new Date(today)
+      thisMonday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
+      for (let i = 11; i >= 0; i--) {
+        const s = new Date(thisMonday)
+        s.setDate(thisMonday.getDate() - i * 7)
+        const e = new Date(s)
+        e.setDate(s.getDate() + 6)
+        const end = e > today ? today : e
+        buckets.push({
+          key: ymd(s),
+          label: `${s.getMonth() + 1}/${s.getDate()}`,
+          start: ymd(s),
+          end: ymd(end),
+        })
+      }
+    } else if (unit === 'year') {
+      // 데이터 시작 연도 ~ 올해
+      const first = await prisma.transaction.aggregate({ _min: { date: true } })
+      const firstYear = first._min.date ? first._min.date.getFullYear() : today.getFullYear()
+      for (let y = Math.max(firstYear, today.getFullYear() - 4); y <= today.getFullYear(); y++) {
+        const s = new Date(y, 0, 1)
+        const e = new Date(y, 11, 31)
+        buckets.push({
+          key: String(y),
+          label: `${y}년`,
+          start: ymd(s),
+          end: ymd(e > today ? today : e),
+        })
+      }
+    } else {
+      // 최근 12개월
+      for (let i = 11; i >= 0; i--) {
+        const s = new Date(today.getFullYear(), today.getMonth() - i, 1)
+        const e = new Date(today.getFullYear(), today.getMonth() - i + 1, 0)
+        buckets.push({
+          key: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}`,
+          label: `${String(s.getFullYear()).slice(2)}.${s.getMonth() + 1}`,
+          start: ymd(s),
+          end: ymd(e > today ? today : e),
+        })
+      }
+    }
+
+    const rangeStart = new Date(buckets[0].start + 'T00:00:00')
+    const supabase = await createClient()
+    const [txs, recurring, shipCat, loanRes] = await Promise.all([
+      prisma.transaction.findMany({
+        where: {
+          date: { gte: rangeStart, lte: now },
+          OR: [
+            { type: { in: ['PURCHASE', 'EXPENSE'] } },
+            { AND: [{ type: 'SALE' }, EXCLUDE_BALANCE_CORRECTION] },
+          ],
+        },
+        select: { date: true, type: true, totalAmount: true, description: true },
+      }),
+      prisma.recurringCost.findMany(),
+      prisma.costCategory.findFirst({ where: { name: { contains: '해외' } } }),
+      supabase.from('loan_payments').select('month_key, interest'),
+    ])
+
+    const monthlyFixed = recurring.reduce((s, c) => {
+      if (c.frequency === 'MONTHLY') return s + c.amount
+      if (c.frequency === 'QUARTERLY') return s + Math.round(c.amount / 3)
+      if (c.frequency === 'YEARLY') return s + Math.round(c.amount / 12)
+      return s
+    }, 0)
+
+    // 해외운송비 월 등록액 (전체 범위 한 번에)
+    const allMonths = new Set<string>()
+    const bucketMonths = buckets.map((b) => {
+      const ms = monthRatios(new Date(b.start + 'T00:00:00'), new Date(b.end + 'T23:59:59'))
+      ms.forEach((m) => allMonths.add(m.ym))
+      return ms
+    })
+    const shipByMonth = new Map<string, number>()
+    if (shipCat) {
+      const recs = await prisma.monthlyCost.findMany({
+        where: { costCategoryId: shipCat.id, yearMonth: { in: [...allMonths] } },
+      })
+      recs.forEach((r) => shipByMonth.set(r.yearMonth, r.amount))
+    }
+    const interestByMonth = new Map<string, number>()
+    if (!loanRes.error) {
+      for (const row of loanRes.data ?? []) {
+        interestByMonth.set(row.month_key, (interestByMonth.get(row.month_key) ?? 0) + (row.interest ?? 0))
+      }
+    }
+
+    // 거래를 버킷에 배분
+    const result = buckets.map((b, bi) => {
+      let sales = 0
+      let fabricCogs = 0
+      let expenses = 0
+      for (const t of txs) {
+        const d = ymd(t.date)
+        if (d < b.start || d > b.end) continue
+        if (t.type === 'SALE') sales += t.totalAmount
+        else if (t.type === 'EXPENSE') expenses += t.totalAmount
+        else if (t.type === 'PURCHASE' && (t.description ?? '').startsWith('원단 매입원가')) fabricCogs += t.totalAmount
+      }
+      let fixed = 0
+      let shipping = 0
+      let interest = 0
+      for (const m of bucketMonths[bi]) {
+        fixed += monthlyFixed * m.ratio
+        shipping += (shipByMonth.get(m.ym) ?? 0) * m.ratio
+        interest += (interestByMonth.get(m.ym) ?? 0) * m.ratio
+      }
+      return {
+        key: b.key,
+        label: b.label,
+        start: b.start,
+        end: b.end,
+        sales,
+        fabricCogs,
+        expenses,
+        shipping: Math.round(shipping),
+        fixed: Math.round(fixed),
+        interest: Math.round(interest),
+      }
+    })
+
+    return NextResponse.json({ unit, buckets: result })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : '추이 집계 실패' })
+  }
+}
