@@ -31,12 +31,13 @@ interface SeriesData {
 
 const box: React.CSSProperties = { border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }
 
-type View = 'year' | 'month' | 'compare'
+type View = 'year' | 'month' | 'compare' | 'avg'
 
 const VIEWS: { key: View; label: string }[] = [
   { key: 'year', label: '년도별' },
   { key: 'month', label: '월별 추이' },
   { key: 'compare', label: '동월 비교' },
+  { key: 'avg', label: '월별 평균' },
 ]
 
 function fmtAxis(v: number): string {
@@ -106,6 +107,23 @@ export default function HistorySales() {
       .map((m) => ({ label: `${m.ym.slice(2, 4)}년`, 매출: m.sales, live: m.live }))
   }, [allMonths, compareMonth])
 
+  // 월별 평균 (계절성) — 16~25 완결 10년만 (26년 진행분·통합 기준 상이로 제외)
+  const monthAvg = useMemo(() => {
+    const byMonth = new Map<number, { sum: number; n: number }>()
+    for (const m of HISTORY_SALES) {
+      const mm = Number(m.ym.slice(5, 7))
+      const cur = byMonth.get(mm) ?? { sum: 0, n: 0 }
+      byMonth.set(mm, { sum: cur.sum + m.sales, n: cur.n + 1 })
+    }
+    const rows = Array.from({ length: 12 }, (_, i) => {
+      const v = byMonth.get(i + 1) ?? { sum: 0, n: 1 }
+      return { label: `${i + 1}월`, 평균매출: Math.round(v.sum / Math.max(1, v.n)) }
+    })
+    const max = rows.reduce((a, b) => (b.평균매출 > a.평균매출 ? b : a))
+    const min = rows.reduce((a, b) => (b.평균매출 < a.평균매출 ? b : a))
+    return { rows, max, min }
+  }, [])
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -154,9 +172,36 @@ export default function HistorySales() {
           )}
         </div>
 
+        {view === 'avg' && (
+          <p className="mb-2 text-[12px] tabular-nums">
+            <span className="font-bold" style={{ color: '#3d7a00' }}>
+              평균 최고 {monthAvg.max.label} {formatKRW(monthAvg.max.평균매출)}
+            </span>
+            <span className="mx-2 text-slate-300">·</span>
+            <span className="font-bold" style={{ color: '#dc2626' }}>
+              최저 {monthAvg.min.label} {formatKRW(monthAvg.min.평균매출)}
+            </span>
+          </p>
+        )}
+
         <div className="h-64 -ml-2">
           <ResponsiveContainer width="100%" height="100%">
-            {view === 'month' ? (
+            {view === 'avg' ? (
+              <BarChart data={monthAvg.rows}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#999' }} />
+                <YAxis tick={{ fontSize: 10, fill: '#999' }} tickFormatter={fmtAxis} width={48} />
+                <Tooltip formatter={(v) => formatKRW(Number(v))} labelStyle={{ fontSize: 11 }} contentStyle={{ fontSize: 12, borderRadius: 2 }} />
+                <Bar dataKey="평균매출" radius={[2, 2, 0, 0]}>
+                  {monthAvg.rows.map((d) => (
+                    <Cell
+                      key={d.label}
+                      fill={d.label === monthAvg.max.label ? '#3d7a00' : d.label === monthAvg.min.label ? '#ef4444' : GREEN}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            ) : view === 'month' ? (
               <LineChart data={monthly}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#999' }} interval={11} />
@@ -184,6 +229,7 @@ export default function HistorySales() {
           {view === 'year' && '연매출 합계 — 흐름 (최고 2022년 약 26.5억 · ~25년 관리 장부 기준)'}
           {view === 'month' && '2016.1 ~ 현재 · 월매출 추이'}
           {view === 'compare' && `${compareMonth}월 매출을 연도끼리 비교 — 계절성·동월 성과 확인`}
+          {view === 'avg' && '2016~2025 완결 10년의 동월 평균 — 진초록 = 최고 달, 빨강 = 최저 달 (26년 진행분 제외)'}
           {' · 26년~ = 본체+색동 온라인+디안몰 통합(공급가 환산, 진행 중 누계 — 연한 색)'}
           {' · 2015년 자료를 주시면 추가합니다'}
         </p>
