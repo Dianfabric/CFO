@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
         const r = rows[i]
         const name = String(r[1] ?? '').trim()
         if (!name || name === '상호명') continue
+        if (/^(소계|총계|합계)|^\*/.test(name)) continue // 집계·어음 행 제외
         const rec = {
           month_key: monthKey,
           client_name: name,
@@ -69,6 +70,8 @@ export async function POST(req: NextRequest) {
         if (rec.opening === 0 && rec.sales === 0 && rec.collected === 0 && rec.balance === 0) continue
         recs.push(rec)
       }
+      // 월 단위 교체 — 재업로드 시 이전 잔여 행(집계 행 등) 제거
+      await supabase.from('ar_snapshots').delete().eq('month_key', monthKey)
       const { error } = await supabase
         .from('ar_snapshots')
         .upsert(recs, { onConflict: 'month_key,client_name' })
