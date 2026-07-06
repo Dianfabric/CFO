@@ -77,7 +77,7 @@ export async function computeSoldCogsByDate(start: Date, end: Date): Promise<Sol
 /** 매입 거래 분류 — 판매 기준 원가 모델에서의 처리 */
 export type PurchaseClass = 'cogs_freight' | 'domestic_ship' | 'inventory' | 'legacy_auto'
 
-const OVERSEAS_RE = /중국|해외|수입|관세|통관|국제/
+const OVERSEAS_RE = /중국|해외|수입|관세|통관|국제|항공|해상|선박|선적/
 const SHIP_RE = /운송|운임|배송|택배|퀵/
 
 export function classifyPurchase(description: string | null | undefined, itemNames: string[]): PurchaseClass {

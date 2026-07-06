@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient()
-    const [salesAgg, purchases, expenseAgg, recurring, shipCat, loanRes, sold] = await Promise.all([
+    const [salesAgg, purchases, expenseRows, recurring, shipCat, loanRes, sold] = await Promise.all([
       prisma.transaction.aggregate({
         where: { type: 'SALE', date: { gte: rangeStart, lte: rangeEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         _sum: { totalAmount: true },
@@ -83,9 +83,9 @@ export async function GET(req: NextRequest) {
         where: { type: 'PURCHASE', date: { gte: rangeStart, lte: rangeEnd } },
         select: { totalAmount: true, description: true, items: { select: { productName: true } } },
       }),
-      prisma.transaction.aggregate({
+      prisma.transaction.findMany({
         where: { type: 'EXPENSE', date: { gte: rangeStart, lte: rangeEnd } },
-        _sum: { totalAmount: true },
+        select: { totalAmount: true, description: true, items: { select: { productName: true } } },
       }),
       prisma.recurringCost.findMany({ include: { costCategory: true } }),
       prisma.costCategory.findFirst({ where: { name: { contains: '해외' } } }),
@@ -104,6 +104,13 @@ export async function GET(req: NextRequest) {
       else if (cls === 'domestic_ship') purchShipping += pu.totalAmount
       else if (cls === 'inventory') invPurchase += pu.totalAmount
       // legacy_auto('원단 매입원가' 구 자동 항목)는 이중계상 방지 위해 제외
+    }
+    // 경비(EXPENSE) 중 해외운임 성격(예: 국제항공운송비)도 매출원가로
+    let expensesSum = 0
+    for (const ex of expenseRows) {
+      const cls = classifyPurchase(ex.description, ex.items.map((i) => i.productName ?? ''))
+      if (cls === 'cogs_freight') freightCogs += ex.totalAmount
+      else expensesSum += ex.totalAmount
     }
     const fabricCogs = sold.soldCogs + freightCogs
 
@@ -161,7 +168,7 @@ export async function GET(req: NextRequest) {
       cogsCoverage: Math.round(sold.coveragePct * 10) / 10, // 단가표 매칭 커버리지 %
       invPurchase, // 원단 매입 인보이스 — 재고 취득 (손익 미반영, 참고)
       usdRate: sold.usdRate,
-      expenses: expenseAgg._sum.totalAmount ?? 0,
+      expenses: expensesSum,
       shipping: shipping + purchShipping, // 월 등록액 배분 + 국내 배송 매입
       fixed,
       fixedBreakdown,

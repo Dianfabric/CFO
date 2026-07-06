@@ -190,8 +190,11 @@ export async function GET(req: NextRequest) {
         const d = ymd(t.date)
         if (d < b.start || d > b.end) continue
         if (t.type === 'SALE') sales += t.totalAmount
-        else if (t.type === 'EXPENSE') expenses += t.totalAmount
-        else if (t.type === 'PURCHASE') {
+        else if (t.type === 'EXPENSE') {
+          const cls = classifyPurchase(t.description, t.items.map((i) => i.productName ?? ''))
+          if (cls === 'cogs_freight') fabricCogs += t.totalAmount
+          else expenses += t.totalAmount
+        } else if (t.type === 'PURCHASE') {
           const cls = classifyPurchase(t.description, t.items.map((i) => i.productName ?? ''))
           if (cls === 'cogs_freight') fabricCogs += t.totalAmount
           else if (cls === 'domestic_ship') purchShipping += t.totalAmount
