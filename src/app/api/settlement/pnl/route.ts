@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient()
-    const [salesAgg, purchases, expenseRows, recurring, shipCat, loanRes, sold] = await Promise.all([
+    const [salesAgg, purchases, expenseRows, recurring, loanRes, sold] = await Promise.all([
       prisma.transaction.aggregate({
         where: { type: 'SALE', date: { gte: rangeStart, lte: rangeEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         _sum: { totalAmount: true },
@@ -88,7 +88,6 @@ export async function GET(req: NextRequest) {
         select: { totalAmount: true, description: true, items: { select: { productName: true } } },
       }),
       prisma.recurringCost.findMany({ include: { costCategory: true } }),
-      prisma.costCategory.findFirst({ where: { name: { contains: '해외' } } }),
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 팔린 수량 × TMS 기준단가 × 환율 (대표 결정 2026-07-06)
       computeSoldCogsByDate(rangeStart, rangeEnd),
@@ -133,19 +132,8 @@ export async function GET(req: NextRequest) {
       .filter((x) => x.amount > 0)
       .sort((a, b) => b.amount - a.amount)
 
-    let shipping = 0
-    if (shipCat) {
-      const recs = await Promise.all(
-        months.map((m) =>
-          prisma.monthlyCost
-            .findUnique({
-              where: { costCategoryId_yearMonth: { costCategoryId: shipCat.id, yearMonth: m.ym } },
-            })
-            .then((r) => ({ m, r })),
-        ),
-      )
-      for (const { m, r } of recs) if (r && r.amount) shipping += Math.round(r.amount * m.ratio)
-    }
+    // (구) MonthlyCost '해외' 월 등록액은 운임 인보이스 거래와 동일 금액이 이중 기록되어 제외
+    // — 운임은 classifyPurchase 가 인보이스 거래에서 직접 집계 (2026-07-06 검증으로 확인)
 
     // 대출 이자 (영업외비용) — 월 자료를 기간 비례 배분
     let interest = 0
@@ -169,7 +157,7 @@ export async function GET(req: NextRequest) {
       invPurchase, // 원단 매입 인보이스 — 재고 취득 (손익 미반영, 참고)
       usdRate: sold.usdRate,
       expenses: expensesSum,
-      shipping: shipping + purchShipping, // 월 등록액 배분 + 국내 배송 매입
+      shipping: purchShipping, // 국내 배송 (해외운임은 freightCogs 로)
       fixed,
       fixedBreakdown,
       monthlyFixed,

@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
 
     const rangeStart = new Date(buckets[0].start + 'T00:00:00')
     const supabase = await createClient()
-    const [txs, recurring, shipCat, loanRes, sold] = await Promise.all([
+    const [txs, recurring, loanRes, sold] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           date: { gte: rangeStart, lte: now },
@@ -145,7 +145,6 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.recurringCost.findMany(),
-      prisma.costCategory.findFirst({ where: { name: { contains: '해외' } } }),
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 날짜별 (버킷 배분용)
       computeSoldCogsByDate(rangeStart, now),
@@ -159,20 +158,10 @@ export async function GET(req: NextRequest) {
       return s
     }, 0)
 
-    // 해외운송비 월 등록액 (전체 범위 한 번에)
-    const allMonths = new Set<string>()
-    const bucketMonths = buckets.map((b) => {
-      const ms = monthRatios(new Date(b.start + 'T00:00:00'), new Date(b.end + 'T23:59:59'))
-      ms.forEach((m) => allMonths.add(m.ym))
-      return ms
-    })
-    const shipByMonth = new Map<string, number>()
-    if (shipCat) {
-      const recs = await prisma.monthlyCost.findMany({
-        where: { costCategoryId: shipCat.id, yearMonth: { in: [...allMonths] } },
-      })
-      recs.forEach((r) => shipByMonth.set(r.yearMonth, r.amount))
-    }
+    // (구) MonthlyCost '해외' 월 등록액은 운임 인보이스 거래와 이중 기록 — 제외 (인보이스가 기준)
+    const bucketMonths = buckets.map((b) =>
+      monthRatios(new Date(b.start + 'T00:00:00'), new Date(b.end + 'T23:59:59')),
+    )
     const interestByMonth = new Map<string, number>()
     if (!loanRes.error) {
       for (const row of loanRes.data ?? []) {
@@ -206,11 +195,9 @@ export async function GET(req: NextRequest) {
         if (d >= b.start && d <= b.end) fabricCogs += v.cogs
       }
       let fixed = 0
-      let shipping = 0
       let interest = 0
       for (const m of bucketMonths[bi]) {
         fixed += monthlyFixed * m.ratio
-        shipping += (shipByMonth.get(m.ym) ?? 0) * m.ratio
         interest += (interestByMonth.get(m.ym) ?? 0) * m.ratio
       }
       return {
@@ -221,7 +208,7 @@ export async function GET(req: NextRequest) {
         sales,
         fabricCogs,
         expenses,
-        shipping: Math.round(shipping) + purchShipping, // 월 등록액 배분 + 운송 매입 인보이스
+        shipping: purchShipping, // 국내 배송 (해외운임은 fabricCogs 로)
         fixed: Math.round(fixed),
         interest: Math.round(interest),
       }
