@@ -367,7 +367,7 @@ export default function DianOverview() {
     // 비용 세부 구성 — 자료가 등록된 만큼 막대 아래 표시 (자료 늘면 자동 세분화)
     const breakdowns = {
       cogs: [
-        { label: '본체 원단 매입', amount: body.fabricCogs },
+        { label: '본체 매입(원단·가공)', amount: body.fabricCogs },
         { label: '색동 매입·원가', amount: saekChain.cogs },
       ],
       variable: [
@@ -410,10 +410,10 @@ export default function DianOverview() {
     const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
     const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
     const breakdowns = {
-      cogs: [{ label: '원단 매입', amount: body.fabricCogs }],
+      cogs: [{ label: '매입(원단·가공)', amount: body.fabricCogs }],
       variable: [
         { label: '당일지출', amount: body.expenses },
-        { label: '해외운송비', amount: body.shipping },
+        { label: '운송비', amount: body.shipping },
       ],
       fixed: body.fixedBreakdown ?? [],
       nonOp: [{ label: '대출 이자', amount: body.interest ?? 0 }],

@@ -138,7 +138,10 @@ export async function GET(req: NextRequest) {
             { AND: [{ type: 'SALE' }, EXCLUDE_BALANCE_CORRECTION] },
           ],
         },
-        select: { date: true, type: true, totalAmount: true, description: true },
+        select: {
+          date: true, type: true, totalAmount: true, description: true,
+          items: { select: { productName: true } },
+        },
       }),
       prisma.recurringCost.findMany(),
       prisma.costCategory.findFirst({ where: { name: { contains: '해외' } } }),
@@ -173,17 +176,24 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 거래를 버킷에 배분
+    // 거래를 버킷에 배분 — 매입은 운송 성격(변동비)과 매출원가로 분류
+    const SHIP_RE = /운송|운임|배송|택배/
     const result = buckets.map((b, bi) => {
       let sales = 0
       let fabricCogs = 0
       let expenses = 0
+      let purchShipping = 0
       for (const t of txs) {
         const d = ymd(t.date)
         if (d < b.start || d > b.end) continue
         if (t.type === 'SALE') sales += t.totalAmount
         else if (t.type === 'EXPENSE') expenses += t.totalAmount
-        else if (t.type === 'PURCHASE' && (t.description ?? '').startsWith('원단 매입원가')) fabricCogs += t.totalAmount
+        else if (t.type === 'PURCHASE') {
+          const isShip =
+            SHIP_RE.test(t.description ?? '') || t.items.some((i) => SHIP_RE.test(i.productName ?? ''))
+          if (isShip) purchShipping += t.totalAmount
+          else fabricCogs += t.totalAmount
+        }
       }
       let fixed = 0
       let shipping = 0
@@ -201,7 +211,7 @@ export async function GET(req: NextRequest) {
         sales,
         fabricCogs,
         expenses,
-        shipping: Math.round(shipping),
+        shipping: Math.round(shipping) + purchShipping, // 월 등록액 배분 + 운송 매입 인보이스
         fixed: Math.round(fixed),
         interest: Math.round(interest),
       }
