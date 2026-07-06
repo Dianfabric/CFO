@@ -24,9 +24,30 @@ export function clearFabricCache() {
 let cachedRate: number | null = null
 let rateCacheTime = 0
 const RATE_TTL = 60 * 60 * 1000 // 1시간 캐시
+const FALLBACK_RATE = 1500 // API 실패·초기 대비 안전 기본값
 
+// 실시간 USD→KRW 환율. open.er-api.com (무키·무료). 1시간 캐시.
+// 실패해도 원가 계산이 절대 깨지지 않게: 마지막 캐시값 → 없으면 FALLBACK_RATE.
 export async function getUSDtoKRW(): Promise<number> {
-  return 1500
+  const now = Date.now()
+  if (cachedRate && now - rateCacheTime < RATE_TTL) return cachedRate
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD', {
+      signal: AbortSignal.timeout(8000),
+    })
+    const data = await res.json()
+    const krw = data?.rates?.KRW
+    // 정상 범위(500~3000원) 검증 — 이상값이면 폴백
+    if (typeof krw === 'number' && krw > 500 && krw < 3000) {
+      cachedRate = Math.round(krw)
+      rateCacheTime = now
+      return cachedRate
+    }
+    throw new Error(`invalid KRW rate: ${krw}`)
+  } catch (e) {
+    console.error('[getUSDtoKRW] 환율 조회 실패, 폴백 사용:', (e as Error).message)
+    return cachedRate ?? FALLBACK_RATE
+  }
 }
 
 export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPrice[]> {

@@ -10,6 +10,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { normBankName } from '@/lib/bank-name'
 
 // ── 이름 정규화 + 유사도 (bigram Dice) ──
 
@@ -244,7 +245,10 @@ export async function confirmTaxLink(txId: string, invoiceId: string): Promise<v
   await prisma.transaction.update({ where: { id: txId }, data: { taxStatus: 'ISSUED' } })
 }
 
-/** 입금 연결 승인 — ArPayment 생성 + AR 재계산 + 통장 MATCHED */
+/** 입금 연결 승인 — ArPayment 생성 + AR 재계산 + 통장 MATCHED
+ *  + 별칭 자동 학습 (다음 통장 파일부터 같은 raw 이름 자동 매칭)
+ *  + 이번 파일의 같은 raw 미매칭 건도 함께 재매칭 (대사 부담 최소화)
+ */
 export async function confirmDepositLink(bankId: string, clientId: string): Promise<void> {
   const bank = await prisma.bankTransaction.findUniqueOrThrow({ where: { id: bankId } })
   // 오래된 미수부터 적용할 AR 선택 (없으면 아무 AR, 그것도 없으면 생성)
@@ -281,6 +285,37 @@ export async function confirmDepositLink(bankId: string, clientId: string): Prom
     where: { id: bankId },
     data: { status: 'MATCHED', clientId, matchedPaymentId: pay.id },
   })
+
+  // 🎯 별칭 자동 학습 — 다음 통장 파일 업로드 시 같은 raw 이름 자동 매칭됨
+  // ClientAlias 사전(upload/bank matchClient의 1순위 조회 대상)에 정규화된 raw 저장.
+  const rawKey = normBankName(bank.rawCounterparty || bank.rawDescription || '')
+  if (rawKey.length >= 2) {
+    try {
+      await prisma.clientAlias.upsert({
+        where: { alias: rawKey },
+        update: { clientId },
+        create: { alias: rawKey, clientId },
+      })
+      // 이번 파일의 같은 raw 이름 미매칭 통장도 함께 재매칭 (다음 새로고침이면 인박스에서 사라짐)
+      // amount/AR 매칭은 다음 통장 업로드 시 자동 처리되므로 여기서는 clientId만 채움.
+      await prisma.bankTransaction.updateMany({
+        where: {
+          id: { not: bankId },
+          clientId: null,
+          status: 'UNMATCHED',
+          OR: [
+            { rawCounterparty: { contains: bank.rawCounterparty || '(NEVER)' } },
+            { rawDescription: { contains: bank.rawCounterparty || '(NEVER)' } },
+          ],
+        },
+        data: { clientId },
+      })
+    } catch (e) {
+      // 별칭 등록 실패해도 이번 건 처리는 완료된 상태 — 로그만 남기고 계속
+      console.error('[confirmDepositLink] alias upsert 실패:', e instanceof Error ? e.message : String(e))
+    }
+  }
+
   // 거래처 AR 잔액 재계산
   const ars = await prisma.accountsReceivable.findMany({
     where: { clientId },
