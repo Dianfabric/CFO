@@ -10,7 +10,7 @@
  */
 
 // BUILD_ID 는 배포마다 바뀜 (Next.js 가 빌드 시 SW 파일을 갱신해주지 않으므로 캐시 무효화 위해 timestamp 사용)
-const CACHE_VERSION = 'diavis-v1'
+const CACHE_VERSION = 'diavis-v2'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 
 // install — 새 버전 즉시 활성화 대기 없이 진행
