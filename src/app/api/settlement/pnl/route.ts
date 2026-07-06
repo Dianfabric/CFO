@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { EXCLUDE_BALANCE_CORRECTION } from '@/lib/sales-filter'
+import { computeSoldCogsByDate, classifyPurchase } from '@/lib/body-cogs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -72,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient()
-    const [salesAgg, purchases, expenseAgg, recurring, shipCat, loanRes] = await Promise.all([
+    const [salesAgg, purchases, expenseAgg, recurring, shipCat, loanRes, sold] = await Promise.all([
       prisma.transaction.aggregate({
         where: { type: 'SALE', date: { gte: rangeStart, lte: rangeEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         _sum: { totalAmount: true },
@@ -89,20 +90,22 @@ export async function GET(req: NextRequest) {
       prisma.recurringCost.findMany({ include: { costCategory: true } }),
       prisma.costCategory.findFirst({ where: { name: { contains: '해외' } } }),
       supabase.from('loan_payments').select('month_key, interest'),
+      // 판매 기준 원가 — 팔린 수량 × TMS 기준단가 × 환율 (대표 결정 2026-07-06)
+      computeSoldCogsByDate(rangeStart, rangeEnd),
     ])
 
-    // 매출원가 vs 운송(변동비) 분류
-    // - '원단 매입원가' 자동 항목 + 수입원단·염색비 등 매입 인보이스 → 매출원가
-    // - 운송·운임·배송·택배 성격 매입 → 변동비(운송)
-    const SHIP_RE = /운송|운임|배송|택배/
-    let fabricCogs = 0
+    // 매입 분류: 해외운임·관세 → 매출원가 / 국내 배송 → 변동비 / 원단 인보이스 → 재고 취득(제외)
+    let freightCogs = 0
     let purchShipping = 0
+    let invPurchase = 0
     for (const pu of purchases) {
-      const isShip =
-        SHIP_RE.test(pu.description ?? '') || pu.items.some((i) => SHIP_RE.test(i.productName ?? ''))
-      if (isShip) purchShipping += pu.totalAmount
-      else fabricCogs += pu.totalAmount
+      const cls = classifyPurchase(pu.description, pu.items.map((i) => i.productName ?? ''))
+      if (cls === 'cogs_freight') freightCogs += pu.totalAmount
+      else if (cls === 'domestic_ship') purchShipping += pu.totalAmount
+      else if (cls === 'inventory') invPurchase += pu.totalAmount
+      // legacy_auto('원단 매입원가' 구 자동 항목)는 이중계상 방지 위해 제외
     }
+    const fabricCogs = sold.soldCogs + freightCogs
 
     const monthlyOf = (c: (typeof recurring)[number]) =>
       c.frequency === 'MONTHLY' ? c.amount
@@ -152,9 +155,14 @@ export async function GET(req: NextRequest) {
       start: startStr,
       end: endStr,
       sales: salesAgg._sum.totalAmount ?? 0,
-      fabricCogs, // 원단 매입원가(자동) + 매입 인보이스 (운송 성격 제외)
+      fabricCogs, // = 판매 기준 원가(soldCogs) + 해외운임·관세(freightCogs)
+      soldCogs: sold.soldCogs,
+      freightCogs,
+      cogsCoverage: Math.round(sold.coveragePct * 10) / 10, // 단가표 매칭 커버리지 %
+      invPurchase, // 원단 매입 인보이스 — 재고 취득 (손익 미반영, 참고)
+      usdRate: sold.usdRate,
       expenses: expenseAgg._sum.totalAmount ?? 0,
-      shipping: shipping + purchShipping, // 월 등록액 배분 + 운송 매입 인보이스
+      shipping: shipping + purchShipping, // 월 등록액 배분 + 국내 배송 매입
       fixed,
       fixedBreakdown,
       monthlyFixed,

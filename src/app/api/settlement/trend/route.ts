@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { EXCLUDE_BALANCE_CORRECTION } from '@/lib/sales-filter'
+import { computeSoldCogsByDate, classifyPurchase } from '@/lib/body-cogs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -129,7 +130,7 @@ export async function GET(req: NextRequest) {
 
     const rangeStart = new Date(buckets[0].start + 'T00:00:00')
     const supabase = await createClient()
-    const [txs, recurring, shipCat, loanRes] = await Promise.all([
+    const [txs, recurring, shipCat, loanRes, sold] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           date: { gte: rangeStart, lte: now },
@@ -146,7 +147,10 @@ export async function GET(req: NextRequest) {
       prisma.recurringCost.findMany(),
       prisma.costCategory.findFirst({ where: { name: { contains: '해외' } } }),
       supabase.from('loan_payments').select('month_key, interest'),
+      // 판매 기준 원가 — 날짜별 (버킷 배분용)
+      computeSoldCogsByDate(rangeStart, now),
     ])
+    const soldDates = [...sold.byDate.entries()] // [YYYY-MM-DD, {cogs,...}]
 
     const monthlyFixed = recurring.reduce((s, c) => {
       if (c.frequency === 'MONTHLY') return s + c.amount
@@ -176,8 +180,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 거래를 버킷에 배분 — 매입은 운송 성격(변동비)과 매출원가로 분류
-    const SHIP_RE = /운송|운임|배송|택배/
+    // 거래를 버킷에 배분 — 원가 = 판매 기준(단가표) + 해외운임·관세, 국내 배송 = 변동비
     const result = buckets.map((b, bi) => {
       let sales = 0
       let fabricCogs = 0
@@ -189,11 +192,15 @@ export async function GET(req: NextRequest) {
         if (t.type === 'SALE') sales += t.totalAmount
         else if (t.type === 'EXPENSE') expenses += t.totalAmount
         else if (t.type === 'PURCHASE') {
-          const isShip =
-            SHIP_RE.test(t.description ?? '') || t.items.some((i) => SHIP_RE.test(i.productName ?? ''))
-          if (isShip) purchShipping += t.totalAmount
-          else fabricCogs += t.totalAmount
+          const cls = classifyPurchase(t.description, t.items.map((i) => i.productName ?? ''))
+          if (cls === 'cogs_freight') fabricCogs += t.totalAmount
+          else if (cls === 'domestic_ship') purchShipping += t.totalAmount
+          // inventory(재고 취득)·legacy_auto(구 자동 원가)는 손익 사슬 제외
         }
+      }
+      // 판매 기준 원가 합산 (버킷 내 날짜)
+      for (const [d, v] of soldDates) {
+        if (d >= b.start && d <= b.end) fabricCogs += v.cogs
       }
       let fixed = 0
       let shipping = 0

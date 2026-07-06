@@ -54,7 +54,11 @@ const PERIODS: { key: Period; label: string }[] = [
 /** 본체(일계표) 기간 손익 재료 — /api/settlement/pnl 응답 */
 interface BodyPnl {
   sales: number
-  fabricCogs: number
+  fabricCogs: number // = soldCogs + freightCogs (판매 기준 원가 + 해외운임·관세)
+  soldCogs?: number
+  freightCogs?: number
+  cogsCoverage?: number // 단가표 매칭 커버리지 %
+  invPurchase?: number // 재고 취득 매입 (손익 미반영, 참고)
   expenses: number
   shipping: number
   fixed: number
@@ -367,7 +371,8 @@ export default function DianOverview() {
     // 비용 세부 구성 — 자료가 등록된 만큼 막대 아래 표시 (자료 늘면 자동 세분화)
     const breakdowns = {
       cogs: [
-        { label: '본체 매입(원단·가공)', amount: body.fabricCogs },
+        { label: '본체 판매원가(단가표)', amount: body.soldCogs ?? body.fabricCogs },
+        { label: '해외운임·관세', amount: body.freightCogs ?? 0 },
         { label: '색동 매입·원가', amount: saekChain.cogs },
       ],
       variable: [
@@ -410,10 +415,13 @@ export default function DianOverview() {
     const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
     const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
     const breakdowns = {
-      cogs: [{ label: '매입(원단·가공)', amount: body.fabricCogs }],
+      cogs: [
+        { label: '판매원가(단가표)', amount: body.soldCogs ?? body.fabricCogs },
+        { label: '해외운임·관세', amount: body.freightCogs ?? 0 },
+      ],
       variable: [
         { label: '당일지출', amount: body.expenses },
-        { label: '운송비', amount: body.shipping },
+        { label: '국내 배송', amount: body.shipping },
       ],
       fixed: body.fixedBreakdown ?? [],
       nonOp: [{ label: '대출 이자', amount: body.interest ?? 0 }],
@@ -543,8 +551,11 @@ export default function DianOverview() {
             <ChainStrip chain={bodyChain} nonOpLabel="대출 이자" />
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
               매출 = 일계표 + 디안 쇼핑몰(÷1.1 공급가 환산, 원가 미연동) − 색동 오프라인(해당
-              원가는 색동에서 관리) · 변동비 = 당일지출 + 해외운송비 · 고정비 = 비용 관리
-              등록액 기간 배분 · 순이익 = 영업이익 − 대출 이자 (종합소득세 반영 전)
+              원가는 색동에서 관리) · 매출원가 = 판매수량×단가표(TMS) 원가 + 해외운임·관세
+              {bodyPnl[bodySel.rangeKey]?.cogsCoverage != null &&
+                ` (단가표 매칭 ${bodyPnl[bodySel.rangeKey]!.cogsCoverage}%)`}{' '}
+              · 원단 매입 인보이스는 재고 취득으로 손익 미반영 · 변동비 = 당일지출 + 국내 배송 ·
+              고정비 = 비용 관리 등록액 기간 배분 · 순이익 = 영업이익 − 대출 이자 (종합소득세 반영 전)
             </p>
           </>
         )}
