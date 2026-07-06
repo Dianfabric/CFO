@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
+import { normBankName as normName } from '@/lib/bank-name'
 
 export const runtime = 'nodejs'
-
-function normName(name: string): string {
-  return String(name ?? '')
-    .replace(/주식회사|\(주\)|㈜|유한회사/g, '')
-    .replace(/\([^)]*\)/g, '')
-    .replace(/[　\s]+/g, '')
-    .trim()
-    .toUpperCase()
-}
 
 function parseDateTime(v: unknown): Date | null {
   const s = String(v ?? '').trim()
