@@ -129,13 +129,15 @@ async function processFile(item: FileItem): Promise<{ message: string; detail?: 
   const isBank = /통장|거래내역조회/.test(name)
   const isMgmt = /관리\s*회계/.test(name)
   const isLoan = /대출.*(상환|이자)|이자상환/.test(name)
+  const isArSnapshot = /미수\s*(금)?\s*현황/.test(name)
   // 파일 종류 자동 라우팅:
   // - 세금계산서 → /api/upload/tax-invoice
   // - 통장내역 → /api/upload/bank
   // - "디안_마감_*.xlsx" → 담당자 마감 엑셀
   // - 다른 .xls/.xlsx → 일계표
   // - .pdf 등 → 매입 PDF
-  const endpoint = isLoan ? '/api/upload/loan-payments'
+  const endpoint = isArSnapshot ? '/api/upload/ar-snapshot'
+    : isLoan ? '/api/upload/loan-payments'
     : isMgmt ? '/api/upload/mgmt-accounting'
     : isTaxInvoice ? '/api/upload/tax-invoice'
     : isBank ? '/api/upload/bank'
@@ -148,6 +150,15 @@ async function processFile(item: FileItem): Promise<{ message: string; detail?: 
   const json = await res.json()
 
   if (!res.ok) throw new Error(json.error ?? '처리 오류')
+  if (isArSnapshot && json.sheets) {
+    const s = (json.sheets as { monthKey: string; rows: number; balanceSum: number }[])
+      .map((x) => `${x.monthKey} ${x.rows}곳 잔액 ${formatKRW(x.balanceSum)}`).join(' · ')
+    const cc = json.crossCheck as { mismatchCount: number; mismatchSum: number } | undefined
+    return {
+      message: `미수 현황 저장: ${s}`,
+      detail: cc ? `시스템과 차이 ${cc.mismatchCount}곳 (합계 ${formatKRW(cc.mismatchSum)}) — 자세한 목록은 Claude에게 요청` : undefined,
+    }
+  }
   return formatPurchaseResult(json as Record<string, unknown>)
 }
 
