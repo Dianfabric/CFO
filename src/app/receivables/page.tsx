@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -936,9 +936,8 @@ export default function ReceivablesPage() {
                             const correction = isCorrectionSale(row.ar.transaction.description)
                             const matched = (client.taxInvoices ?? []).some(t => t.matchedTransactionId === row.ar.transactionId)
                             return (
-                              <>
+                              <Fragment key={`s-${row.ar.id}`}>
                                 <tr
-                                  key={`s-${row.ar.id}`}
                                   className={`border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${correction ? 'bg-slate-100/70' : ''}`}
                                   onClick={(e) => { e.stopPropagation(); setExpandedAr(expandedAr === row.ar.id ? null : row.ar.id) }}
                                 >
@@ -1034,7 +1033,7 @@ export default function ReceivablesPage() {
                                     </td>
                                   </tr>
                                 )}
-                              </>
+                              </Fragment>
                             )
                           }
                           if (row.kind === 'pay') {
