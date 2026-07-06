@@ -13,6 +13,7 @@ import {
   getPaymentStatusName, getChannelName,
 } from '@/lib/formatters'
 import NvHeroStrip from '@/components/v11/nvidia/NvHeroStrip'
+import OrderFlowBoard from './OrderFlowBoard'
 
 interface Product { id: string; name: string; unit: string; sellingPrice: number; purchasePrice: number }
 interface Client { id: string; name: string; type: string }
@@ -210,6 +211,10 @@ export default function TransactionsPage() {
         title="거래 관리."
         subtitle="매출·비용·매입 거래를 기록하고 조회합니다."
       />
+
+      {/* 주문 진행 상황판 — 접수→출고→고객입고 + 담당자 메시지 + 입금·계산서·미수 상태 */}
+      <OrderFlowBoard />
+
       <div className="flex items-center justify-end">
         <div className="flex gap-2">
           <a href="/transactions/unassigned">

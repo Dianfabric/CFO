@@ -318,6 +318,56 @@ export default function ReceivablesPage() {
     return Array.from(set).sort()
   }, [data])
 
+  // ── 실제 미수 ↔ 서류(계산서) 교차 체크 ──
+  // 미수 잔액이 있는데 계산서가 없으면 청구 근거 서류 확인 필요, 발행됐으면 수금 단계.
+  const crossCheck = useMemo(() => {
+    let unissuedCount = 0, unissuedSum = 0, issuedCount = 0, issuedSum = 0
+    for (const c of data?.summary ?? []) {
+      for (const ar of c.items) {
+        if (ar.remainingAmount <= 0) continue
+        if (isCorrectionSale(ar.transaction.description)) continue
+        const issued =
+          (ar.transaction.taxInvoices?.length ?? 0) > 0 ||
+          ar.transaction.taxStatus === 'ISSUED' ||
+          ar.transaction.taxStatus === 'COMPLETED'
+        if (issued) { issuedCount++; issuedSum += ar.remainingAmount }
+        else { unissuedCount++; unissuedSum += ar.remainingAmount }
+      }
+    }
+    return { unissuedCount, unissuedSum, issuedCount, issuedSum }
+  }, [data])
+
+  // ── 미수금 안내 메시지 — 문구 생성 + 복사 (알림톡 계약 후 자동 발송 연결 예정) ──
+  const [copiedMsgClient, setCopiedMsgClient] = useState<string | null>(null)
+  const buildDunningMessage = (client: ClientAR): string => {
+    const openItems = client.items
+      .filter(ar => ar.remainingAmount > 0 && !isCorrectionSale(ar.transaction.description))
+      .sort((a, b) => b.remainingAmount - a.remainingAmount)
+    const lines = openItems.slice(0, 3).map(ar => {
+      const first = ar.transaction.items[0]
+      const name = first ? `${first.productName}${ar.transaction.items.length > 1 ? ` 외 ${ar.transaction.items.length - 1}` : ''}` : '거래'
+      return `· ${ar.transaction.date.slice(0, 10)} ${name} — ${formatKRW(ar.remainingAmount)}`
+    })
+    return [
+      `[디안] ${client.clientName} 담당자님, 안녕하세요. 디안입니다.`,
+      `미수금 결제 안내드립니다.`,
+      `· 미수 잔액: ${formatKRW(client.totalAmount)} (${openItems.length}건${client.oldestDays > 0 ? `, 최장 ${client.oldestDays}일 경과` : ''})`,
+      ...lines,
+      openItems.length > 3 ? `· 외 ${openItems.length - 3}건` : null,
+      `확인 후 입금 부탁드립니다. 감사합니다.`,
+    ].filter(Boolean).join('\n')
+  }
+  const copyDunning = async (client: ClientAR) => {
+    const msg = buildDunningMessage(client)
+    try {
+      await navigator.clipboard.writeText(msg)
+      setCopiedMsgClient(client.clientId)
+      setTimeout(() => setCopiedMsgClient(null), 1800)
+    } catch {
+      alert(msg)
+    }
+  }
+
   // 엑셀 다운로드 — 현재 필터(담당자/검색어/날짜/완납포함)가 적용된 결과를 4시트로 출력
   const [exporting, setExporting] = useState(false)
   const handleExport = async () => {
@@ -562,6 +612,26 @@ export default function ReceivablesPage() {
         </Card>
       </div>
 
+      {/* 실제 미수 ↔ 서류(계산서) 교차 체크 */}
+      {(crossCheck.unissuedCount > 0 || crossCheck.issuedCount > 0) && (
+        <Card className="border-l-4 border-l-violet-500">
+          <CardContent className="p-3 flex items-center gap-2 flex-wrap text-xs">
+            <span className="font-bold text-slate-700">🔍 실제 미수 ↔ 서류 교차 체크</span>
+            {crossCheck.unissuedCount > 0 && (
+              <span className="px-2 py-1 rounded bg-orange-50 border border-orange-200 text-orange-700 font-bold">
+                계산서 미발행 미수 {crossCheck.unissuedCount}건 · {formatKRW(crossCheck.unissuedSum)} — 청구 서류 확인 필요
+              </span>
+            )}
+            {crossCheck.issuedCount > 0 && (
+              <span className="px-2 py-1 rounded bg-blue-50 border border-blue-200 text-blue-700 font-bold">
+                계산서 발행됨 · 수금 대기 {crossCheck.issuedCount}건 · {formatKRW(crossCheck.issuedSum)}
+              </span>
+            )}
+            <span className="text-slate-400">세금계산서 목록 업로드가 최신일수록 정확합니다</span>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 담당자 필터 */}
       <Card>
         <CardContent className="p-3 flex items-center gap-2 flex-wrap">
@@ -770,6 +840,32 @@ export default function ReceivablesPage() {
                                   </button>
                                 )}
                               </div>
+                              {/* 미수금 안내 메시지 — 문구 복사 + 문자 (알림톡 자동 발송은 계약 후) */}
+                              {client.totalAmount > 0 && (
+                                <div className="flex items-center gap-1.5 mt-2">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); copyDunning(client) }}
+                                    className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded font-bold transition-colors ${
+                                      copiedMsgClient === client.clientId
+                                        ? 'bg-green-50 border border-green-300 text-green-700'
+                                        : 'bg-slate-900 text-white hover:bg-slate-700'
+                                    }`}
+                                    title="미수금 안내 문구를 복사해 카톡·문자에 붙여넣기"
+                                  >
+                                    💬 {copiedMsgClient === client.clientId ? '복사됨 — 붙여넣어 보내세요' : '미수금 메시지 복사'}
+                                  </button>
+                                  {client.phone && (
+                                    <a
+                                      href={`sms:${client.phone.replace(/[^0-9+]/g, '')}?body=${encodeURIComponent(buildDunningMessage(client))}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded font-bold border border-slate-300 bg-white text-slate-600 hover:border-slate-500"
+                                      title="연결된 휴대폰에서 문자로 보내기"
+                                    >
+                                      📱 문자로
+                                    </a>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             {/* 가운데: 거래처 비고 입력 */}
                             <div className="flex-1 min-w-0 max-w-xl">
