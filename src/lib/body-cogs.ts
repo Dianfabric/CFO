@@ -75,20 +75,25 @@ export async function computeSoldCogsByDate(start: Date, end: Date): Promise<Sol
 }
 
 /** 매입 거래 분류 — 판매 기준 원가 모델에서의 처리 */
-export type PurchaseClass = 'cogs_freight' | 'domestic_ship' | 'inventory' | 'legacy_auto'
+export type PurchaseClass = 'cogs_freight' | 'domestic_ship' | 'inventory' | 'legacy_auto' | 'ledger_dup'
 
 const OVERSEAS_RE = /중국|해외|수입|관세|통관|국제|항공|해상|선박|선적/
 const SHIP_RE = /운송|운임|배송|택배|퀵/
+const CUSTOMS_RE = /관세|통관|수입세금/
 
 export function classifyPurchase(description: string | null | undefined, itemNames: string[]): PurchaseClass {
   const d = description ?? ''
   if (d.startsWith('원단 매입원가')) return 'legacy_auto' // 구 자동 항목 — 이중계상 방지 제외
   const text = `${d} ${itemNames.join(' ')}`
   const isShip = SHIP_RE.test(text)
-  const isOverseas = OVERSEAS_RE.test(text)
-  if (isShip || /관세|통관|수입세금/.test(text)) {
-    // 해외운임·관세·통관 → 매출원가 / 국내 배송 → 변동비
-    return isOverseas || /관세|통관|수입세금/.test(text) ? 'cogs_freight' : 'domestic_ship'
+  const isCustoms = CUSTOMS_RE.test(text)
+  if (isShip || isCustoms) {
+    if (OVERSEAS_RE.test(text) || isCustoms) {
+      // 해외운임·관세: 별도 인보이스(로드썬·글로지텍·관세/통관)가 기준 —
+      // 일계표 매입 행('매입 - X')의 동일 성격은 이중계상 방지 위해 제외 (대표 결정 2026-07-06)
+      return d.startsWith('매입 - ') ? 'ledger_dup' : 'cogs_freight'
+    }
+    return 'domestic_ship' // 국내 배송 → 변동비 (일계표가 유일 소스라 유지)
   }
   return 'inventory' // 원단 등 매입 인보이스 — 재고 취득 (손익 사슬 제외)
 }
