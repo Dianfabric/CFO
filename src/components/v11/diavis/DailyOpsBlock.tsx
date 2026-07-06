@@ -49,6 +49,11 @@ function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** KST 벽시계 기준 Date — Vercel(UTC) 서버에서도 한국 날짜·시간으로 집계 */
+function kstNow(): Date {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+}
+
 function startOfWeek(d: Date): Date {
   const dow = d.getDay() // 0=Sun, 1=Mon
   const diff = dow === 0 ? -6 : 1 - dow
@@ -63,7 +68,7 @@ function startOfMonth(d: Date): Date {
 }
 
 function getGreeting(): string {
-  const h = new Date().getHours()
+  const h = kstNow().getHours()
   if (h < 6) return '늦은 밤이네요'
   if (h < 11) return '좋은 아침입니다'
   if (h < 14) return '점심 잘 챙기세요'
@@ -123,7 +128,7 @@ interface OverdueRow {
 
 async function loadData(): Promise<DailyOpsData> {
   const errors: string[] = []
-  const today = new Date()
+  const today = kstNow()
   const todayStr = toDateStr(today)
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
@@ -474,7 +479,7 @@ const AGING_COLOR: Record<string, string> = {
 
 export default async function DailyOpsBlock() {
   const data = await loadData()
-  const today = new Date()
+  const today = kstNow() // KST 고정 — 서버(UTC)에서도 한국 날짜·인사
   const todayLabel = today.toLocaleDateString('ko-KR', {
     year: 'numeric',
     month: 'long',
