@@ -59,33 +59,37 @@ function todayYmd(): string {
  * Vercel 요청 본문(4.5MB) / Storage 제한을 회피한다. 이미지가 아니면 원본 그대로.
  */
 async function resizeImage(file: File, maxDim = 1600, quality = 0.7): Promise<Blob> {
-  if (!file.type.startsWith('image/')) return file
-  const dataUrl: string = await new Promise((res, rej) => {
-    const fr = new FileReader()
-    fr.onload = () => res(fr.result as string)
-    fr.onerror = () => rej(new Error('파일 읽기 실패'))
-    fr.readAsDataURL(file)
-  })
-  const img: HTMLImageElement = await new Promise((res, rej) => {
-    const im = new Image()
-    im.onload = () => res(im)
-    im.onerror = () => rej(new Error('이미지 디코딩 실패'))
-    im.src = dataUrl
-  })
-  let { width, height } = img
-  if (Math.max(width, height) > maxDim) {
-    const scale = maxDim / Math.max(width, height)
-    width = Math.round(width * scale)
-    height = Math.round(height * scale)
+  // 축소 실패(디코딩 불가 포맷 등)해도 원본을 그대로 올려 업로드가 막히지 않게 한다.
+  try {
+    const dataUrl: string = await new Promise((res, rej) => {
+      const fr = new FileReader()
+      fr.onload = () => res(fr.result as string)
+      fr.onerror = () => rej(new Error('read'))
+      fr.readAsDataURL(file)
+    })
+    const img: HTMLImageElement = await new Promise((res, rej) => {
+      const im = new Image()
+      im.onload = () => res(im)
+      im.onerror = () => rej(new Error('decode'))
+      im.src = dataUrl
+    })
+    let { width, height } = img
+    if (Math.max(width, height) > maxDim) {
+      const scale = maxDim / Math.max(width, height)
+      width = Math.round(width * scale)
+      height = Math.round(height * scale)
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(img, 0, 0, width, height)
+    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
+    return blob ?? file
+  } catch {
+    return file
   }
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return file
-  ctx.drawImage(img, 0, 0, width, height)
-  const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
-  return blob ?? file
 }
 
 export default function SimpleReceipts() {
@@ -386,7 +390,7 @@ export default function SimpleReceipts() {
               <input
                 ref={dropRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.jpg,.jpeg,.jpe,.jfif,.png,.heic,.heif,.webp,.gif,.bmp"
                 multiple
                 className="hidden"
                 onChange={(e) => { if (e.target.files) { addImages(Array.from(e.target.files)); e.target.value = '' } }}
@@ -565,7 +569,7 @@ export default function SimpleReceipts() {
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.jpg,.jpeg,.jpe,.jfif,.png,.heic,.heif,.webp,.gif,.bmp"
                 className="hidden"
                 onChange={(e) => setFileName(e.target.files?.[0]?.name ?? '')}
               />
