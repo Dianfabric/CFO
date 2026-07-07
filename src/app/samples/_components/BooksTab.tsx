@@ -9,6 +9,7 @@ const STATUSES = ['전체', '대여가능', '대여중', '연체중']
 export default function BooksTab({ toast }: { toast: (m: string) => void }) {
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('전체')
+  const [mgr, setMgr] = useState('')
   const [odMin, setOdMin] = useState(0)
   const [books, setBooks] = useState<BookRow[]>([])
   const [total, setTotal] = useState(0)
@@ -24,7 +25,8 @@ export default function BooksTab({ toast }: { toast: (m: string) => void }) {
     const t = setTimeout(() => {
       const params = new URLSearchParams({ q, limit: '60' })
       if (status !== '전체') params.set('status', status)
-      if (isOd && odMin > 0) params.set('odMin', String(odMin))
+      if (mgr) params.set('manager', mgr)
+      if (odMin > 0) params.set('odMin', String(odMin))
       api<{ books: BookRow[]; total: number }>(`/api/samples/books?${params}`)
         .then((r) => { setBooks(r.books); setTotal(r.total) })
         .catch((e) => toast(`❌ ${e.message}`))
@@ -32,12 +34,13 @@ export default function BooksTab({ toast }: { toast: (m: string) => void }) {
     }, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, status, odMin, reload.current])
+  }, [q, status, mgr, odMin, reload.current])
 
   const loadMore = () => {
     const params = new URLSearchParams({ q, limit: '60', offset: String(books.length) })
     if (status !== '전체') params.set('status', status)
-    if (isOd && odMin > 0) params.set('odMin', String(odMin))
+    if (mgr) params.set('manager', mgr)
+    if (odMin > 0) params.set('odMin', String(odMin))
     api<{ books: BookRow[] }>(`/api/samples/books?${params}`)
       .then((r) => setBooks((b) => [...b, ...r.books])).catch(() => {})
   }
@@ -46,7 +49,8 @@ export default function BooksTab({ toast }: { toast: (m: string) => void }) {
     api<{ book: BookRow; history: RentalRow[] }>(`/api/samples/books/${id}`).then(setDetail).catch((e) => toast(`❌ ${e.message}`))
 
   const downloadCsv = async () => {
-    const params = new URLSearchParams({ q, status: '연체중', limit: '500' })
+    const params = new URLSearchParams({ q, status: isOd ? '연체중' : status !== '전체' ? status : '연체중', limit: '500' })
+    if (mgr) params.set('manager', mgr)
     if (odMin > 0) params.set('odMin', String(odMin))
     const { books: all } = await api<{ books: BookRow[] }>(`/api/samples/books?${params}`)
     const rows = [
@@ -67,21 +71,23 @@ export default function BooksTab({ toast }: { toast: (m: string) => void }) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 샘플북 이름·첫 원단명·브랜드 검색"
           className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm sm:w-72" />
-        <select value={status} onChange={(e) => { setStatus(e.target.value); setOdMin(0) }}
+        <select value={status} onChange={(e) => setStatus(e.target.value)}
           className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold">
           {STATUSES.map((s) => <option key={s}>{s}</option>)}
         </select>
-        {isOd && (
-          <>
-            <span className="text-xs text-slate-500">연체</span>
-            <input type="number" min={0} value={odMin || ''} placeholder="0"
-              onChange={(e) => setOdMin(Math.max(0, Number(e.target.value) || 0))}
-              className="h-10 w-20 rounded-md border border-slate-200 px-2 text-center text-sm" />
-            <span className="text-xs text-slate-500">일 이상 · <b>{total}건</b></span>
-            <button onClick={downloadCsv} className="h-10 rounded-md bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200 sm:ml-auto">⬇️ 엑셀(CSV) 내려받기</button>
-          </>
-        )}
-        {!isOd && (
+        <select value={mgr} onChange={(e) => setMgr(e.target.value)}
+          className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold">
+          <option value="">담당자 전체</option>
+          {MANAGERS.map((m) => <option key={m}>{m}</option>)}
+        </select>
+        <span className="text-xs text-slate-500">연체</span>
+        <input type="number" min={0} value={odMin || ''} placeholder="0"
+          onChange={(e) => setOdMin(Math.max(0, Number(e.target.value) || 0))}
+          className="h-10 w-20 rounded-md border border-slate-200 px-2 text-center text-sm" />
+        <span className="text-xs text-slate-500">일 이상 · <b>{total.toLocaleString()}건</b></span>
+        {isOd || odMin > 0 ? (
+          <button onClick={downloadCsv} className="h-10 rounded-md bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200 sm:ml-auto">⬇️ 엑셀(CSV) 내려받기</button>
+        ) : (
           <button onClick={() => setShowNew(true)} className="ml-auto h-10 rounded-md bg-slate-900 px-4 text-sm font-bold text-white">+ 샘플북 등록</button>
         )}
       </div>

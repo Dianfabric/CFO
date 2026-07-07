@@ -45,9 +45,13 @@ export async function GET(request: NextRequest) {
 
     let query = db.from('clients').select('*', { count: 'exact' })
     if (q) query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%`)
-    const { data, count, error } = await query.order('name').range(offset, offset + limit - 1)
+    const { data, count, error } = await query.order('name').limit(800)
     if (error) throw new Error(error.message)
-    const clients = (data || []).map((c) => ({ ...c, ...(agg.get(c.id) || { active: 0, overdue: 0 }) }))
+    // 연체 → 대여중 → 이름순 정렬 후 페이지 슬라이스
+    const clients = (data || [])
+      .map((c) => ({ ...c, ...(agg.get(c.id) || { active: 0, overdue: 0 }) }))
+      .sort((a, b) => (b.overdue - a.overdue) || (b.active - a.active) || a.name.localeCompare(b.name, 'ko'))
+      .slice(offset, offset + limit)
     return NextResponse.json({ clients, total: count })
   } catch (e) {
     console.error('samples/clients GET', e)

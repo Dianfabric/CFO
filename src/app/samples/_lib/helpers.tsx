@@ -135,8 +135,15 @@ export function BookCard({ b, right, footer, onClick, selected }: {
       </div>
       <div className="flex flex-col gap-1 p-2.5 text-[12.5px]">
         <div className="flex items-start justify-between gap-1">
-          <span className="truncate font-mono font-bold">{b.code}</span>
-          {b.active_rental_id ? <MgrBadge m={b.manager} /> : null}
+          <span className="min-w-0 truncate font-mono font-bold">{b.code}</span>
+          {b.active_rental_id ? (
+            <div className="flex max-w-[62%] flex-col items-end gap-1">
+              <span className="max-w-full truncate rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700" title={b.active_client_name || ''}>
+                🏢 {b.active_client_name}
+              </span>
+              <MgrBadge m={b.manager} />
+            </div>
+          ) : null}
         </div>
         {b.first_fabric ? <span className="truncate font-semibold">{b.first_fabric}</span> : null}
         <span className="truncate text-slate-500">{b.brand}{b.book_type ? ` · ${b.book_type}` : ''}</span>

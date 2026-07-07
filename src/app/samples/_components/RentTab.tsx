@@ -121,7 +121,7 @@ export default function RentTab({ onDone, toast }: { onDone: () => void; toast: 
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
           {searching ? '검색 결과 — 선택하면 대여 화면으로 들어갑니다' : `현재 대여중인 거래처 (${renters.length}) — 다른 거래처는 위에서 검색`}
         </p>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((c) => (
             <button key={c.id} onClick={() => { setClient(c); setCart([]) }}
               className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:bg-slate-50 hover:shadow-sm">

@@ -102,7 +102,7 @@ export default function ReturnTab({ onDone, toast }: { onDone: () => void; toast
 
   /* ── 반납 목록 (QR / 샘플북 검색 / 거래처 검색) ── */
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <button onClick={() => setShowScan(true)} className="h-12 w-full rounded-md bg-slate-900 text-[15px] font-bold text-white">📷 QR로 바로 반납</button>
 
       <div className="relative mt-2">
@@ -126,7 +126,7 @@ export default function ReturnTab({ onDone, toast }: { onDone: () => void; toast
         className="mt-2 h-11 w-full rounded-md border border-slate-200 px-3 text-sm" />
 
       <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">대여중인 거래처 ({renters.length})</p>
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {renters.map((c) => (
           <button key={c.id} onClick={() => enterClient(c)}
             className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:bg-slate-50 hover:shadow-sm">

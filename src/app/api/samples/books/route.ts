@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const sp = request.nextUrl.searchParams
     const q = (sp.get('q') || '').trim()
     const status = sp.get('status') || ''
+    const manager = (sp.get('manager') || '').trim()
     const odMin = Number(sp.get('odMin') || 0)
     const limit = Math.min(Number(sp.get('limit') || 60), 500)
     const offset = Number(sp.get('offset') || 0)
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
     let query = db.from('book_status').select('*', { count: 'exact' })
     if (q) query = query.or(`code.ilike.%${q}%,first_fabric.ilike.%${q}%,brand.ilike.%${q}%`)
     if (status) query = query.eq('status', status)
+    if (manager) query = query.eq('manager', manager)
     if (odMin > 0) query = query.gte('overdue_days', odMin)
     // 정렬: 연체중(연체 오래된 순) → 대여중 → 대여가능
     query = status === '연체중'
