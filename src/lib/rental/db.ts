@@ -5,10 +5,11 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 export function rentalDb(): SupabaseClient {
-  const url = process.env.RENTAL_SUPABASE_URL
-  const key = process.env.RENTAL_SUPABASE_SERVICE_KEY
+  // Vercel에 소문자로 등록된 경우까지 허용
+  const url = process.env.RENTAL_SUPABASE_URL || process.env.rental_supabase_url
+  const key = process.env.RENTAL_SUPABASE_SERVICE_KEY || process.env.rental_supabase_service_key
   if (!url || !key) {
-    throw new Error('RENTAL_SUPABASE_URL / RENTAL_SUPABASE_SERVICE_KEY 환경변수가 필요합니다.')
+    throw new Error(`환경변수 누락 — url:${url ? 'OK' : '없음'} key:${key ? 'OK' : '없음'}`)
   }
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
