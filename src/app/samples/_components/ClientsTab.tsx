@@ -127,19 +127,31 @@ export default function ClientsTab({ toast }: { toast: (m: string) => void }) {
     }
   }
 
+  // 공유 = 대여현황 JPG 이미지 자체를 공유 (카톡 등에서 사진으로 전송)
   const share = async () => {
     if (!detail) return
     const { client, activeBooks } = detail
-    const lines = activeBooks.map((b) => {
-      const days = b.active_rented_at ? Math.max(1, Math.round((Date.now() - new Date(b.active_rented_at).getTime()) / 86400000)) : 0
-      return `· ${b.code}${b.first_fabric ? ` (${b.first_fabric})` : ''} — 대여 ${days}일차, ${fmtD(b.active_due_at)} 반납예정${b.image_url ? `\n  사진: ${b.image_url.split('?')[0]}` : ''}`
-    })
-    const text = `[DIAN] ${client.name}님 대여중인 샘플북 ${activeBooks.length}권\n${lines.join('\n')}\n\n반납 시 쇼룸 방문 또는 택배 발송 부탁드립니다.`
-    if (navigator.share) {
-      try { await navigator.share({ text }); toast('공유했습니다') } catch { /* 취소 */ }
-    } else {
-      await navigator.clipboard.writeText(text)
-      toast('📋 공유 내용을 복사했습니다 — 문자/카톡에 붙여넣기 하세요')
+    toast(`공유 이미지 만드는 중… (사진 ${activeBooks.length}장)`)
+    try {
+      const blob = await makeReportJpg()
+      const file = new File([blob], `대여현황_${client.name.replace(/[\\/:*?"<>|]/g, '')}.jpg`, { type: 'image/jpeg' })
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          text: `[DIAN] ${client.name} 대여중인 샘플북 ${activeBooks.length}권 — 반납 시 쇼룸 방문 또는 택배 발송 부탁드립니다.`,
+        })
+        toast('📤 공유했습니다')
+      } else {
+        // 데스크탑 등 파일 공유 미지원 → JPG 저장으로 대체
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = file.name
+        a.click()
+        URL.revokeObjectURL(a.href)
+        toast('이 브라우저는 파일 공유가 안 돼서 JPG로 저장했어요 — 카톡·문자에 첨부해주세요')
+      }
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') toast(`❌ 공유 실패: ${e instanceof Error ? e.message : e}`)
     }
   }
 
