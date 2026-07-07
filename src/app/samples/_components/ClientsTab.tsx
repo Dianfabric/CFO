@@ -241,8 +241,8 @@ export default function ClientsTab({ toast }: { toast: (m: string) => void }) {
     <div>
       <div className="mb-3 flex gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 이름·전화 검색"
-          className="h-10 w-full max-w-md rounded-md border border-slate-200 px-3 text-sm" />
-        <button onClick={() => setShowNew(true)} className="ml-auto h-10 rounded-md bg-slate-900 px-4 text-sm font-bold text-white">+ 신규</button>
+          className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm sm:max-w-md" />
+        <button onClick={() => setShowNew(true)} className="h-10 shrink-0 whitespace-nowrap rounded-md bg-slate-900 px-4 text-sm font-bold text-white sm:ml-auto">+ 신규</button>
       </div>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">거래처 {total.toLocaleString()}곳</p>
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">

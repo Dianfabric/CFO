@@ -114,8 +114,8 @@ export default function RentTab({ onDone, toast }: { onDone: () => void; toast: 
       <div>
         <div className="mb-3 flex gap-2">
           <input value={clientQ} onChange={(e) => setClientQ(e.target.value)} placeholder="🔍 거래처 이름·전화 검색 (전체 거래처)"
-            className="h-10 flex-1 rounded-md border border-slate-200 px-3 text-sm" />
-          <button onClick={() => setShowNewClient(true)} className="h-10 rounded-md bg-slate-100 px-4 text-sm font-bold text-slate-700 hover:bg-slate-200">+ 신규</button>
+            className="h-10 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm" />
+          <button onClick={() => setShowNewClient(true)} className="h-10 shrink-0 whitespace-nowrap rounded-md bg-slate-100 px-4 text-sm font-bold text-slate-700 hover:bg-slate-200">+ 신규</button>
         </div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
           {searching ? '검색 결과 — 선택하면 대여 화면으로 들어갑니다' : `현재 대여중인 거래처 (${renters.length}) — 다른 거래처는 위에서 검색`}
