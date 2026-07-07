@@ -41,6 +41,83 @@ export default function ClientsTab({ toast }: { toast: (m: string) => void }) {
     } catch (e) { toast(`❌ ${e instanceof Error ? e.message : e}`) }
   }
 
+  /* 대여현황 리포트 (PDF: 페이지당 3열×3줄 / JPG: 한 장) — html2canvas는 tailwind oklch를
+     못 읽어서 인라인 hex 스타일로만 렌더 */
+  const buildReportEl = (books: BookRow[], clientName: string, pageInfo: string, width: number) => {
+    const today = new Date()
+    const dateStr = `${today.getFullYear()}.${today.getMonth() + 1}.${today.getDate()}`
+    const el = document.createElement('div')
+    el.style.cssText = `position:fixed;left:-12000px;top:0;width:${width}px;background:#ffffff;padding:36px;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#0f172a;box-sizing:border-box`
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #0f172a;padding-bottom:12px;margin-bottom:18px">
+        <div>
+          <div style="font-size:21px;font-weight:800">[DIAN] 샘플북 대여 현황</div>
+          <div style="font-size:13px;color:#64748b;margin-top:4px">${clientName} · 기준일 ${dateStr}</div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8">${pageInfo}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+        ${books.map((b) => `
+          <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
+            <div style="height:230px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">
+              ${b.image_url ? `<img src="${b.image_url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover">` : '사진 없음'}
+            </div>
+            <div style="padding:9px 11px;font-size:12px;line-height:1.5">
+              <div style="font-weight:800;font-family:Consolas,monospace">${b.code}</div>
+              ${b.first_fabric ? `<div style="font-weight:600">${b.first_fabric}</div>` : ''}
+              <div style="color:#64748b">${b.brand || ''}</div>
+              <div style="color:#64748b">대여 ${fmtD(b.active_rented_at)} ~ ${fmtD(b.active_due_at)}
+                ${b.status === '연체중' ? `<span style="color:#dc2626;font-weight:700"> · 연체 ${b.overdue_days}일</span>` : ''}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:16px;font-size:11px;color:#94a3b8">반납 시 쇼룸 방문 또는 택배 발송 부탁드립니다 · DIAN 02-6447-1221</div>`
+    document.body.appendChild(el)
+    return el
+  }
+
+  const waitImages = (el: HTMLElement) =>
+    Promise.all(Array.from(el.querySelectorAll('img')).map((img) =>
+      img.complete ? null : new Promise((r) => { img.onload = r; img.onerror = r })))
+
+  const downloadReport = async (fmt: 'pdf' | 'jpg') => {
+    if (!detail) return
+    const { client, activeBooks } = detail
+    toast(`${fmt.toUpperCase()} 만드는 중… (사진 ${activeBooks.length}장)`)
+    try {
+      const html2canvas = (await import('html2canvas')).default
+      const fname = `대여현황_${client.name.replace(/[\\/:*?"<>|]/g, '')}_${new Date().toISOString().slice(0, 10)}`
+      if (fmt === 'jpg') {
+        const el = buildReportEl(activeBooks, client.name, `총 ${activeBooks.length}권`, 1000)
+        await waitImages(el)
+        const canvas = await html2canvas(el, { useCORS: true, scale: 1.6, backgroundColor: '#ffffff' })
+        el.remove()
+        const a = document.createElement('a')
+        a.href = canvas.toDataURL('image/jpeg', 0.88)
+        a.download = `${fname}.jpg`
+        a.click()
+      } else {
+        const { jsPDF } = await import('jspdf')
+        const pages: BookRow[][] = []
+        for (let i = 0; i < activeBooks.length; i += 9) pages.push(activeBooks.slice(i, i + 9))
+        const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
+        for (let p = 0; p < pages.length; p++) {
+          const el = buildReportEl(pages[p], client.name, `${p + 1} / ${pages.length} 페이지 · 총 ${activeBooks.length}권`, 794)
+          await waitImages(el)
+          const canvas = await html2canvas(el, { useCORS: true, scale: 2, backgroundColor: '#ffffff' })
+          el.remove()
+          if (p > 0) pdf.addPage()
+          const w = 595.28
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.88), 'JPEG', 0, 0, w, (canvas.height * w) / canvas.width)
+        }
+        pdf.save(`${fname}.pdf`)
+      }
+      toast(`⬇️ ${fmt.toUpperCase()} 저장 완료`)
+    } catch (e) {
+      toast(`❌ ${fmt.toUpperCase()} 생성 실패: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
   const share = async () => {
     if (!detail) return
     const { client, activeBooks } = detail
@@ -97,10 +174,14 @@ export default function ClientsTab({ toast }: { toast: (m: string) => void }) {
           </div>
           <div className="flex flex-col gap-4">
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">현재 대여중 ({activeBooks.length})</p>
                 {activeBooks.length > 0 && (
-                  <button onClick={share} className="h-8 rounded-md bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200">📤 대여 현황 공유</button>
+                  <div className="flex gap-1.5">
+                    <button onClick={share} className="h-8 rounded-md bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200">📤 공유</button>
+                    <button onClick={() => downloadReport('pdf')} className="h-8 rounded-md bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200">⬇️ PDF</button>
+                    <button onClick={() => downloadReport('jpg')} className="h-8 rounded-md bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200">⬇️ JPG</button>
+                  </div>
                 )}
               </div>
               {activeBooks.length ? (

@@ -48,22 +48,23 @@ export default function BooksTab({ toast }: { toast: (m: string) => void }) {
   const openDetail = (id: string) =>
     api<{ book: BookRow; history: RentalRow[] }>(`/api/samples/books/${id}`).then(setDetail).catch((e) => toast(`❌ ${e.message}`))
 
-  const downloadCsv = async () => {
+  const downloadExcel = async () => {
     const params = new URLSearchParams({ q, status: isOd ? '연체중' : status !== '전체' ? status : '연체중', limit: '500' })
     if (mgr) params.set('manager', mgr)
     if (odMin > 0) params.set('odMin', String(odMin))
     const { books: all } = await api<{ books: BookRow[] }>(`/api/samples/books?${params}`)
-    const rows = [
+    const XLSX = await import('xlsx')
+    const aoa = [
       ['샘플북', '첫원단명', '브랜드', '거래처', '담당자', '대여일', '반납예정일', '연체일수'],
-      ...all.map((b) => [b.code, b.first_fabric || '', b.brand || '', b.active_client_name || '', b.manager || '', b.active_rented_at || '', b.active_due_at || '', String(b.overdue_days)]),
+      ...all.map((b) => [b.code, b.first_fabric || '', b.brand || '', b.active_client_name || '', b.manager || '', b.active_rented_at || '', b.active_due_at || '', b.overdue_days]),
     ]
-    const csv = '﻿' + rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = `연체현황_${odMin || 0}일이상.csv`
-    a.click()
-    URL.revokeObjectURL(a.href)
-    toast(`⬇️ 연체 ${all.length}건 CSV 저장 완료`)
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    ws['!cols'] = [{ wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 9 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '연체현황')
+    const label = [mgr, odMin > 0 ? `${odMin}일이상` : ''].filter(Boolean).join('_') || '전체'
+    XLSX.writeFile(wb, `연체현황_${label}.xlsx`)
+    toast(`⬇️ 연체 ${all.length}건 엑셀 저장 완료`)
   }
 
   return (
@@ -86,7 +87,7 @@ export default function BooksTab({ toast }: { toast: (m: string) => void }) {
           className="h-10 w-20 rounded-md border border-slate-200 px-2 text-center text-sm" />
         <span className="text-xs text-slate-500">일 이상 · <b>{total.toLocaleString()}건</b></span>
         {isOd || odMin > 0 ? (
-          <button onClick={downloadCsv} className="h-10 rounded-md bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200 sm:ml-auto">⬇️ 엑셀(CSV) 내려받기</button>
+          <button onClick={downloadExcel} className="h-10 rounded-md bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200 sm:ml-auto">⬇️ 엑셀 내려받기</button>
         ) : (
           <button onClick={() => setShowNew(true)} className="ml-auto h-10 rounded-md bg-slate-900 px-4 text-sm font-bold text-white">+ 샘플북 등록</button>
         )}
