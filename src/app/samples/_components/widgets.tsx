@@ -53,7 +53,7 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
     async function run() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+          video: { facingMode: 'environment', width: { ideal: 2560 }, height: { ideal: 1440 } },
         })
         const track = stream.getVideoTracks()[0]
         trackRef.current = track
@@ -75,7 +75,14 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
             ['qr_code', 'code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar']
           detector = new Detector({ formats: supported })
         }
-        // 2) ZXing (항상 병행 — TRY_HARDER 모드, 긴 code128/39에 강함)
+        // 2) ZBar WASM — 촘촘한 1D 바코드(긴 code128/39)에 가장 강한 오픈소스 엔진
+        let zbarScan: ((d: ImageData) => Promise<{ decode: () => string }[]>) | null = null
+        try {
+          const zbar = await import('@undecaf/zbar-wasm')
+          zbarScan = zbar.scanImageData
+        } catch { /* zbar 로드 실패 시 다른 엔진 사용 */ }
+
+        // 3) ZXing (TRY_HARDER 모드) — 보조 엔진
         let zxingReader: { decodeFromCanvas: (c: HTMLCanvasElement) => { getText: () => string } } | null = null
         try {
           const [{ BrowserMultiFormatReader }, zx] = await Promise.all([import('@zxing/browser'), import('@zxing/library')])
@@ -125,6 +132,12 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
                 const codes = await detector.detect(work as unknown as HTMLVideoElement)
                 code = codes.find((c) => c.rawValue?.trim())?.rawValue?.trim() || ''
               } catch { /* skip */ }
+            }
+            if (!code && zbarScan) {
+              try {
+                const symbols = await zbarScan(wctx.getImageData(0, 0, work.width, work.height))
+                code = symbols[0]?.decode()?.trim() || ''
+              } catch { /* not found */ }
             }
             if (!code && zxingReader) {
               try { code = zxingReader.decodeFromCanvas(work).getText().trim() } catch { /* not found */ }
