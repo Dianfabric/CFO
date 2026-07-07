@@ -42,10 +42,12 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
     return () => clearTimeout(t)
   }, [manual, rentedOnly])
 
+  const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number; step: number } | null>(null)
+  const [zoom, setZoom] = useState(1)
+
   useEffect(() => {
     stopRef.current = false
     let stream: MediaStream | null = null
-    let zxingControls: { stop: () => void } | null = null
     const Detector = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector
 
     async function run() {
@@ -57,12 +59,34 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
         trackRef.current = track
         // 연속 초점 (지원 기기만) — 1D 바코드는 초점이 관건
         try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }) } catch { /* 미지원 */ }
-        const caps = (track.getCapabilities?.() || {}) as { torch?: boolean }
+        const caps = (track.getCapabilities?.() || {}) as { torch?: boolean; zoom?: { min: number; max: number; step: number } }
         if (caps.torch) setTorchAvail(true)
+        if (caps.zoom && caps.zoom.max > caps.zoom.min) setZoomCaps(caps.zoom)
 
         if (!videoRef.current) return
         videoRef.current.srcObject = stream
         await videoRef.current.play()
+
+        // ── 인식 엔진 준비 ──
+        // 1) 네이티브 BarcodeDetector (있으면)
+        let detector: BarcodeDetectorLike | null = null
+        if (Detector) {
+          const supported = (await Detector.getSupportedFormats?.().catch(() => null)) ||
+            ['qr_code', 'code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar']
+          detector = new Detector({ formats: supported })
+        }
+        // 2) ZXing (항상 병행 — TRY_HARDER 모드, 긴 code128/39에 강함)
+        let zxingReader: { decodeFromCanvas: (c: HTMLCanvasElement) => { getText: () => string } } | null = null
+        try {
+          const [{ BrowserMultiFormatReader }, zx] = await Promise.all([import('@zxing/browser'), import('@zxing/library')])
+          const hints = new Map()
+          hints.set(zx.DecodeHintType.TRY_HARDER, true)
+          hints.set(zx.DecodeHintType.POSSIBLE_FORMATS, [
+            zx.BarcodeFormat.CODE_128, zx.BarcodeFormat.CODE_39, zx.BarcodeFormat.CODE_93,
+            zx.BarcodeFormat.QR_CODE, zx.BarcodeFormat.EAN_13, zx.BarcodeFormat.ITF,
+          ])
+          zxingReader = new BrowserMultiFormatReader(hints) as unknown as typeof zxingReader
+        } catch { /* zxing 로드 실패 시 네이티브만 사용 */ }
 
         // 연속 스캔용 — 같은 코드 3초 중복 방지
         let lastCode = ''
@@ -75,33 +99,49 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
           return true
         }
 
-        if (Detector) {
-          const supported = (await Detector.getSupportedFormats?.().catch(() => null)) ||
-            ['qr_code', 'code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar']
-          const detector = new Detector({ formats: supported })
-          const loop = async () => {
-            if (stopRef.current || !videoRef.current) return
-            try {
-              const codes = await detector.detect(videoRef.current)
-              const hit = codes.find((c) => c.rawValue?.trim())
-              if (hit && handleHit(hit.rawValue.trim()) && !continuous) { stopRef.current = true; return }
-            } catch { /* 프레임 스킵 */ }
-            setTimeout(loop, 120)
-          }
-          loop()
-        } else {
-          // ZXing 폴백 — 자체적으로 비디오에서 디코딩
-          const { BrowserMultiFormatReader } = await import('@zxing/browser')
-          const reader = new BrowserMultiFormatReader()
-          zxingControls = await reader.decodeFromVideoElement(videoRef.current, (result) => {
-            if (stopRef.current) return
-            const text = result?.getText?.()
-            if (text?.trim() && handleHit(text.trim()) && !continuous) {
-              stopRef.current = true
-              zxingControls?.stop()
+        // ── 인식 루프: 가이드 영역 크롭 + 2배 확대 → 두 엔진 순차 시도 ──
+        // 긴 바코드(DIAN-HF.24.C.C-002 등)는 줄이 촘촘해서 원본 프레임으론 못 읽는 경우가
+        // 많음 → 중앙 밴드만 잘라 확대하면 해상도가 사실상 2배가 됨.
+        const work = document.createElement('canvas')
+        const wctx = work.getContext('2d', { willReadFrequently: true })!
+        let tick = 0
+        const loop = async () => {
+          if (stopRef.current) return
+          const v = videoRef.current
+          if (!v || !v.videoWidth) { setTimeout(loop, 150); return }
+          try {
+            const vw = v.videoWidth, vh = v.videoHeight
+            // 중앙 가로 밴드 (가이드 프레임 대응): 가로 94%, 세로 45%
+            const cw = vw * 0.94, ch = vh * 0.45
+            const cx = (vw - cw) / 2, cy = (vh - ch) / 2
+            const scale = Math.min(2, 2600 / cw)
+            work.width = Math.round(cw * scale)
+            work.height = Math.round(ch * scale)
+            wctx.drawImage(v, cx, cy, cw, ch, 0, 0, work.width, work.height)
+
+            let code = ''
+            if (detector) {
+              try {
+                const codes = await detector.detect(work as unknown as HTMLVideoElement)
+                code = codes.find((c) => c.rawValue?.trim())?.rawValue?.trim() || ''
+              } catch { /* skip */ }
             }
-          })
+            if (!code && zxingReader) {
+              try { code = zxingReader.decodeFromCanvas(work).getText().trim() } catch { /* not found */ }
+            }
+            // 4번에 1번은 전체 프레임도 시도 (가이드 밖 QR 대응)
+            if (!code && detector && tick % 4 === 0) {
+              try {
+                const codes = await detector.detect(v)
+                code = codes.find((c) => c.rawValue?.trim())?.rawValue?.trim() || ''
+              } catch { /* skip */ }
+            }
+            tick++
+            if (code && handleHit(code) && !continuous) { stopRef.current = true; return }
+          } catch { /* 프레임 스킵 */ }
+          setTimeout(loop, 150)
         }
+        loop()
       } catch {
         setError('카메라를 열 수 없어요. 권한을 확인하거나 코드를 직접 입력해주세요.')
       }
@@ -109,7 +149,6 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
     run()
     return () => {
       stopRef.current = true
-      zxingControls?.stop()
       stream?.getTracks().forEach((t) => t.stop())
     }
     // 카메라는 마운트 시 1회만 시작 — onDetect는 ref로 참조
@@ -125,17 +164,35 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
     } catch { /* 미지원 */ }
   }
 
+  const applyZoom = async (z: number) => {
+    const track = trackRef.current
+    if (!track || !zoomCaps) return
+    const clamped = Math.min(zoomCaps.max, Math.max(zoomCaps.min, z))
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: clamped } as MediaTrackConstraintSet] })
+      setZoom(clamped)
+    } catch { /* 미지원 */ }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 sm:items-center" onClick={onClose}>
       <div className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-extrabold">{title}</h3>
-          {torchAvail && (
-            <button onClick={toggleTorch}
-              className={`h-8 rounded-md px-3 text-xs font-bold ${torchOn ? 'bg-yellow-400 text-slate-900' : 'bg-slate-100 text-slate-600'}`}>
-              🔦 손전등 {torchOn ? '끄기' : '켜기'}
-            </button>
-          )}
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className="min-w-0 truncate text-base font-extrabold">{title}</h3>
+          <div className="flex shrink-0 gap-1.5">
+            {zoomCaps && [1, 2, 3].filter((z) => z <= zoomCaps.max).map((z) => (
+              <button key={z} onClick={() => applyZoom(z)}
+                className={`h-8 rounded-md px-2.5 text-xs font-bold ${Math.round(zoom) === z ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                {z}x
+              </button>
+            ))}
+            {torchAvail && (
+              <button onClick={toggleTorch}
+                className={`h-8 rounded-md px-2.5 text-xs font-bold ${torchOn ? 'bg-yellow-400 text-slate-900' : 'bg-slate-100 text-slate-600'}`}>
+                🔦
+              </button>
+            )}
+          </div>
         </div>
         <div className="relative mb-3 h-72 overflow-hidden rounded-xl bg-slate-950">
           <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
@@ -145,7 +202,7 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous 
           <div className="pointer-events-none absolute left-6 right-6 top-1/2 h-0.5 -translate-y-1/2 bg-red-500/70" />
         </div>
         {error ? <p className="mb-2 text-sm text-red-600">{error}</p>
-          : <p className="mb-2 text-center text-xs text-slate-500">QR·바코드를 가로 프레임 안에 맞추고, 10~15cm 거리에서 초점이 잡힐 때까지 잠시 유지하세요</p>}
+          : <p className="mb-2 text-center text-xs text-slate-500">바코드를 프레임에 꽉 차게 — 긴 바코드는 <b>2x 줌</b>을 켜고 15~20cm 거리에서 잠시 유지하세요</p>}
         <div className="relative">
           <div className="flex gap-2">
             <input
