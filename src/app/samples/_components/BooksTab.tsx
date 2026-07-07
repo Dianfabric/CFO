@@ -63,7 +63,7 @@ export default function BooksTab({ toast }: { toast: (m: string) => void }) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 샘플북 이름·첫 원단명·브랜드 검색"
           className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm sm:w-72" />
@@ -111,7 +111,7 @@ export default function BooksTab({ toast }: { toast: (m: string) => void }) {
           {!books.length && !loading && <div className="py-12 text-center text-sm text-slate-400">결과 없음</div>}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {books.map((b) => <BookCard key={b.id} b={b} onClick={() => openDetail(b.id)} />)}
           {!books.length && !loading && <div className="col-span-full py-12 text-center text-sm text-slate-400">결과 없음</div>}
         </div>

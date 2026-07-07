@@ -124,7 +124,7 @@ export function BookCard({ b, right, footer, onClick, selected }: {
       onClick={onClick}
       className={`overflow-hidden rounded-xl border bg-white text-left transition-shadow ${onClick ? 'cursor-pointer hover:shadow-md' : ''} ${selected ? 'ring-2 ring-slate-900' : 'border-slate-200'}`}
     >
-      <div className="relative h-28 bg-gradient-to-br from-slate-100 to-slate-200">
+      <div className="relative aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200">
         {b.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={b.image_url} alt={b.code} className="h-full w-full object-cover" loading="lazy" />

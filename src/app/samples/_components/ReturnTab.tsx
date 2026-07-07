@@ -70,14 +70,14 @@ export default function ReturnTab({ onDone, toast }: { onDone: () => void; toast
   /* ── 거래처 반납 화면 ── */
   if (client) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div>
         <button onClick={() => setClient(null)} className="mb-3 text-sm font-bold text-slate-600 hover:text-slate-900">← 반납 목록</button>
         <div className="mb-3 rounded-xl border border-slate-200 bg-white p-4">
           <div className="text-base font-extrabold">{client.name}</div>
           <div className="text-xs text-slate-500">{client.phone} · {books.length}권 대여중</div>
         </div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">체크한 샘플북이 반납 처리됩니다</p>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {books.map((b) => {
             const rid = b.active_rental_id!
             const sel = checked.has(rid)
@@ -102,7 +102,7 @@ export default function ReturnTab({ onDone, toast }: { onDone: () => void; toast
 
   /* ── 반납 목록 (QR / 샘플북 검색 / 거래처 검색) ── */
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-4xl">
       <button onClick={() => setShowScan(true)} className="h-12 w-full rounded-md bg-slate-900 text-[15px] font-bold text-white">📷 QR로 바로 반납</button>
 
       <div className="relative mt-2">
@@ -125,11 +125,11 @@ export default function ReturnTab({ onDone, toast }: { onDone: () => void; toast
       <input value={clientQ} onChange={(e) => setClientQ(e.target.value)} placeholder="🔍 거래처로 찾기"
         className="mt-2 h-11 w-full rounded-md border border-slate-200 px-3 text-sm" />
 
-      <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">대여중인 거래처</p>
-      <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">대여중인 거래처 ({renters.length})</p>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         {renters.map((c) => (
           <button key={c.id} onClick={() => enterClient(c)}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
+            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:bg-slate-50 hover:shadow-sm">
             <div className="min-w-0 flex-1">
               <div className="truncate font-semibold">{c.name}</div>
               <div className="text-xs text-slate-500">{c.active}권 대여중</div>
@@ -138,7 +138,7 @@ export default function ReturnTab({ onDone, toast }: { onDone: () => void; toast
               : <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">대여중</span>}
           </button>
         ))}
-        {!renters.length && <div className="py-12 text-center text-sm text-slate-400">대여중인 거래처가 없습니다</div>}
+        {!renters.length && <div className="col-span-full py-12 text-center text-sm text-slate-400">대여중인 거래처가 없습니다</div>}
       </div>
 
       {showScan && <QrScanDialog title="QR 스캔 — 반납" onDetect={onScan} onClose={() => setShowScan(false)} />}

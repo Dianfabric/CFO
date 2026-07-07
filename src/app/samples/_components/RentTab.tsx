@@ -9,8 +9,15 @@ type CartItem = { book: BookRow; manager: string; photoBlob?: Blob; photoUrl?: s
 export default function RentTab({ onDone, toast }: { onDone: () => void; toast: (m: string) => void }) {
   const [client, setClient] = useState<ClientRow | null>(null)
   const [clients, setClients] = useState<ClientRow[]>([])
+  const [renters, setRenters] = useState<ClientRow[]>([])
   const [clientQ, setClientQ] = useState('')
   const [showNewClient, setShowNewClient] = useState(false)
+
+  // 기본 표시용: 현재 대여중인 거래처
+  useEffect(() => {
+    api<{ clients: ClientRow[] }>('/api/samples/clients?renting=1')
+      .then((r) => setRenters(r.clients)).catch(() => {})
+  }, [])
 
   const [cart, setCart] = useState<CartItem[]>([])
   const [bulkMgr, setBulkMgr] = useState('')
@@ -100,29 +107,33 @@ export default function RentTab({ onDone, toast }: { onDone: () => void; toast: 
     </select>
   )
 
-  /* ── 1단계: 거래처 선택 ── */
+  /* ── 1단계: 거래처 선택 (검색=전체 거래처, 기본 목록=대여중 거래처) ── */
   if (!client) {
+    const searching = clientQ.trim().length > 0
+    const list = searching ? clients : renters
     return (
-      <div className="mx-auto max-w-2xl">
+      <div>
         <div className="mb-3 flex gap-2">
-          <input value={clientQ} onChange={(e) => setClientQ(e.target.value)} placeholder="🔍 거래처 이름·전화 검색"
+          <input value={clientQ} onChange={(e) => setClientQ(e.target.value)} placeholder="🔍 거래처 이름·전화 검색 (전체 거래처)"
             className="h-10 flex-1 rounded-md border border-slate-200 px-3 text-sm" />
           <button onClick={() => setShowNewClient(true)} className="h-10 rounded-md bg-slate-100 px-4 text-sm font-bold text-slate-700 hover:bg-slate-200">+ 신규</button>
         </div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">거래처를 선택하면 대여 화면으로 들어갑니다</p>
-        <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
-          {clients.map((c) => (
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {searching ? '검색 결과 — 선택하면 대여 화면으로 들어갑니다' : `현재 대여중인 거래처 (${renters.length}) — 다른 거래처는 위에서 검색`}
+        </p>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {list.map((c) => (
             <button key={c.id} onClick={() => { setClient(c); setCart([]) }}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:bg-slate-50 hover:shadow-sm">
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{c.name}</div>
-                <div className="text-xs text-slate-500">{c.phone}</div>
+                <div className="text-xs text-slate-500">{c.phone}{c.active ? ` · ${c.active}권 대여중` : ''}</div>
               </div>
-              {c.overdue ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600">연체 {c.overdue}</span>
+              {c.overdue ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600">🚨 연체 {c.overdue}</span>
                 : c.active ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">대여중 {c.active}</span> : null}
             </button>
           ))}
-          {!clients.length && <div className="py-12 text-center text-sm text-slate-400">검색 결과 없음</div>}
+          {!list.length && <div className="col-span-full py-12 text-center text-sm text-slate-400">{searching ? '검색 결과 없음' : '대여중인 거래처가 없습니다'}</div>}
         </div>
         {showNewClient && (
           <NewClientDialog onClose={() => setShowNewClient(false)}
@@ -134,7 +145,7 @@ export default function RentTab({ onDone, toast }: { onDone: () => void; toast: 
 
   /* ── 2단계: 샘플북 담기 → 한번에 등록 ── */
   return (
-    <div className="mx-auto max-w-3xl pb-24">
+    <div className="pb-24">
       <button onClick={() => { setClient(null); setCart([]) }} className="mb-3 text-sm font-bold text-slate-600 hover:text-slate-900">← 거래처 다시 선택</button>
 
       <div className="mb-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -212,7 +223,7 @@ export default function RentTab({ onDone, toast }: { onDone: () => void; toast: 
       {activeBooks.length > 0 && (
         <>
           <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">이 거래처가 현재 대여중 ({activeBooks.length})</p>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {activeBooks.map((b) => <BookCard key={b.id} b={b} />)}
           </div>
         </>

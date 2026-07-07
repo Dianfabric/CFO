@@ -27,6 +27,30 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
+// DELETE /api/samples/clients/:id — 거래처 삭제
+//   대여중이면 거부. 과거 이력·문자로그는 client_name 텍스트로 남기고 연결만 해제.
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const db = rentalDb()
+
+    const { count: active } = await db.from('rentals')
+      .select('*', { count: 'exact', head: true }).eq('client_id', id).is('returned_at', null)
+    if (active) {
+      return NextResponse.json({ error: `대여중인 샘플북 ${active}권이 있어 삭제할 수 없습니다. 먼저 반납 처리해주세요.` }, { status: 400 })
+    }
+
+    await db.from('rentals').update({ client_id: null }).eq('client_id', id)
+    await db.from('sms_logs').update({ client_id: null }).eq('client_id', id)
+    const { error } = await db.from('clients').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    console.error('samples/clients/:id DELETE', e)
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
+}
+
 // PATCH /api/samples/clients/:id — 거래처 수정
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {

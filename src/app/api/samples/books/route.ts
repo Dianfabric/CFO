@@ -20,9 +20,13 @@ export async function GET(request: NextRequest) {
     if (q) query = query.or(`code.ilike.%${q}%,first_fabric.ilike.%${q}%,brand.ilike.%${q}%`)
     if (status) query = query.eq('status', status)
     if (odMin > 0) query = query.gte('overdue_days', odMin)
+    // 정렬: 연체중(연체 오래된 순) → 대여중 → 대여가능
     query = status === '연체중'
-      ? query.order('overdue_days', { ascending: false })
-      : query.order('code', { ascending: true })
+      ? query.order('overdue_days', { ascending: false }).order('code')
+      : query
+          .order('overdue_days', { ascending: false })
+          .order('active_rental_id', { ascending: true, nullsFirst: false })
+          .order('code', { ascending: true })
     const { data, count, error } = await query.range(offset, offset + limit - 1)
     if (error) throw new Error(error.message)
     return NextResponse.json({ books: data, total: count })
