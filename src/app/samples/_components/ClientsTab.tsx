@@ -80,6 +80,17 @@ export default function ClientsTab({ toast }: { toast: (m: string) => void }) {
     Promise.all(Array.from(el.querySelectorAll('img')).map((img) =>
       img.complete ? null : new Promise((r) => { img.onload = r; img.onerror = r })))
 
+  const makeReportJpg = async (): Promise<Blob> => {
+    const { client, activeBooks } = detail!
+    const html2canvas = (await import('html2canvas')).default
+    const el = buildReportEl(activeBooks, client.name, `총 ${activeBooks.length}권`, 1000)
+    await waitImages(el)
+    const canvas = await html2canvas(el, { useCORS: true, scale: 1.6, backgroundColor: '#ffffff' })
+    el.remove()
+    return new Promise((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('이미지 생성 실패'))), 'image/jpeg', 0.88))
+  }
+
   const downloadReport = async (fmt: 'pdf' | 'jpg') => {
     if (!detail) return
     const { client, activeBooks } = detail
@@ -88,14 +99,12 @@ export default function ClientsTab({ toast }: { toast: (m: string) => void }) {
       const html2canvas = (await import('html2canvas')).default
       const fname = `대여현황_${client.name.replace(/[\\/:*?"<>|]/g, '')}_${new Date().toISOString().slice(0, 10)}`
       if (fmt === 'jpg') {
-        const el = buildReportEl(activeBooks, client.name, `총 ${activeBooks.length}권`, 1000)
-        await waitImages(el)
-        const canvas = await html2canvas(el, { useCORS: true, scale: 1.6, backgroundColor: '#ffffff' })
-        el.remove()
+        const blob = await makeReportJpg()
         const a = document.createElement('a')
-        a.href = canvas.toDataURL('image/jpeg', 0.88)
+        a.href = URL.createObjectURL(blob)
         a.download = `${fname}.jpg`
         a.click()
+        URL.revokeObjectURL(a.href)
       } else {
         const { jsPDF } = await import('jspdf')
         const pages: BookRow[][] = []
@@ -221,7 +230,7 @@ export default function ClientsTab({ toast }: { toast: (m: string) => void }) {
       <div className="mb-3 flex gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 이름·전화 검색"
           className="h-10 w-full max-w-md rounded-md border border-slate-200 px-3 text-sm" />
-        <button onClick={() => setShowNew(true)} className="ml-auto h-10 rounded-md bg-slate-900 px-4 text-sm font-bold text-white">+ 신규 거래처</button>
+        <button onClick={() => setShowNew(true)} className="ml-auto h-10 rounded-md bg-slate-900 px-4 text-sm font-bold text-white">+ 신규</button>
       </div>
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">거래처 {total.toLocaleString()}곳</p>
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">

@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, blobToBase64, resizeImage } from '../_lib/helpers'
 
-/* ─────────────────────────── QR 스캐너 ───────────────────────────
- * 네이티브 BarcodeDetector 사용 (Android Chrome/삼성인터넷 지원).
- * 미지원 브라우저(iOS Safari 구버전 등)는 수동 입력 폴백. */
+/* ─────────────────────────── QR/바코드 스캐너 ───────────────────────────
+ * 1순위: 네이티브 BarcodeDetector (Android Chrome/삼성인터넷 — 지원 포맷 전체 사용)
+ * 2순위: ZXing 폴백 (iOS 등 미지원 브라우저)
+ * 1D 바코드 인식 개선: 1080p 요청 + 연속 초점 + 손전등 토글 */
 type BarcodeDetectorLike = { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> }
+type DetectorCtor = (new (o: { formats: string[] }) => BarcodeDetectorLike) & { getSupportedFormats?: () => Promise<string[]> }
 
 export function QrScanDialog({ title, onDetect, onClose }: {
   title: string
@@ -14,36 +16,59 @@ export function QrScanDialog({ title, onDetect, onClose }: {
   onClose: () => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const trackRef = useRef<MediaStreamTrack | null>(null)
   const [error, setError] = useState('')
   const [manual, setManual] = useState('')
+  const [torchAvail, setTorchAvail] = useState(false)
+  const [torchOn, setTorchOn] = useState(false)
   const stopRef = useRef(false)
 
   useEffect(() => {
     stopRef.current = false
     let stream: MediaStream | null = null
-    const Detector = (window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => BarcodeDetectorLike }).BarcodeDetector
+    let zxingControls: { stop: () => void } | null = null
+    const Detector = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector
 
     async function run() {
-      if (!Detector) { setError('이 브라우저는 카메라 스캔을 지원하지 않아요. 아래에 코드를 직접 입력해주세요.'); return }
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        })
+        const track = stream.getVideoTracks()[0]
+        trackRef.current = track
+        // 연속 초점 (지원 기기만) — 1D 바코드는 초점이 관건
+        try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }) } catch { /* 미지원 */ }
+        const caps = (track.getCapabilities?.() || {}) as { torch?: boolean }
+        if (caps.torch) setTorchAvail(true)
+
         if (!videoRef.current) return
         videoRef.current.srcObject = stream
         await videoRef.current.play()
-        const detector = new Detector({ formats: ['qr_code', 'code_128', 'code_39'] })
-        const loop = async () => {
-          if (stopRef.current || !videoRef.current) return
-          try {
-            const codes = await detector.detect(videoRef.current)
-            if (codes.length && codes[0].rawValue) {
-              stopRef.current = true
-              onDetect(codes[0].rawValue.trim())
-              return
-            }
-          } catch { /* 프레임 스킵 */ }
-          requestAnimationFrame(loop)
+
+        if (Detector) {
+          const supported = (await Detector.getSupportedFormats?.().catch(() => null)) ||
+            ['qr_code', 'code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar']
+          const detector = new Detector({ formats: supported })
+          const loop = async () => {
+            if (stopRef.current || !videoRef.current) return
+            try {
+              const codes = await detector.detect(videoRef.current)
+              const hit = codes.find((c) => c.rawValue?.trim())
+              if (hit) { stopRef.current = true; onDetect(hit.rawValue.trim()); return }
+            } catch { /* 프레임 스킵 */ }
+            setTimeout(loop, 120)
+          }
+          loop()
+        } else {
+          // ZXing 폴백 — 자체적으로 비디오에서 디코딩
+          const { BrowserMultiFormatReader } = await import('@zxing/browser')
+          const reader = new BrowserMultiFormatReader()
+          zxingControls = await reader.decodeFromVideoElement(videoRef.current, (result) => {
+            if (stopRef.current) return
+            const text = result?.getText?.()
+            if (text?.trim()) { stopRef.current = true; zxingControls?.stop(); onDetect(text.trim()) }
+          })
         }
-        loop()
       } catch {
         setError('카메라를 열 수 없어요. 권한을 확인하거나 코드를 직접 입력해주세요.')
       }
@@ -51,20 +76,41 @@ export function QrScanDialog({ title, onDetect, onClose }: {
     run()
     return () => {
       stopRef.current = true
+      zxingControls?.stop()
       stream?.getTracks().forEach((t) => t.stop())
     }
   }, [onDetect])
 
+  const toggleTorch = async () => {
+    const track = trackRef.current
+    if (!track) return
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] })
+      setTorchOn((v) => !v)
+    } catch { /* 미지원 */ }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 sm:items-center" onClick={onClose}>
       <div className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-3 text-base font-extrabold">{title}</h3>
-        <div className="relative mb-3 h-64 overflow-hidden rounded-xl bg-slate-950">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-base font-extrabold">{title}</h3>
+          {torchAvail && (
+            <button onClick={toggleTorch}
+              className={`h-8 rounded-md px-3 text-xs font-bold ${torchOn ? 'bg-yellow-400 text-slate-900' : 'bg-slate-100 text-slate-600'}`}>
+              🔦 손전등 {torchOn ? '끄기' : '켜기'}
+            </button>
+          )}
+        </div>
+        <div className="relative mb-3 h-72 overflow-hidden rounded-xl bg-slate-950">
           <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
-          <div className="pointer-events-none absolute inset-8 rounded-xl border-2 border-white/80" />
+          {/* 바코드용 가로 프레임 가이드 */}
+          <div className="pointer-events-none absolute left-6 right-6 top-1/2 h-28 -translate-y-1/2 rounded-lg border-2 border-white/90"
+            style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,.35)' }} />
+          <div className="pointer-events-none absolute left-6 right-6 top-1/2 h-0.5 -translate-y-1/2 bg-red-500/70" />
         </div>
         {error ? <p className="mb-2 text-sm text-red-600">{error}</p>
-          : <p className="mb-2 text-center text-xs text-slate-500">샘플북의 QR/바코드를 프레임에 맞춰주세요</p>}
+          : <p className="mb-2 text-center text-xs text-slate-500">QR·바코드를 가로 프레임 안에 맞추고, 10~15cm 거리에서 초점이 잡힐 때까지 잠시 유지하세요</p>}
         <div className="flex gap-2">
           <input
             value={manual}
@@ -125,6 +171,72 @@ export async function uploadBookPhoto(bookId: string, blob: Blob): Promise<strin
   return res.imageUrl
 }
 
+/* ─────────────────── 명함 촬영 카메라 (프레임 가이드) ───────────────────
+ * 명함 비율(1.7:1) 가이드에 맞춰 촬영 → 가이드 영역만 잘라서 반환 */
+export function CardCameraDialog({ onCaptured, onClose }: {
+  onCaptured: (blob: Blob) => void
+  onClose: () => void
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [error, setError] = useState('')
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    let stream: MediaStream | null = null
+    async function run() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        })
+        const track = stream.getVideoTracks()[0]
+        try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }) } catch { /* 미지원 */ }
+        if (!videoRef.current) return
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+        setReady(true)
+      } catch { setError('카메라를 열 수 없어요. 아래 "앨범에서 선택"을 이용해주세요.') }
+    }
+    run()
+    return () => { stream?.getTracks().forEach((t) => t.stop()) }
+  }, [])
+
+  const capture = () => {
+    const v = videoRef.current
+    if (!v || !v.videoWidth) return
+    // 가이드(가로 88%, 명함비율 1.7)와 같은 중앙 영역을 실제 프레임에서 크롭
+    const vw = v.videoWidth, vh = v.videoHeight
+    let cw = vw * 0.88
+    let ch = cw / 1.7
+    if (ch > vh * 0.9) { ch = vh * 0.9; cw = ch * 1.7 }
+    const cx = (vw - cw) / 2, cy = (vh - ch) / 2
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(cw)
+    canvas.height = Math.round(ch)
+    canvas.getContext('2d')!.drawImage(v, cx, cy, cw, ch, 0, 0, canvas.width, canvas.height)
+    canvas.toBlob((b) => { if (b) onCaptured(b) }, 'image/jpeg', 0.9)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/70 sm:items-center" onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="mb-3 text-base font-extrabold">명함 촬영</h3>
+        <div className="relative mb-3 overflow-hidden rounded-xl bg-slate-950" style={{ aspectRatio: '4/3' }}>
+          <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+          {/* 명함 비율 가이드 프레임 — 바깥은 어둡게 */}
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-white"
+            style={{ width: '88%', aspectRatio: '1.7', boxShadow: '0 0 0 9999px rgba(0,0,0,.55)' }}>
+            <span className="absolute -top-6 left-0 right-0 text-center text-xs font-semibold text-white">명함을 프레임에 맞춰주세요</span>
+          </div>
+        </div>
+        {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+        <button onClick={capture} disabled={!ready}
+          className="h-12 w-full rounded-md bg-slate-900 text-[15px] font-bold text-white disabled:opacity-50">📸 촬영</button>
+        <button onClick={onClose} className="mt-2 h-10 w-full rounded-md border border-slate-200 text-sm font-semibold text-slate-600">닫기</button>
+      </div>
+    </div>
+  )
+}
+
 /* ─────────────────── 신규 거래처 등록 (명함 OCR) ─────────────────── */
 export function NewClientDialog({ onCreated, onClose }: {
   onCreated: (client: { id: string; name: string; phone: string | null }) => void
@@ -134,9 +246,10 @@ export function NewClientDialog({ onCreated, onClose }: {
   const [ocrState, setOcrState] = useState<'idle' | 'busy' | 'done' | 'fail'>('idle')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const [showCam, setShowCam] = useState(false)
   const cardRef = useRef<HTMLInputElement>(null)
 
-  const runOcr = useCallback(async (file: File) => {
+  const runOcr = useCallback(async (file: Blob) => {
     setOcrState('busy')
     try {
       const blob = await resizeImage(file, 1000, 0.85)
@@ -178,15 +291,23 @@ export function NewClientDialog({ onCreated, onClose }: {
         <h3 className="text-base font-extrabold">신규 거래처 등록</h3>
         <p className="mb-3 text-xs text-slate-500">명함 한 장이면 자동으로 채워집니다</p>
 
-        <input ref={cardRef} type="file" accept="image/*" capture="environment" hidden
+        <input ref={cardRef} type="file" accept="image/*" hidden
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) runOcr(f) }} />
         <button
-          onClick={() => cardRef.current?.click()} disabled={ocrState === 'busy'}
+          onClick={() => setShowCam(true)} disabled={ocrState === 'busy'}
           className="h-11 w-full rounded-md bg-slate-900 text-sm font-bold text-white disabled:opacity-60"
         >
           {ocrState === 'busy' ? '📷 명함 인식 중…' : ocrState === 'done' ? '✅ 자동으로 채웠어요 — 확인 후 저장' : '📇 명함 촬영으로 자동입력'}
         </button>
+        <button onClick={() => cardRef.current?.click()} disabled={ocrState === 'busy'}
+          className="mt-1.5 w-full text-center text-xs font-semibold text-slate-500 underline underline-offset-2">
+          앨범에서 명함 사진 선택
+        </button>
         {ocrState === 'fail' && <p className="mt-1 text-xs text-red-600">명함 인식 실패 — 직접 입력해주세요</p>}
+        {showCam && (
+          <CardCameraDialog onClose={() => setShowCam(false)}
+            onCaptured={(blob) => { setShowCam(false); runOcr(blob) }} />
+        )}
         <div className="my-3 text-center text-xs text-slate-400">또는 직접 입력</div>
 
         {[['거래처 이름 *', 'name', '회사명(담당자명)'], ['전화번호', 'phone', '010-0000-0000'], ['이메일', 'email', 'name@company.com']].map(([label, key, ph]) => (

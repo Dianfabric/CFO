@@ -89,7 +89,7 @@ export async function api<T = unknown>(path: string, init?: RequestInit): Promis
 }
 
 /** 카메라/갤러리 이미지 → 1200px JPEG Blob (업로드 용량 절감) */
-export async function resizeImage(file: File, maxW = 1200, quality = 0.82): Promise<Blob> {
+export async function resizeImage(file: Blob, maxW = 1200, quality = 0.82): Promise<Blob> {
   const bitmap = await createImageBitmap(file)
   const scale = Math.min(1, maxW / bitmap.width)
   const w = Math.round(bitmap.width * scale)
