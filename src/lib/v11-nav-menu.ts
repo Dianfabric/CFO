@@ -44,6 +44,7 @@ import {
   Cpu,
   Lightbulb,
   Wrench,
+  BookOpen,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -70,6 +71,7 @@ export const v10MenuItems: MenuItem[] = [
   { href: '/clients', label: '거래처 관리', icon: Users },
   { href: '/receivables', label: '미수금 관리', icon: AlertCircle },
   { href: '/products', label: '제품 관리', icon: Package },
+  { href: '/samples', label: '샘플 관리', icon: BookOpen },
   { href: '/costs', label: '비용 관리', icon: Wallet },
   { href: '/analysis', label: '분석/시뮬레이션', icon: BarChart3 },
   { href: '/advisor', label: 'AI CFO 자문', icon: Bot },
@@ -153,6 +155,7 @@ export const menuGroups: MenuGroup[] = [
     icon: ShoppingBag,
     items: [
       { href: '/products', label: '제품 관리', icon: Package },
+      { href: '/samples', label: '샘플 관리', icon: BookOpen },
       { href: '/finance/operations', label: '운영·샘플', icon: PackageIcon },
       { href: '/finance/operations/intake', label: '입고 워크플로우', icon: PackageOpen },
     ],
