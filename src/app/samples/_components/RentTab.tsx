@@ -62,14 +62,13 @@ export default function RentTab({ onDone, toast }: { onDone: () => void; toast: 
     else toast(`${b.code} 담았습니다`)
   }
 
+  // 연속 스캔 — 창을 유지한 채 계속 담는다 (카메라 재시작·권한 재요청 없음)
   const onScan = useCallback((code: string) => {
-    setShowScan(false)
     api<{ books: BookRow[] }>(`/api/samples/books?q=${encodeURIComponent(code)}&limit=5`)
       .then((r) => {
         const exact = r.books.find((b) => b.code.toLowerCase() === code.toLowerCase()) || r.books[0]
         if (!exact) { toast(`❌ '${code}' 샘플북을 찾을 수 없어요`); return }
         addBook(exact)
-        setShowScan(true) // 연속 스캔
       }).catch(() => toast('조회 실패 — 다시 시도해주세요'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart, bulkMgr])
@@ -242,7 +241,7 @@ export default function RentTab({ onDone, toast }: { onDone: () => void; toast: 
         </div>
       )}
 
-      {showScan && <QrScanDialog title="QR 스캔 — 대여" onDetect={onScan} onClose={() => setShowScan(false)} />}
+      {showScan && <QrScanDialog title={`QR 스캔 — 대여 (담은 ${cart.length}권)`} continuous onDetect={onScan} onClose={() => setShowScan(false)} />}
     </div>
   )
 }

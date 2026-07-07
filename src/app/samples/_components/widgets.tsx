@@ -10,12 +10,14 @@ import { api, blobToBase64, resizeImage, StatusBadge, type BookRow } from '../_l
 type BarcodeDetectorLike = { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> }
 type DetectorCtor = (new (o: { formats: string[] }) => BarcodeDetectorLike) & { getSupportedFormats?: () => Promise<string[]> }
 
-export function QrScanDialog({ title, onDetect, onClose, rentedOnly }: {
+export function QrScanDialog({ title, onDetect, onClose, rentedOnly, continuous }: {
   title: string
   onDetect: (code: string) => void
   onClose: () => void
   /** true면 직접입력 자동완성에 대여중인 샘플북만 표시 (반납용) */
   rentedOnly?: boolean
+  /** true면 인식 후에도 카메라 유지 — 연속 스캔 (같은 코드는 3초간 중복 무시) */
+  continuous?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<MediaStreamTrack | null>(null)
@@ -25,6 +27,9 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly }: {
   const [torchAvail, setTorchAvail] = useState(false)
   const [torchOn, setTorchOn] = useState(false)
   const stopRef = useRef(false)
+  // onDetect가 리렌더마다 바뀌어도 카메라가 재시작되지 않도록 ref로 고정
+  const onDetectRef = useRef(onDetect)
+  useEffect(() => { onDetectRef.current = onDetect }, [onDetect])
 
   // 직접 입력 자동완성 — 기존 샘플북(이름·첫 원단명) 드롭다운
   useEffect(() => {
@@ -59,6 +64,17 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly }: {
         videoRef.current.srcObject = stream
         await videoRef.current.play()
 
+        // 연속 스캔용 — 같은 코드 3초 중복 방지
+        let lastCode = ''
+        let lastAt = 0
+        const handleHit = (code: string): boolean => {
+          const now = Date.now()
+          if (code === lastCode && now - lastAt < 3000) return false
+          lastCode = code; lastAt = now
+          onDetectRef.current(code)
+          return true
+        }
+
         if (Detector) {
           const supported = (await Detector.getSupportedFormats?.().catch(() => null)) ||
             ['qr_code', 'code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar']
@@ -68,7 +84,7 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly }: {
             try {
               const codes = await detector.detect(videoRef.current)
               const hit = codes.find((c) => c.rawValue?.trim())
-              if (hit) { stopRef.current = true; onDetect(hit.rawValue.trim()); return }
+              if (hit && handleHit(hit.rawValue.trim()) && !continuous) { stopRef.current = true; return }
             } catch { /* 프레임 스킵 */ }
             setTimeout(loop, 120)
           }
@@ -80,7 +96,10 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly }: {
           zxingControls = await reader.decodeFromVideoElement(videoRef.current, (result) => {
             if (stopRef.current) return
             const text = result?.getText?.()
-            if (text?.trim()) { stopRef.current = true; zxingControls?.stop(); onDetect(text.trim()) }
+            if (text?.trim() && handleHit(text.trim()) && !continuous) {
+              stopRef.current = true
+              zxingControls?.stop()
+            }
           })
         }
       } catch {
@@ -93,7 +112,9 @@ export function QrScanDialog({ title, onDetect, onClose, rentedOnly }: {
       zxingControls?.stop()
       stream?.getTracks().forEach((t) => t.stop())
     }
-  }, [onDetect])
+    // 카메라는 마운트 시 1회만 시작 — onDetect는 ref로 참조
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [continuous])
 
   const toggleTorch = async () => {
     const track = trackRef.current
