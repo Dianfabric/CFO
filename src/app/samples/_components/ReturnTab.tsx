@@ -141,7 +141,7 @@ export default function ReturnTab({ onDone, toast }: { onDone: () => void; toast
         {!renters.length && <div className="col-span-full py-12 text-center text-sm text-slate-400">대여중인 거래처가 없습니다</div>}
       </div>
 
-      {showScan && <QrScanDialog title="QR 스캔 — 반납" onDetect={onScan} onClose={() => setShowScan(false)} />}
+      {showScan && <QrScanDialog title="QR 스캔 — 반납" rentedOnly onDetect={onScan} onClose={() => setShowScan(false)} />}
 
       {confirmBook && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-6" onClick={() => setConfirmBook(null)}>

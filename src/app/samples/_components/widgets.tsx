@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, blobToBase64, resizeImage } from '../_lib/helpers'
+import { api, blobToBase64, resizeImage, StatusBadge, type BookRow } from '../_lib/helpers'
 
 /* ─────────────────────────── QR/바코드 스캐너 ───────────────────────────
  * 1순위: 네이티브 BarcodeDetector (Android Chrome/삼성인터넷 — 지원 포맷 전체 사용)
@@ -10,18 +10,32 @@ import { api, blobToBase64, resizeImage } from '../_lib/helpers'
 type BarcodeDetectorLike = { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> }
 type DetectorCtor = (new (o: { formats: string[] }) => BarcodeDetectorLike) & { getSupportedFormats?: () => Promise<string[]> }
 
-export function QrScanDialog({ title, onDetect, onClose }: {
+export function QrScanDialog({ title, onDetect, onClose, rentedOnly }: {
   title: string
   onDetect: (code: string) => void
   onClose: () => void
+  /** true면 직접입력 자동완성에 대여중인 샘플북만 표시 (반납용) */
+  rentedOnly?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<MediaStreamTrack | null>(null)
   const [error, setError] = useState('')
   const [manual, setManual] = useState('')
+  const [sugs, setSugs] = useState<BookRow[]>([])
   const [torchAvail, setTorchAvail] = useState(false)
   const [torchOn, setTorchOn] = useState(false)
   const stopRef = useRef(false)
+
+  // 직접 입력 자동완성 — 기존 샘플북(이름·첫 원단명) 드롭다운
+  useEffect(() => {
+    if (!manual.trim()) { setSugs([]); return }
+    const t = setTimeout(() => {
+      api<{ books: BookRow[] }>(`/api/samples/books?q=${encodeURIComponent(manual.trim())}&limit=6`)
+        .then((r) => setSugs(rentedOnly ? r.books.filter((b) => b.active_rental_id) : r.books))
+        .catch(() => {})
+    }, 250)
+    return () => clearTimeout(t)
+  }, [manual, rentedOnly])
 
   useEffect(() => {
     stopRef.current = false
@@ -111,18 +125,35 @@ export function QrScanDialog({ title, onDetect, onClose }: {
         </div>
         {error ? <p className="mb-2 text-sm text-red-600">{error}</p>
           : <p className="mb-2 text-center text-xs text-slate-500">QR·바코드를 가로 프레임 안에 맞추고, 10~15cm 거리에서 초점이 잡힐 때까지 잠시 유지하세요</p>}
-        <div className="flex gap-2">
-          <input
-            value={manual}
-            onChange={(e) => setManual(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && manual.trim()) onDetect(manual.trim()) }}
-            placeholder="또는 코드 직접 입력 (예: DN#148)"
-            className="h-10 flex-1 rounded-md border border-slate-200 px-3 text-sm"
-          />
-          <button
-            onClick={() => manual.trim() && onDetect(manual.trim())}
-            className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white"
-          >확인</button>
+        <div className="relative">
+          <div className="flex gap-2">
+            <input
+              value={manual}
+              onChange={(e) => setManual(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && manual.trim()) onDetect(sugs[0]?.code || manual.trim()) }}
+              placeholder="또는 직접 입력 — 이름·첫 원단명 검색 (예: DN#148)"
+              className="h-10 flex-1 rounded-md border border-slate-200 px-3 text-sm"
+              autoComplete="off"
+            />
+            <button
+              onClick={() => manual.trim() && onDetect(manual.trim())}
+              className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white"
+            >확인</button>
+          </div>
+          {sugs.length > 0 && (
+            <div className="absolute inset-x-0 bottom-12 z-30 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+              {sugs.map((b) => (
+                <button key={b.id} onClick={() => onDetect(b.code)}
+                  className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left last:border-0 hover:bg-slate-50">
+                  <span className="font-mono text-sm font-bold" style={{ flex: 'none' }}>{b.code}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
+                    {b.first_fabric}{rentedOnly && b.active_client_name ? ` · ${b.active_client_name}` : ''}
+                  </span>
+                  <StatusBadge status={b.status} od={b.overdue_days} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <button onClick={onClose} className="mt-2 h-10 w-full rounded-md border border-slate-200 text-sm font-semibold text-slate-600">닫기</button>
       </div>
