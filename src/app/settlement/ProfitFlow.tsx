@@ -68,15 +68,9 @@ function band(x0: number, y0a: number, y0b: number, x1: number, y1a: number, y1b
 }
 
 export default function ProfitFlow(p: Props) {
-  if (p.revenue <= 0) {
-    return (
-      <p className="py-8 text-center text-[12px] text-slate-400">
-        기간 매출이 없어 손익 흐름을 그릴 수 없습니다.
-      </p>
-    )
-  }
-
-  const unit = MAX_H / p.revenue
+  // 매출이 0이어도 그린다 (0에서 시작 — 비용 규모를 스케일 기준으로 사용)
+  const scaleBase = Math.max(p.revenue, p.cogs + p.variable + p.fixed + p.nonOp, 1)
+  const unit = MAX_H / scaleBase
   const barH = (v: number) => (v <= 0 ? 4 : Math.max(4, Math.min(MAX_H, Math.round(v * unit))))
   const rate = (v: number) => (p.revenue > 0 ? (v / p.revenue) * 100 : 0)
 
