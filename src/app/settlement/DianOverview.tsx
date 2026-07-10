@@ -131,6 +131,7 @@ export default function DianOverview() {
   const main = usePeriodSel()
   const { period, range, rangeKey } = main
   const bodySel = usePeriodSel() // 본체 블록 독립 선택
+  const naidSel = usePeriodSel() // 법인(엔에이아이디) 블록 독립 선택
   const [dian, setDian] = useState<SeriesData | null>(null)
   const [saekOn, setSaekOn] = useState<SeriesData | null>(null)
   const [saekOff, setSaekOff] = useState<SeriesData | null>(null)
@@ -167,6 +168,9 @@ export default function DianOverview() {
   useEffect(() => {
     fetchPnlFor(bodySel.rangeKey, bodySel.range.start, bodySel.range.end)
   }, [bodySel.rangeKey, bodySel.range.start, bodySel.range.end, fetchPnlFor])
+  useEffect(() => {
+    fetchPnlFor(naidSel.rangeKey, naidSel.range.start, naidSel.range.end)
+  }, [naidSel.rangeKey, naidSel.range.start, naidSel.range.end, fetchPnlFor])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -435,6 +439,26 @@ export default function DianOverview() {
     return { revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net, bep, bepRate, breakdowns }
   }, [bodyPnl, bodySel.rangeKey, saekOff, dianShop, bodySel.range])
 
+  // ── 엔에이아이디(법인) 손익 사슬 — 비용은 관리회계 명세 자동 분류, 매출은 자료 연동 예정 ──
+  const naidChain = useMemo(() => {
+    const body = bodyPnl[naidSel.rangeKey]
+    if (!body) return null
+    const fixed = body.naid?.fixed ?? 0
+    const nonOp = body.naid?.interest ?? 0
+    const revenue = 0 // 법인 매출·매입 자료 연동 예정
+    const operating = -fixed
+    return {
+      revenue, cogs: 0, gross: 0, variable: 0, contribution: 0,
+      fixed, operating, nonOp, net: operating - nonOp,
+      bep: null as number | null,
+      bepRate: fixed > 0 ? 0 : null,
+      breakdowns: {
+        fixed: [{ label: '법인 운영비(임대·급여·4대보험)', amount: fixed }],
+        nonOp: [{ label: '법인 대출이자', amount: nonOp }],
+      },
+    }
+  }, [bodyPnl, naidSel.rangeKey])
+
   const lastRevCount = useCountUp(m.lastRev)
 
   return (
@@ -573,28 +597,51 @@ export default function DianOverview() {
         className="bg-white p-4 sm:p-5"
         style={{ border: '1px dashed var(--nv-hairline, #cbd5e1)', borderRadius: '2px' }}
       >
-        <div className="flex items-baseline gap-2 flex-wrap mb-1">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
           <h3 className="text-[14px] font-bold text-slate-900">
             엔에이아이디(법인)는 이렇게 벌고 쓴다
           </h3>
           <span className="text-[11px] text-slate-400">
-            · {range.label} · 비용 반영 중 (관리회계 명세 자동 분류) · 매출 연동 예정
+            · {naidSel.range.label} · 비용 = 관리회계 명세 자동 분류 · 매출 연동 예정
           </span>
-        </div>
-        {bodyPnl[rangeKey]?.naid && (bodyPnl[rangeKey]!.naid!.fixed > 0 || bodyPnl[rangeKey]!.naid!.interest > 0) ? (
-          <div className="flex flex-wrap items-stretch gap-y-4 px-4 py-4" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
-            <StripMetric label="법인 운영비 (임대·급여·4대보험 등)" value={bodyPnl[rangeKey]!.naid!.fixed} big first />
-            <StripMetric label="법인 대출이자" value={bodyPnl[rangeKey]!.naid!.interest} negative dim />
-            <StripMetric label="법인 비용 합계" value={bodyPnl[rangeKey]!.naid!.fixed + bodyPnl[rangeKey]!.naid!.interest} />
+          <div className="ml-auto">
+            <PeriodButtons sel={naidSel} />
           </div>
+        </div>
+        <div className="mb-2">
+          <PastPicker sel={naidSel} />
+        </div>
+        {!naidChain ? (
+          <p className="py-8 text-center text-[12px] text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+            법인 손익 계산 중...
+          </p>
         ) : (
-          <p className="py-3 text-[12px] text-slate-400">이 기간의 법인 비용 자료(관리회계 명세)가 없습니다.</p>
+          <>
+            <ProfitFlow
+              revenue={naidChain.revenue}
+              cogs={naidChain.cogs}
+              gross={naidChain.gross}
+              variable={naidChain.variable}
+              contribution={naidChain.contribution}
+              fixed={naidChain.fixed}
+              operating={naidChain.operating}
+              nonOp={naidChain.nonOp}
+              net={naidChain.net}
+              bep={naidChain.bep}
+              bepRate={naidChain.bepRate}
+              breakdowns={naidChain.breakdowns}
+              nonOpLabel="법인 이자"
+              periodKey={`naid-${naidSel.rangeKey}`}
+            />
+            <ChainStrip chain={naidChain} nonOpLabel="법인 이자" />
+            <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+              비용 = 관리회계 명세의 &lsquo;법인&rsquo; 항목 자동 분류 (운영비 → 고정비 · 대출이자 →
+              영업외) · 통합(디안 전체) 손익에도 동일 반영 · 법인 매출·매입 자료(세금계산서·통장)가
+              연동되면 매출·원가 사슬과 생키가 채워집니다 — 현재 매출 0은 미연동 상태
+            </p>
+          </>
         )}
-        <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-          관리회계 명세의 &lsquo;법인&rsquo; 항목이 자동으로 여기에 잡히고, 위 통합(디안 전체) 손익의
-          고정비·영업외에도 반영됩니다 · 법인 매출·매입 자료가 들어오면 생키 + 스트립 + BEP 전체
-          형식으로 확장됩니다
-        </p>
       </div>
 
       {/* 밴드 1 — 통합 매출 스트립 */}
