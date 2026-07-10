@@ -17,7 +17,7 @@ import { fetchSharedSales, fetchSharedOffline, fetchSharedDianShop } from '@/app
 import { listSaekdongCosts } from '@/app/saekdong/actions'
 import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from '@/app/saekdong/actions'
 import ProfitFlow from './ProfitFlow'
-import { rangeFor, seriesRevenue, kstToday, type Period } from '@/lib/period-range'
+import { rangeFor, seriesRevenue, kstToday, type Period, type PeriodRange } from '@/lib/period-range'
 
 interface MonthlyPoint { month: string; revenue: number }
 interface SeriesData {
@@ -63,6 +63,55 @@ interface BodyPnl {
   error?: string
 }
 
+/** 색동 기간 손익 재료 — 색동 계기판과 동일 규칙 (매입 + 원가성격 비용 + 기준단가 추정, 판관비 배분) */
+function computeSaekPnl(
+  saekCosts: { purchases: SaekdongPurchase[]; expenses: SaekdongExpense[]; itemCosts: SaekdongItemCost[] } | null,
+  saekOn: SeriesData | null,
+  range: PeriodRange,
+) {
+  const purchases = saekCosts?.purchases ?? []
+  const expenses = saekCosts?.expenses ?? []
+  const itemCosts = saekCosts?.itemCosts ?? []
+  const onlineRaw = saekOn && !saekOn.error ? seriesRevenue(saekOn, range) : 0
+  const onlineSupply = Math.round(onlineRaw / 1.1)
+  const inPeriod = (dt?: string | null) => !!dt && dt >= range.start && dt <= range.end
+  // 월 등록 비용: 기간에 걸친 달마다 (그 달에 활성일 때) 가중치만큼 배분
+  const monthlyActive = (e: SaekdongExpense, ym: string) =>
+    (!e.start_month || e.start_month <= ym) && (!e.end_month || e.end_month >= ym)
+  const expSum = (filter: (e: SaekdongExpense) => boolean) =>
+    Math.round(
+      expenses.filter(filter).reduce((s, e) => {
+        if (!e.is_monthly) return s + (inPeriod(e.expense_date) ? e.amount : 0)
+        return s + range.months.reduce((ms, mw) => ms + (monthlyActive(e, mw.ym) ? e.amount * mw.w : 0), 0)
+      }, 0),
+    )
+  // 기준단가 추정 원가 — 매입 기록 없는 품목만, 올해 원가율을 기간 온라인 매출에 비례 배분
+  const purchasedKeys = new Set(purchases.map((p) => normName(p.item_name)))
+  const stdMap = new Map(itemCosts.map((c) => [normName(c.item_name), c.unit_cost]))
+  let yearStdCogs = 0
+  for (const pr of saekOn?.products ?? []) {
+    const k = normName(pr.prodName)
+    if (purchasedKeys.has(k)) continue
+    const uc = stdMap.get(k)
+    if (uc != null) yearStdCogs += uc * pr.qty
+  }
+  const yearOnlineSupply = saekOn && !saekOn.error ? Math.round((saekOn.thisYear ?? 0) / 1.1) : 0
+  const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
+  const purch = purchases.filter((pu) => inPeriod(pu.purchase_date)).reduce((s, pu) => s + pu.amount, 0)
+  const cogsExpense = expSum((e) => e.nature === '매출원가')
+  const stdEstimate = Math.round(onlineSupply * stdRate)
+  return {
+    onlineSupply,
+    purch,
+    cogsExpense,
+    stdEstimate,
+    cogs: purch + cogsExpense + stdEstimate,
+    variable: expSum((e) => e.cost_type === 'variable' && e.nature === '판관비'),
+    fixed: expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비'),
+    nonOp: expSum((e) => e.nature === '영업외비용'),
+  }
+}
+
 /** 기간 선택 상태 묶음 — 블록마다 독립 선택 (통합·본체·추후 법인) */
 function usePeriodSel() {
   const nowM = Number(kstToday().slice(5, 7))
@@ -90,6 +139,7 @@ export default function DianOverview() {
   const { period, range, rangeKey } = main
   const bodySel = usePeriodSel() // 본체 블록 독립 선택
   const naidSel = usePeriodSel() // 법인(엔에이아이디) 블록 독립 선택
+  const saekSel = usePeriodSel() // 색동 블록 독립 선택
   const shareSel = usePeriodSel() // 매출 비중 도넛 독립 선택 (주 제외)
   const [saekOn, setSaekOn] = useState<SeriesData | null>(null)
   const [saekOff, setSaekOff] = useState<SeriesData | null>(null)
@@ -167,48 +217,35 @@ export default function DianOverview() {
     return { bodyRev, saekRev, naidRev, total: bodyRev + saekRev + naidRev }
   }, [bodyPnl, shareSel.rangeKey, shareSel.range, saekOn, saekOff, dianShop])
 
-  // ── 색동 기간 손익 사슬 (색동 계기판과 동일 규칙, 과거 기간 지원) ──
-  const saekChain = useMemo(() => {
-    const purchases = saekCosts?.purchases ?? []
-    const expenses = saekCosts?.expenses ?? []
-    const itemCosts = saekCosts?.itemCosts ?? []
-    const onlineRaw = saekOn && !saekOn.error ? seriesRevenue(saekOn, range) : 0
-    const onlineSupply = Math.round(onlineRaw / 1.1)
-    const inPeriod = (dt?: string | null) => !!dt && dt >= range.start && dt <= range.end
-    // 월 등록 비용: 기간에 걸친 달마다 (그 달에 활성일 때) 가중치만큼 배분
-    const monthlyActive = (e: SaekdongExpense, ym: string) =>
-      (!e.start_month || e.start_month <= ym) && (!e.end_month || e.end_month >= ym)
-    const expSum = (filter: (e: SaekdongExpense) => boolean) =>
-      Math.round(
-        expenses.filter(filter).reduce((s, e) => {
-          if (!e.is_monthly) return s + (inPeriod(e.expense_date) ? e.amount : 0)
-          return s + range.months.reduce((ms, mw) => ms + (monthlyActive(e, mw.ym) ? e.amount * mw.w : 0), 0)
-        }, 0),
-      )
-    // 기준단가 추정 원가 — 매입 기록 없는 품목만, 올해 원가율을 기간 온라인 매출에 비례 배분
-    const purchasedKeys = new Set(purchases.map((p) => normName(p.item_name)))
-    const stdMap = new Map(itemCosts.map((c) => [normName(c.item_name), c.unit_cost]))
-    let yearStdCogs = 0
-    for (const pr of saekOn?.products ?? []) {
-      const k = normName(pr.prodName)
-      if (purchasedKeys.has(k)) continue
-      const uc = stdMap.get(k)
-      if (uc != null) yearStdCogs += uc * pr.qty
-    }
-    const yearOnlineSupply = saekOn && !saekOn.error ? Math.round((saekOn.thisYear ?? 0) / 1.1) : 0
-    const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
-    const cogs =
-      purchases.filter((pu) => inPeriod(pu.purchase_date)).reduce((s, pu) => s + pu.amount, 0) +
-      expSum((e) => e.nature === '매출원가') +
-      Math.round(onlineSupply * stdRate)
+  // ── 색동 기간 손익 재료 (색동 계기판과 동일 규칙, 과거 기간 지원) — 통합 합산용 ──
+  const saekChain = useMemo(() => computeSaekPnl(saekCosts, saekOn, range), [saekCosts, saekOn, range])
+
+  // ── 색동 블록 손익 사슬 (독립 선택기 saekSel — 생키용 전체 사슬) ──
+  const saekBlockChain = useMemo(() => {
+    const p = computeSaekPnl(saekCosts, saekOn, saekSel.range)
+    const offline = saekOff && !saekOff.error ? seriesRevenue(saekOff, saekSel.range) : 0
+    const revenue = p.onlineSupply + offline
+    const gross = revenue - p.cogs
+    const contribution = gross - p.variable
+    const operating = contribution - p.fixed
+    const net = operating - p.nonOp
+    const bepRate = p.fixed > 0 ? (contribution / p.fixed) * 100 : null
+    const bep = p.fixed > 0 && contribution > 0 ? Math.round((p.fixed * revenue) / contribution) : null
     return {
-      onlineSupply,
-      cogs,
-      variable: expSum((e) => e.cost_type === 'variable' && e.nature === '판관비'),
-      fixed: expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비'),
-      nonOp: expSum((e) => e.nature === '영업외비용'),
+      revenue, cogs: p.cogs, gross, variable: p.variable, contribution,
+      fixed: p.fixed, operating, nonOp: p.nonOp, net, bep, bepRate,
+      breakdowns: {
+        cogs: [
+          { label: '매입 등록분', amount: p.purch },
+          { label: '원가 성격 비용', amount: p.cogsExpense },
+          { label: '기준단가 추정', amount: p.stdEstimate },
+        ],
+        variable: [{ label: '색동 변동 판관비', amount: p.variable }],
+        fixed: [{ label: '색동 고정 판관비', amount: p.fixed }],
+        nonOp: [{ label: '색동 영업외', amount: p.nonOp }],
+      },
     }
-  }, [saekCosts, saekOn, range])
+  }, [saekCosts, saekOn, saekOff, saekSel.range])
 
   // ── 회사 전체 손익 사슬 = 본체(일계표 + 디안몰) + 색동 (오프라인은 본체에 포함 — 이중계상 없음) ──
   const chain = useMemo(() => {
@@ -485,6 +522,50 @@ export default function DianOverview() {
               periodKey={`naid-${naidSel.rangeKey}`}
             />
           </>
+        )}
+      </div>
+
+      {/* 색동 — 신사업 (색동 계기판과 동일 규칙) */}
+      <div
+        className="bg-white p-4 sm:p-5"
+        style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }}
+      >
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <h3 className="text-[14px] font-bold text-slate-900">
+            색동은 이렇게 벌고 쓴다
+          </h3>
+          <span className="text-[11px] text-slate-400">
+            · {saekSel.range.label} · 온라인(공급가) + 오프라인 · 비용 = 색동 계기판 등록분
+          </span>
+          <div className="ml-auto">
+            <PeriodButtons sel={saekSel} />
+          </div>
+        </div>
+        <div className="mb-2">
+          <PastPicker sel={saekSel} />
+        </div>
+        {loading ? (
+          <p className="py-8 text-center text-[12px] text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+            색동 손익 계산 중...
+          </p>
+        ) : (
+          <ProfitFlow
+            revenue={saekBlockChain.revenue}
+            cogs={saekBlockChain.cogs}
+            gross={saekBlockChain.gross}
+            variable={saekBlockChain.variable}
+            contribution={saekBlockChain.contribution}
+            fixed={saekBlockChain.fixed}
+            operating={saekBlockChain.operating}
+            nonOp={saekBlockChain.nonOp}
+            net={saekBlockChain.net}
+            bep={saekBlockChain.bep}
+            bepRate={saekBlockChain.bepRate}
+            breakdowns={saekBlockChain.breakdowns}
+            nonOpLabel="영업외"
+            periodKey={`saek-${saekSel.rangeKey}`}
+          />
         )}
       </div>
 
