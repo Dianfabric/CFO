@@ -11,6 +11,7 @@ import DocumentPreviewDialog, { DocFull } from '@/components/documents/DocumentP
 import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/SavedDocumentRender'
 import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
 import UploadSection from '@/components/upload/UploadSection'
+import UploadDutyBoard from '@/components/upload/UploadDutyBoard'
 import DailyChecklist from '@/components/documents/DailyChecklist'
 import SimpleReceipts from '@/components/documents/SimpleReceipts'
 
@@ -166,6 +167,9 @@ export default function DocumentsPage() {
         <UploadSection />
         <DailyChecklist />
       </div>
+
+      {/* 업로드 당번판 — 매일(전새로미)/매주(한태원)/매월(한태종), 누락 빨간 표시 */}
+      <UploadDutyBoard />
 
       {/* 간이영수증 대장 — 사진 + 분류, 분기별 신고용 엑셀 */}
       <SimpleReceipts />

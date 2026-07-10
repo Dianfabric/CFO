@@ -8,6 +8,7 @@ import {
   Loader2, RefreshCw, Ship, X,
 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
+import { detectUploadKind } from '@/lib/upload-kind'
 import LedgerSyncDialog from './LedgerSyncDialog'
 
 type FileStatus = 'pending' | 'processing' | 'success' | 'error'
@@ -150,6 +151,12 @@ async function processFile(item: FileItem): Promise<{ message: string; detail?: 
   const json = await res.json()
 
   if (!res.ok) throw new Error(json.error ?? '처리 오류')
+  // 업로드 당번판 자동 체크 (실패해도 무시 — 부가 기능)
+  fetch('/api/upload-log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: detectUploadKind(name), fileName: name }),
+  }).catch(() => {})
   if (isArSnapshot && json.sheets) {
     const s = (json.sheets as { monthKey: string; rows: number; balanceSum: number }[])
       .map((x) => `${x.monthKey} ${x.rows}곳 잔액 ${formatKRW(x.balanceSum)}`).join(' · ')
