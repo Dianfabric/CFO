@@ -319,8 +319,8 @@ export default function BizTrends() {
       {/* 헤더 */}
       <div className="flex items-center gap-2 flex-wrap">
         <LineChartIcon className="w-4 h-4" style={{ color: 'var(--nv-primary, #76b900)' }} />
-        <h2 className="text-base font-semibold text-slate-900">경영 그래프 — 사업체별 흐름</h2>
-        <span className="text-xs text-slate-400">· 매출·지출·이익 추이 + 출고 축 분석</span>
+        <h2 className="text-base font-semibold text-slate-900">경영 그래프 — 좋아지고 있나, 나빠지고 있나</h2>
+        <span className="text-xs text-slate-400">· 사업체별 매출·지출·이익의 시간 흐름 — 방향을 읽는 그래프</span>
       </div>
 
       {/* ① 사업체별 추이 */}
@@ -447,8 +447,8 @@ export default function BizTrends() {
       {/* ② 출고 축 분석 — 직군·품목·가공 */}
       <div className="bg-white p-4 sm:p-5" style={box}>
         <div className="flex items-center gap-2 flex-wrap mb-3">
-          <h3 className="text-[13px] font-bold text-slate-900">출고 기준 매출 — 직군 · 품목 · 가공</h3>
-          <span className="text-[11px] text-slate-400">· 마감(출고) 데이터 · 영업·마케팅 전략용</span>
+          <h3 className="text-[13px] font-bold text-slate-900">출고 기준 매출 — 누구에게, 무엇이 팔리나</h3>
+          <span className="text-[11px] text-slate-400">· 직군·품목·가공별 실제 출고 — 영업·마케팅을 어디에 걸지 정하는 자료</span>
           <div className="ml-auto inline-flex overflow-hidden rounded-sm border border-slate-200">
             {[30, 90, 180].map((d) => (
               <button

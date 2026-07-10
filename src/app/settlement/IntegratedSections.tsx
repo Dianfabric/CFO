@@ -174,9 +174,9 @@ export default function IntegratedSections() {
     <div className="space-y-6">
       {/* ── 매입 / 고정비 / 변동비 (이번 달, 본체+색동) ── */}
       <div>
-        <h2 className="mb-1 text-base font-semibold text-slate-900">비용 구조 — 이번 달</h2>
+        <h2 className="mb-1 text-base font-semibold text-slate-900">비용 구조 — 이번 달, 돈이 어디로 나가고 있나</h2>
         <p className="mb-3 text-xs text-slate-400">
-          본체(일계표·비용 관리) + 색동(수기 입력) 합산 · 엔에이아이디 연동 예정
+          매입 · 고정비 · 변동비 — 본체(일계표·비용 관리) + 색동(수기 입력) 합산 · 엔에이아이디 연동 예정
         </p>
         {(cost.unpaidCnt > 0 || cost.noInvoiceCnt > 0) && (
           <div
@@ -222,9 +222,9 @@ export default function IntegratedSections() {
 
       {/* ── 입금 확인 + 세금계산서 발행 ── */}
       <div>
-        <h2 className="mb-1 text-base font-semibold text-slate-900">입금 · 발행 확인</h2>
+        <h2 className="mb-1 text-base font-semibold text-slate-900">입금 · 발행 확인 — 받을 돈이 제대로 들어왔나</h2>
         <p className="mb-3 text-xs text-slate-400">
-          자동 대사에서 확인 안 된 것만 표시 — 상세 처리(수동 완료 등)는 색동 페이지에서
+          입금·세금계산서 중 자동 대사에서 확인 안 된 것만 표시 — 상세 처리(수동 완료 등)는 색동 페이지에서
         </p>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <CheckCard
@@ -266,7 +266,7 @@ export default function IntegratedSections() {
 
       {/* ── 재고 (색동 완제품 + 본체 스와치·샘플) ── */}
       <div>
-        <h2 className="mb-1 text-base font-semibold text-slate-900">재고</h2>
+        <h2 className="mb-1 text-base font-semibold text-slate-900">재고 — 물건이 얼마나 남아 있나</h2>
         <p className="mb-3 text-xs text-slate-400">
           색동 완제품 (입고 − 판매 − 선물) · 본체 스와치·샘플 (입고 − 발송)
         </p>

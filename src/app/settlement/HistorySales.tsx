@@ -128,8 +128,8 @@ export default function HistorySales() {
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <Landmark className="w-4 h-4" style={{ color: 'var(--nv-primary, #76b900)' }} />
-        <h2 className="text-base font-semibold text-slate-900">과거 매출 아카이브</h2>
-        <span className="text-xs text-slate-400">· 2016~ 월매출 · 26년부터 시스템 실시간 자동 연결 (연한 색 = 진행 중)</span>
+        <h2 className="text-base font-semibold text-slate-900">과거 매출 아카이브 — 10년의 흐름 위에 지금을 놓고 본다</h2>
+        <span className="text-xs text-slate-400">· 2016~ 월매출 장부 + 26년 실시간 자동 연결 (연한 색 = 진행 중) — 올해가 예년보다 좋은지, 계절 흐름은 어떤지</span>
       </div>
 
       <div className="bg-white p-4 sm:p-5" style={box}>

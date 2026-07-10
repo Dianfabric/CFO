@@ -73,8 +73,8 @@ export default function DianShopSales() {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Store className="w-4 h-4" style={{ color: 'var(--nv-primary, #76b900)' }} />
-        <h2 className="text-base font-semibold text-slate-900">디안 쇼핑몰 매출</h2>
-        <span className="text-xs text-slate-400">· 아임웹 실시간 (원단몰)</span>
+        <h2 className="text-base font-semibold text-slate-900">디안 쇼핑몰 매출 — 온라인에서 오늘 얼마 벌었나</h2>
+        <span className="text-xs text-slate-400">· 아임웹 원단몰 실시간 — 무엇이 팔리는지까지 한눈에</span>
         <button type="button" onClick={() => fetchData(true)} disabled={refreshing}
           className="ml-auto h-7 px-2 text-[11px] font-bold inline-flex items-center gap-1 bg-white border rounded text-slate-500">
           {refreshing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
