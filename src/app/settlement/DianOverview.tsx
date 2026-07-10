@@ -63,6 +63,7 @@ interface BodyPnl {
   shipping: number
   fixed: number
   fixedBreakdown?: { label: string; amount: number }[]
+  naid?: { fixed: number; interest: number } // 엔에이아이디(법인) — 관리회계 명세 자동 분류
   interest: number
   interestMissing?: boolean
   error?: string
@@ -361,9 +362,12 @@ export default function DianOverview() {
     const gross = revenue - cogs
     const variable = body.expenses + body.shipping + saekChain.variable
     const contribution = gross - variable
-    const fixed = body.fixed + saekChain.fixed
+    // 디안 전체 = 본체 + 색동 + 법인 비용 (법인 매출은 자료 연동 시 합산 — 대표 결정 2026-07-10)
+    const naidFixed = body.naid?.fixed ?? 0
+    const naidInterest = body.naid?.interest ?? 0
+    const fixed = body.fixed + saekChain.fixed + naidFixed
     const operating = contribution - fixed
-    const nonOp = saekChain.nonOp + (body.interest ?? 0)
+    const nonOp = saekChain.nonOp + (body.interest ?? 0) + naidInterest
     const net = operating - nonOp
     // BEP — 공헌이익 관점: BEP 매출 = 고정비 ÷ 공헌이익률, 달성률 = 공헌이익 ÷ 고정비
     const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
@@ -382,10 +386,12 @@ export default function DianOverview() {
       ],
       fixed: [
         ...(body.fixedBreakdown ?? []).map((x) => ({ label: `본체 ${x.label}`, amount: x.amount })),
+        { label: '엔에이아이디(법인)', amount: naidFixed },
         { label: '색동 고정비', amount: saekChain.fixed },
       ],
       nonOp: [
         { label: '대출 이자', amount: body.interest ?? 0 },
+        { label: '법인 이자', amount: naidInterest },
         { label: '색동 영업외', amount: saekChain.nonOp },
       ],
     }
@@ -568,15 +574,26 @@ export default function DianOverview() {
         style={{ border: '1px dashed var(--nv-hairline, #cbd5e1)', borderRadius: '2px' }}
       >
         <div className="flex items-baseline gap-2 flex-wrap mb-1">
-          <h3 className="text-[14px] font-bold text-slate-400">
+          <h3 className="text-[14px] font-bold text-slate-900">
             엔에이아이디(법인)는 이렇게 벌고 쓴다
           </h3>
-          <span className="text-[11px] text-slate-400">· 연동 예정</span>
+          <span className="text-[11px] text-slate-400">
+            · {range.label} · 비용 반영 중 (관리회계 명세 자동 분류) · 매출 연동 예정
+          </span>
         </div>
-        <p className="py-4 text-[12px] leading-relaxed text-slate-400">
-          법인 자료(매출·매입 세금계산서, 법인 통장, 법인 대출)가 들어오면 위와 똑같은 형식
-          — 생키 + 숫자 스트립 + BEP + 주/월/분기/년 과거 조회 — 으로 자동 표시됩니다.
-          대출·이자 원장은 이미 법인(naid)을 지원하므로 법인 대출 파일부터 업로드할 수 있습니다.
+        {bodyPnl[rangeKey]?.naid && (bodyPnl[rangeKey]!.naid!.fixed > 0 || bodyPnl[rangeKey]!.naid!.interest > 0) ? (
+          <div className="flex flex-wrap items-stretch gap-y-4 px-4 py-4" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
+            <StripMetric label="법인 운영비 (임대·급여·4대보험 등)" value={bodyPnl[rangeKey]!.naid!.fixed} big first />
+            <StripMetric label="법인 대출이자" value={bodyPnl[rangeKey]!.naid!.interest} negative dim />
+            <StripMetric label="법인 비용 합계" value={bodyPnl[rangeKey]!.naid!.fixed + bodyPnl[rangeKey]!.naid!.interest} />
+          </div>
+        ) : (
+          <p className="py-3 text-[12px] text-slate-400">이 기간의 법인 비용 자료(관리회계 명세)가 없습니다.</p>
+        )}
+        <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+          관리회계 명세의 &lsquo;법인&rsquo; 항목이 자동으로 여기에 잡히고, 위 통합(디안 전체) 손익의
+          고정비·영업외에도 반영됩니다 · 법인 매출·매입 자료가 들어오면 생키 + 스트립 + BEP 전체
+          형식으로 확장됩니다
         </p>
       </div>
 

@@ -39,6 +39,7 @@ interface TrendBucket {
   shipping: number
   fixed: number
   interest: number
+  naidCost?: number
 }
 
 interface SeriesData {
@@ -220,11 +221,13 @@ export default function BizTrends() {
       let spend = 0
       if (entity === 'total') {
         rev = b.sales + saekOnSupply + shopSupply
-        spend = bodySpend + saekSpend
+        spend = bodySpend + saekSpend + (b.naidCost ?? 0) // 법인 비용 포함 (매출 연동 예정)
       } else if (entity === 'body') {
         rev = b.sales - saekOffline + shopSupply
         spend = bodySpend
-      } // naid = 0
+      } else if (entity === 'naid') {
+        spend = b.naidCost ?? 0 // 법인 — 비용만 (매출 자료 연동 예정)
+      }
       return { key: b.key, label: b.label, 매출: rev, 지출: spend, 이익: rev - spend }
     })
   }, [trends, unit, entity, saekOn, saekOff, dianShop, saekCosts])
@@ -316,14 +319,14 @@ export default function BizTrends() {
           </div>
         </div>
 
-        {entity === 'naid' ? (
+        {entity === 'naid' && !(finalData ?? []).some((r) => r.지출 > 0) ? (
           <div
             className="h-64 flex items-center justify-center text-[12px] text-slate-400 leading-relaxed text-center px-6"
             style={{ border: '1px dashed #cbd5e1', borderRadius: '2px' }}
           >
-            엔에이아이디(법인) 자료 연동 예정 — 법인 매출·비용 자료가 들어오면
+            이 기간 법인 비용 자료(관리회계 명세)가 없습니다 —
             <br />
-            같은 그래프로 자동 표시됩니다.
+            매월 관리회계 파일이 들어오면 법인 비용 추이가, 매출 자료가 연동되면 손익 전체가 표시됩니다.
           </div>
         ) : !finalData ? (
           <div className="h-64 flex items-center justify-center text-[12px] text-slate-400">
@@ -354,8 +357,9 @@ export default function BizTrends() {
         )}
         <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
           공급가 기준 · 지출 = 매출원가 + 변동비 + 고정비(월 등록액 배분) + 대출이자 · 이익 = 매출 − 지출 (세금 반영 전)
-          {entity === 'total' && ' · 통합 = 본체(일계표+디안몰) + 색동(온라인+오프라인·비용 포함), 이중계상 방지'}
+          {entity === 'total' && ' · 통합 = 본체(일계표+디안몰) + 색동(온라인+오프라인·비용 포함) + 법인 비용, 이중계상 방지'}
           {entity === 'body' && ' · 본체 = 일계표 + 디안 쇼핑몰 − 색동 오프라인 (디안몰 원가 미연동)'}
+          {entity === 'naid' && ' · 법인 = 관리회계 명세의 법인 항목(운영비+이자) — 매출 자료 연동 예정'}
           {unit === 'week' && ' · 주별 색동·디안몰 매출은 월 매출 일할 배분 근사 (26년 시스템 데이터부터)'}
           {entity !== 'naid' && unit === 'month' && ' · 26년 이전 달은 관리 장부(매출·매입·경비) 백필'}
           {entity !== 'naid' && unit === 'year' && ' · 16~25년은 관리 장부(매출·매입·경비) 기준 — 이익 = 매출 − (매입+경비)'}

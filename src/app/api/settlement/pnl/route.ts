@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
       // 고정비·변동비 = 관리회계 원장 (대표 결정 2026-07-10 — 구 RecurringCost 방식 파기)
       supabase
         .from('mgmt_ledger')
-        .select('month_key, cost_type, nature, amount, major, source')
+        .select('month_key, cost_type, nature, amount, major, category, source')
         .eq('flow', 'out')
         .in('month_key', months.map((m) => m.ym)),
       supabase.from('loan_payments').select('month_key, interest'),
@@ -121,13 +121,15 @@ export async function GET(req: NextRequest) {
     const mgmtMissing = !!mgmtRes.error
     const mgmtRows = (mgmtRes.data ?? []) as {
       month_key: string; cost_type: string | null; nature: string | null; amount: number
-      major: string | null; source: string
+      major: string | null; category: string | null; source: string
     }[]
     // 정본 = '관리회계' 명세 시트(source='summary', 대표 결정 2026-07-10).
     // nature: 판관비(고정/변동) 사용 · 영업외비용(대출이자) → 이자 · 법인/원금상환/운임은 제외
     const fixedByMonth = new Map<string, number>()
     const varByMonth = new Map<string, number>()
     const sumInterestByMonth = new Map<string, number>()
+    const naidFixedByMonth = new Map<string, number>()
+    const naidInterestByMonth = new Map<string, number>()
     const fixedByCat = new Map<string, number>()
     const mgmtMonths = new Set<string>()
     for (const r of mgmtRows) {
@@ -135,6 +137,13 @@ export async function GET(req: NextRequest) {
       mgmtMonths.add(r.month_key)
       if (r.nature === '영업외비용') {
         sumInterestByMonth.set(r.month_key, (sumInterestByMonth.get(r.month_key) ?? 0) + r.amount)
+        continue
+      }
+      // 법인(엔에이아이디) 몫 — 이자와 운영비 분리 (대표 결정 2026-07-10: 전체 지표에 반영)
+      if (r.nature === '법인') {
+        const isInt = (r.major ?? '').includes('금융') || (r.category ?? '').includes('대출이자')
+        const map = isInt ? naidInterestByMonth : naidFixedByMonth
+        map.set(r.month_key, (map.get(r.month_key) ?? 0) + r.amount)
         continue
       }
       if (r.nature !== '판관비') continue
@@ -146,9 +155,13 @@ export async function GET(req: NextRequest) {
     }
     let fixed = 0
     let expensesSum = 0
+    let naidFixed = 0
+    let naidInterest = 0
     for (const m of months) {
       fixed += Math.round((fixedByMonth.get(m.ym) ?? 0) * m.ratio)
       expensesSum += Math.round((varByMonth.get(m.ym) ?? 0) * m.ratio)
+      naidFixed += Math.round((naidFixedByMonth.get(m.ym) ?? 0) * m.ratio)
+      naidInterest += Math.round((naidInterestByMonth.get(m.ym) ?? 0) * m.ratio)
     }
     // 고정비 분해 — 관리회계 대분류(major) 기준
     const monthSet = new Set(months.filter((m) => m.ratio > 0).map((m) => m.ym))
@@ -196,6 +209,7 @@ export async function GET(req: NextRequest) {
       shipping: purchShipping, // 국내 배송 (해외운임은 freightCogs 로)
       fixed,
       fixedBreakdown,
+      naid: { fixed: naidFixed, interest: naidInterest }, // 엔에이아이디(법인) — 관리회계 명세 자동 분류
       mgmtMissing,
       mgmtMissingMonths,
       interest,

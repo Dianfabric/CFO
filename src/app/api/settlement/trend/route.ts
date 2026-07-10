@@ -156,10 +156,15 @@ export async function GET(req: NextRequest) {
     const fixedByMonth = new Map<string, number>()
     const varByMonth = new Map<string, number>()
     const sumInterestByMonth = new Map<string, number>()
+    const naidByMonth = new Map<string, number>() // 법인 비용(고정+이자) — naid 탭·통합용
     for (const r of (mgmtRes.data ?? []) as { month_key: string; cost_type: string | null; nature: string | null; amount: number; source: string }[]) {
       if (r.source !== 'summary') continue
       if (r.nature === '영업외비용') {
         sumInterestByMonth.set(r.month_key, (sumInterestByMonth.get(r.month_key) ?? 0) + r.amount)
+        continue
+      }
+      if (r.nature === '법인') {
+        naidByMonth.set(r.month_key, (naidByMonth.get(r.month_key) ?? 0) + r.amount)
         continue
       }
       if (r.nature !== '판관비') continue
@@ -205,9 +210,11 @@ export async function GET(req: NextRequest) {
       }
       let fixed = 0
       let interest = 0
+      let naidCost = 0
       for (const m of bucketMonths[bi]) {
         fixed += (fixedByMonth.get(m.ym) ?? 0) * m.ratio
         expenses += (varByMonth.get(m.ym) ?? 0) * m.ratio
+        naidCost += (naidByMonth.get(m.ym) ?? 0) * m.ratio
         // 이자: loan_payments 가 있는 달은 그 값, 없으면 관리회계 명세의 이자
         const iv = interestByMonth.has(m.ym) ? interestByMonth.get(m.ym)! : (sumInterestByMonth.get(m.ym) ?? 0)
         interest += iv * m.ratio
@@ -224,6 +231,7 @@ export async function GET(req: NextRequest) {
         shipping: purchShipping, // 국내 배송 (해외운임은 fabricCogs 로)
         fixed: Math.round(fixed),
         interest: Math.round(interest),
+        naidCost: Math.round(naidCost), // 법인 비용 (고정+이자)
       }
     })
 
