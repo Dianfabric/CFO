@@ -153,7 +153,7 @@ async function processFile(item: FileItem): Promise<{ message: string; detail?: 
   const isBank = /통장|거래내역조회/.test(name)
   const isMgmt = /관리\s*회계/.test(name)
   const isLoan = /대출.*(상환|이자)|이자상환/.test(name)
-  const isArSnapshot = /미수\s*(금)?\s*현황/.test(name)
+  const isArSnapshot = detectUploadKind(name) === '미수금현황' // '미수 현황'·'잔액 명세서'·'N월.xls'
   // 파일 종류 자동 라우팅:
   // - 세금계산서 → /api/upload/tax-invoice
   // - 통장내역 → /api/upload/bank
@@ -319,7 +319,7 @@ export default function UploadSection({ onUploadSuccess }: { onUploadSuccess?: (
           <Upload className="w-4 h-4 text-blue-600" />
           일일 마감 업로드
           <span className="text-xs font-normal text-slate-400 ml-1">
-            일계표 · 디안 마감 · 통장 · 세금계산서(매출/매입 자동 구분) · 관세 · 운임 — 어떤 파일이든 드래그
+            일계표 · 디안 마감 · 통장 · 세금계산서(매출/매입 자동 구분) · 미수금(잔액 명세서) · 관세 · 운임 — 어떤 파일이든 드래그
           </span>
         </CardTitle>
       </CardHeader>
