@@ -63,6 +63,8 @@ interface BodyPnl {
   shipping: number
   fixed: number
   fixedBreakdown?: { label: string; amount: number }[]
+  freightBreakdown?: { label: string; amount: number }[] // 해외운임 세부 — 항공/배/관세
+  varBreakdown?: { label: string; amount: number }[] // 변동 판관비 대분류 (관리회계)
   // 엔에이아이디(법인): 매출·매입 = 세금계산서 / 운영비·이자 = 관리회계 명세
   naid?: { sales?: number; cogs?: number; fixed: number; interest: number }
   interest: number
@@ -380,17 +382,23 @@ export default function DianOverview() {
     // BEP — 공헌이익 관점: BEP 매출 = 고정비 ÷ 공헌이익률, 달성률 = 공헌이익 ÷ 고정비
     const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
     const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
-    // 비용 세부 구성 — 자료가 등록된 만큼 막대 아래 표시 (자료 늘면 자동 세분화)
+    // 비용 세부 구성 — 자료가 등록된 만큼 갈라짐 표시 (자료 늘면 자동 세분화)
+    const freightItems = body.freightBreakdown?.length
+      ? body.freightBreakdown
+      : [{ label: '해외운임·관세', amount: body.freightCogs ?? 0 }]
+    const varItems = body.varBreakdown?.length
+      ? body.varBreakdown.map((x) => ({ label: `본체 ${x.label}`, amount: x.amount }))
+      : [{ label: '본체 변동 판관비', amount: body.expenses }]
     const breakdowns = {
       cogs: [
         { label: '본체 판매원가(단가표)', amount: body.soldCogs ?? body.fabricCogs },
-        { label: '해외운임·관세', amount: body.freightCogs ?? 0 },
+        ...freightItems,
         { label: '법인 매입', amount: naidCogs },
         { label: '색동 매입·원가', amount: saekChain.cogs },
       ],
       variable: [
-        { label: '본체 당일지출', amount: body.expenses },
-        { label: '해외운송비', amount: body.shipping },
+        ...varItems,
+        { label: '본체 국내 배송', amount: body.shipping },
         { label: '색동 변동비', amount: saekChain.variable },
       ],
       fixed: [
@@ -432,10 +440,14 @@ export default function DianOverview() {
     const breakdowns = {
       cogs: [
         { label: '판매원가(단가표)', amount: body.soldCogs ?? body.fabricCogs },
-        { label: '해외운임·관세', amount: body.freightCogs ?? 0 },
+        ...(body.freightBreakdown?.length
+          ? body.freightBreakdown
+          : [{ label: '해외운임·관세', amount: body.freightCogs ?? 0 }]),
       ],
       variable: [
-        { label: '당일지출', amount: body.expenses },
+        ...(body.varBreakdown?.length
+          ? body.varBreakdown
+          : [{ label: '변동 판관비', amount: body.expenses }]),
         { label: '국내 배송', amount: body.shipping },
       ],
       fixed: body.fixedBreakdown ?? [],

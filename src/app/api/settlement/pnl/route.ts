@@ -107,9 +107,23 @@ export async function GET(req: NextRequest) {
     let freightCogs = 0
     let purchShipping = 0
     let invPurchase = 0
+    // 해외운임 세부 — 항공(로드썬) / 배(글로지텍) / 관세·수입세금 (생키 갈라짐용)
+    const freightByKind = new Map<string, number>()
+    const freightKind = (desc: string | null): string => {
+      const d = desc ?? ''
+      if (/로드썬|항공/.test(d)) return '항공운임(로드썬)'
+      if (/글로지텍/.test(d)) return '배운임(글로지텍)'
+      if (/관세|통관|수입세금/.test(d)) return '관세·수입세금'
+      return '기타 해외운임'
+    }
+    const addFreight = (desc: string | null, amount: number) => {
+      freightCogs += amount
+      const k = freightKind(desc)
+      freightByKind.set(k, (freightByKind.get(k) ?? 0) + amount)
+    }
     for (const pu of purchases) {
       const cls = classifyPurchase(pu.description, pu.items.map((i) => i.productName ?? ''))
-      if (cls === 'cogs_freight') freightCogs += pu.totalAmount
+      if (cls === 'cogs_freight') addFreight(pu.description, pu.totalAmount)
       else if (cls === 'domestic_ship') purchShipping += pu.totalAmount
       else if (cls === 'inventory') invPurchase += pu.totalAmount
       // legacy_auto('원단 매입원가' 구 자동 항목)는 이중계상 방지 위해 제외
@@ -118,9 +132,13 @@ export async function GET(req: NextRequest) {
     // 관리회계 원장과 중복이라 손익에서 제외 (변동비의 소스는 관리회계로 일원화)
     for (const ex of expenseRows) {
       const cls = classifyPurchase(ex.description, ex.items.map((i) => i.productName ?? ''))
-      if (cls === 'cogs_freight') freightCogs += ex.totalAmount
+      if (cls === 'cogs_freight') addFreight(ex.description, ex.totalAmount)
     }
     const fabricCogs = sold.soldCogs + freightCogs
+    const freightBreakdown = [...freightByKind.entries()]
+      .map(([label, amount]) => ({ label, amount }))
+      .filter((x) => x.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
 
     // ── 관리회계 원장 → 고정비·변동비 (월 단위, 기간 비율 배분) ──
     const mgmtMissing = !!mgmtRes.error
@@ -180,18 +198,28 @@ export async function GET(req: NextRequest) {
       naidSales += Math.round((naidSalesByMonth.get(m.ym) ?? 0) * m.ratio)
       naidCogs += Math.round((naidCogsByMonth.get(m.ym) ?? 0) * m.ratio)
     }
-    // 고정비 분해 — 관리회계 대분류(major) 기준
+    // 고정비·변동비 분해 — 관리회계 대분류(major) 기준 (생키 갈라짐용)
     const monthSet = new Set(months.filter((m) => m.ratio > 0).map((m) => m.ym))
+    const varByCat = new Map<string, number>()
     for (const r of mgmtRows) {
-      if (r.source !== 'summary' || r.nature !== '판관비' || r.cost_type !== '고정' || !monthSet.has(r.month_key)) continue
-      const label = r.major || '기타 고정비'
+      if (r.source !== 'summary' || r.nature !== '판관비' || !monthSet.has(r.month_key)) continue
+      if (r.cost_type !== '고정' && r.cost_type !== '변동') continue
       const ratio = months.find((m) => m.ym === r.month_key)?.ratio ?? 0
-      fixedByCat.set(label, (fixedByCat.get(label) ?? 0) + Math.round(r.amount * ratio))
+      if (r.cost_type === '고정') {
+        const label = r.major || '기타 고정비'
+        fixedByCat.set(label, (fixedByCat.get(label) ?? 0) + Math.round(r.amount * ratio))
+      } else {
+        const label = r.major || r.category || '기타 변동비'
+        varByCat.set(label, (varByCat.get(label) ?? 0) + Math.round(r.amount * ratio))
+      }
     }
-    const fixedBreakdown = [...fixedByCat.entries()]
-      .map(([label, amount]) => ({ label, amount }))
-      .filter((x) => x.amount > 0)
-      .sort((a, b) => b.amount - a.amount)
+    const toBreakdown = (m: Map<string, number>) =>
+      [...m.entries()]
+        .map(([label, amount]) => ({ label, amount }))
+        .filter((x) => x.amount > 0)
+        .sort((a, b) => b.amount - a.amount)
+    const fixedBreakdown = toBreakdown(fixedByCat)
+    const varBreakdown = toBreakdown(varByCat)
     // 관리회계 미업로드 월 (기간에 걸친 달 중 원장이 빈 달)
     const mgmtMissingMonths = months.filter((m) => m.ratio > 0 && !mgmtMonths.has(m.ym)).map((m) => m.ym)
 
@@ -219,6 +247,8 @@ export async function GET(req: NextRequest) {
       fabricCogs, // = 판매 기준 원가(soldCogs) + 해외운임·관세(freightCogs)
       soldCogs: sold.soldCogs,
       freightCogs,
+      freightBreakdown, // 해외운임 세부 — 항공/배/관세·수입세금
+      varBreakdown, // 변동 판관비 대분류 분해 (관리회계)
       cogsCoverage: Math.round(sold.coveragePct * 10) / 10, // 단가표 매칭 커버리지 %
       invPurchase, // 원단 매입 인보이스 — 재고 취득 (손익 미반영, 참고)
       usdRate: sold.usdRate,
