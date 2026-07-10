@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient()
-    const [salesAgg, purchases, expenseRows, recurring, loanRes, sold] = await Promise.all([
+    const [salesAgg, purchases, expenseRows, mgmtRes, loanRes, sold] = await Promise.all([
       prisma.transaction.aggregate({
         where: { type: 'SALE', date: { gte: rangeStart, lte: rangeEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         _sum: { totalAmount: true },
@@ -87,7 +87,12 @@ export async function GET(req: NextRequest) {
         where: { type: 'EXPENSE', date: { gte: rangeStart, lte: rangeEnd } },
         select: { totalAmount: true, description: true, items: { select: { productName: true } } },
       }),
-      prisma.recurringCost.findMany({ include: { costCategory: true } }),
+      // 고정비·변동비 = 관리회계 원장 (대표 결정 2026-07-10 — 구 RecurringCost 방식 파기)
+      supabase
+        .from('mgmt_ledger')
+        .select('month_key, cost_type, nature, amount, major')
+        .eq('flow', 'out')
+        .in('month_key', months.map((m) => m.ym)),
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 팔린 수량 × TMS 기준단가 × 환율 (대표 결정 2026-07-06)
       computeSoldCogsByDate(rangeStart, rangeEnd),
@@ -104,33 +109,52 @@ export async function GET(req: NextRequest) {
       else if (cls === 'inventory') invPurchase += pu.totalAmount
       // legacy_auto('원단 매입원가' 구 자동 항목)는 이중계상 방지 위해 제외
     }
-    // 경비(EXPENSE) 중 해외운임 성격(예: 국제항공운송비)도 매출원가로
-    let expensesSum = 0
+    // 경비(EXPENSE)는 해외운임 성격만 매출원가로 사용 — 나머지 일계표 경비는
+    // 관리회계 원장과 중복이라 손익에서 제외 (변동비의 소스는 관리회계로 일원화)
     for (const ex of expenseRows) {
       const cls = classifyPurchase(ex.description, ex.items.map((i) => i.productName ?? ''))
       if (cls === 'cogs_freight') freightCogs += ex.totalAmount
-      else expensesSum += ex.totalAmount
     }
     const fabricCogs = sold.soldCogs + freightCogs
 
-    const monthlyOf = (c: (typeof recurring)[number]) =>
-      c.frequency === 'MONTHLY' ? c.amount
-        : c.frequency === 'QUARTERLY' ? Math.round(c.amount / 3)
-          : c.frequency === 'YEARLY' ? Math.round(c.amount / 12) : 0
-    const monthlyFixed = recurring.reduce((s, c) => s + monthlyOf(c), 0)
-    const ratioSum = months.reduce((s, m) => s + m.ratio, 0)
-    const fixed = Math.round(monthlyFixed * ratioSum)
-
-    // 고정비 카테고리 분해 (임차료·인건비 등 — 등록된 카테고리명 기준)
+    // ── 관리회계 원장 → 고정비·변동비 (월 단위, 기간 비율 배분) ──
+    const mgmtMissing = !!mgmtRes.error
+    const mgmtRows = (mgmtRes.data ?? []) as {
+      month_key: string; cost_type: string | null; nature: string | null; amount: number; major: string | null
+    }[]
+    const fixedByMonth = new Map<string, number>()
+    const varByMonth = new Map<string, number>()
     const fixedByCat = new Map<string, number>()
-    for (const c of recurring) {
-      const label = c.costCategory?.name ?? c.description
-      fixedByCat.set(label, (fixedByCat.get(label) ?? 0) + Math.round(monthlyOf(c) * ratioSum))
+    const mgmtMonths = new Set<string>()
+    for (const r of mgmtRows) {
+      mgmtMonths.add(r.month_key)
+      if (r.nature !== '판관비') continue // 매출원가·영업외·세금·미분류는 별도 소스/보류
+      if (r.cost_type === '고정') {
+        fixedByMonth.set(r.month_key, (fixedByMonth.get(r.month_key) ?? 0) + r.amount)
+      } else if (r.cost_type === '변동') {
+        varByMonth.set(r.month_key, (varByMonth.get(r.month_key) ?? 0) + r.amount)
+      }
+    }
+    let fixed = 0
+    let expensesSum = 0
+    for (const m of months) {
+      fixed += Math.round((fixedByMonth.get(m.ym) ?? 0) * m.ratio)
+      expensesSum += Math.round((varByMonth.get(m.ym) ?? 0) * m.ratio)
+    }
+    // 고정비 분해 — 관리회계 대분류(major) 기준
+    const monthSet = new Set(months.filter((m) => m.ratio > 0).map((m) => m.ym))
+    for (const r of mgmtRows) {
+      if (r.nature !== '판관비' || r.cost_type !== '고정' || !monthSet.has(r.month_key)) continue
+      const label = r.major || '기타 고정비'
+      const ratio = months.find((m) => m.ym === r.month_key)?.ratio ?? 0
+      fixedByCat.set(label, (fixedByCat.get(label) ?? 0) + Math.round(r.amount * ratio))
     }
     const fixedBreakdown = [...fixedByCat.entries()]
       .map(([label, amount]) => ({ label, amount }))
       .filter((x) => x.amount > 0)
       .sort((a, b) => b.amount - a.amount)
+    // 관리회계 미업로드 월 (기간에 걸친 달 중 원장이 빈 달)
+    const mgmtMissingMonths = months.filter((m) => m.ratio > 0 && !mgmtMonths.has(m.ym)).map((m) => m.ym)
 
     // (구) MonthlyCost '해외' 월 등록액은 운임 인보이스 거래와 동일 금액이 이중 기록되어 제외
     // — 운임은 classifyPurchase 가 인보이스 거래에서 직접 집계 (2026-07-06 검증으로 확인)
@@ -160,7 +184,8 @@ export async function GET(req: NextRequest) {
       shipping: purchShipping, // 국내 배송 (해외운임은 freightCogs 로)
       fixed,
       fixedBreakdown,
-      monthlyFixed,
+      mgmtMissing,
+      mgmtMissingMonths,
       interest,
       interestMissing,
     })

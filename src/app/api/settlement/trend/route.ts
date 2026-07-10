@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
 
     const rangeStart = new Date(buckets[0].start + 'T00:00:00')
     const supabase = await createClient()
-    const [txs, recurring, loanRes, sold] = await Promise.all([
+    const [txs, mgmtRes, loanRes, sold] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           date: { gte: rangeStart, lte: now },
@@ -144,19 +144,22 @@ export async function GET(req: NextRequest) {
           items: { select: { productName: true } },
         },
       }),
-      prisma.recurringCost.findMany(),
+      // 고정비·변동비 = 관리회계 원장 (대표 결정 2026-07-10 — 구 RecurringCost 방식 파기)
+      supabase.from('mgmt_ledger').select('month_key, cost_type, nature, amount').eq('flow', 'out'),
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 날짜별 (버킷 배분용)
       computeSoldCogsByDate(rangeStart, now),
     ])
     const soldDates = [...sold.byDate.entries()] // [YYYY-MM-DD, {cogs,...}]
 
-    const monthlyFixed = recurring.reduce((s, c) => {
-      if (c.frequency === 'MONTHLY') return s + c.amount
-      if (c.frequency === 'QUARTERLY') return s + Math.round(c.amount / 3)
-      if (c.frequency === 'YEARLY') return s + Math.round(c.amount / 12)
-      return s
-    }, 0)
+    // 관리회계 월별 고정/변동 판관비
+    const fixedByMonth = new Map<string, number>()
+    const varByMonth = new Map<string, number>()
+    for (const r of (mgmtRes.data ?? []) as { month_key: string; cost_type: string | null; nature: string | null; amount: number }[]) {
+      if (r.nature !== '판관비') continue
+      if (r.cost_type === '고정') fixedByMonth.set(r.month_key, (fixedByMonth.get(r.month_key) ?? 0) + r.amount)
+      else if (r.cost_type === '변동') varByMonth.set(r.month_key, (varByMonth.get(r.month_key) ?? 0) + r.amount)
+    }
 
     // (구) MonthlyCost '해외' 월 등록액은 운임 인보이스 거래와 이중 기록 — 제외 (인보이스가 기준)
     const bucketMonths = buckets.map((b) =>
@@ -180,9 +183,9 @@ export async function GET(req: NextRequest) {
         if (d < b.start || d > b.end) continue
         if (t.type === 'SALE') sales += t.totalAmount
         else if (t.type === 'EXPENSE') {
+          // 일계표 경비는 해외운임 성격만 원가로 — 나머지는 관리회계 원장과 중복이라 제외
           const cls = classifyPurchase(t.description, t.items.map((i) => i.productName ?? ''))
           if (cls === 'cogs_freight') fabricCogs += t.totalAmount
-          else expenses += t.totalAmount
         } else if (t.type === 'PURCHASE') {
           const cls = classifyPurchase(t.description, t.items.map((i) => i.productName ?? ''))
           if (cls === 'cogs_freight') fabricCogs += t.totalAmount
@@ -197,9 +200,11 @@ export async function GET(req: NextRequest) {
       let fixed = 0
       let interest = 0
       for (const m of bucketMonths[bi]) {
-        fixed += monthlyFixed * m.ratio
+        fixed += (fixedByMonth.get(m.ym) ?? 0) * m.ratio
+        expenses += (varByMonth.get(m.ym) ?? 0) * m.ratio
         interest += (interestByMonth.get(m.ym) ?? 0) * m.ratio
       }
+      expenses = Math.round(expenses)
       return {
         key: b.key,
         label: b.label,

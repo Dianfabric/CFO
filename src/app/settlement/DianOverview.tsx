@@ -496,8 +496,8 @@ export default function DianOverview() {
             <ChainStrip chain={chain} />
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
               공급가 기준 · 총매출 = 일계표 + 색동 온라인 + 디안 쇼핑몰(÷1.1 환산, 원가 미연동) ·
-              매출원가 = 본체 원단 매입원가 + 색동 매입·기준단가 추정 · 변동비 =
-              본체 당일지출·해외운송비 + 색동 변동 판관비 · 고정비 = 월 등록액 기간 배분 ·
+              매출원가 = 본체 판매원가(단가표) + 운임·관세 + 색동 매입·기준단가 추정 · 변동비 =
+              관리회계 변동 판관비 + 국내 배송 + 색동 변동 · 고정비 = 관리회계 고정 판관비 ·
               순이익 = 영업이익 − 영업외비용(색동 등록분 + 대출이자) — 종소세·법인세 반영 전
               {range.weekMode && !range.isCurrentWeek && ' · 지난 주의 색동 온라인 매출은 월 매출 일할 배분 근사'}
               {chain.interestMissing && ' · ⚠ 대출 이자 미연동 (loan_payments SQL 실행 대기)'}
@@ -554,8 +554,9 @@ export default function DianOverview() {
               원가는 색동에서 관리) · 매출원가 = 판매수량×단가표(TMS) 원가 + 해외운임·관세
               {bodyPnl[bodySel.rangeKey]?.cogsCoverage != null &&
                 ` (단가표 매칭 ${bodyPnl[bodySel.rangeKey]!.cogsCoverage}%)`}{' '}
-              · 원단 매입 인보이스는 재고 취득으로 손익 미반영 · 변동비 = 당일지출 + 국내 배송 ·
-              고정비 = 비용 관리 등록액 기간 배분 · 순이익 = 영업이익 − 대출 이자 (종합소득세 반영 전)
+              · 원단 매입 인보이스는 재고 취득으로 손익 미반영 · 변동비 = 관리회계 변동 판관비 +
+              국내 배송 · 고정비 = 관리회계 고정 판관비 (월 시트 업로드 기준) · 순이익 = 영업이익 −
+              대출 이자 (종합소득세 반영 전)
             </p>
           </>
         )}
