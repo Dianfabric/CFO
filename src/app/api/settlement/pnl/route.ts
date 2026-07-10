@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
       // 고정비·변동비 = 관리회계 원장 (대표 결정 2026-07-10 — 구 RecurringCost 방식 파기)
       supabase
         .from('mgmt_ledger')
-        .select('month_key, cost_type, nature, amount, major')
+        .select('month_key, cost_type, nature, amount, major, source')
         .eq('flow', 'out')
         .in('month_key', months.map((m) => m.ym)),
       supabase.from('loan_payments').select('month_key, interest'),
@@ -120,15 +120,24 @@ export async function GET(req: NextRequest) {
     // ── 관리회계 원장 → 고정비·변동비 (월 단위, 기간 비율 배분) ──
     const mgmtMissing = !!mgmtRes.error
     const mgmtRows = (mgmtRes.data ?? []) as {
-      month_key: string; cost_type: string | null; nature: string | null; amount: number; major: string | null
+      month_key: string; cost_type: string | null; nature: string | null; amount: number
+      major: string | null; source: string
     }[]
+    // 정본 = '관리회계' 명세 시트(source='summary', 대표 결정 2026-07-10).
+    // nature: 판관비(고정/변동) 사용 · 영업외비용(대출이자) → 이자 · 법인/원금상환/운임은 제외
     const fixedByMonth = new Map<string, number>()
     const varByMonth = new Map<string, number>()
+    const sumInterestByMonth = new Map<string, number>()
     const fixedByCat = new Map<string, number>()
     const mgmtMonths = new Set<string>()
     for (const r of mgmtRows) {
+      if (r.source !== 'summary') continue
       mgmtMonths.add(r.month_key)
-      if (r.nature !== '판관비') continue // 매출원가·영업외·세금·미분류는 별도 소스/보류
+      if (r.nature === '영업외비용') {
+        sumInterestByMonth.set(r.month_key, (sumInterestByMonth.get(r.month_key) ?? 0) + r.amount)
+        continue
+      }
+      if (r.nature !== '판관비') continue
       if (r.cost_type === '고정') {
         fixedByMonth.set(r.month_key, (fixedByMonth.get(r.month_key) ?? 0) + r.amount)
       } else if (r.cost_type === '변동') {
@@ -144,7 +153,7 @@ export async function GET(req: NextRequest) {
     // 고정비 분해 — 관리회계 대분류(major) 기준
     const monthSet = new Set(months.filter((m) => m.ratio > 0).map((m) => m.ym))
     for (const r of mgmtRows) {
-      if (r.nature !== '판관비' || r.cost_type !== '고정' || !monthSet.has(r.month_key)) continue
+      if (r.source !== 'summary' || r.nature !== '판관비' || r.cost_type !== '고정' || !monthSet.has(r.month_key)) continue
       const label = r.major || '기타 고정비'
       const ratio = months.find((m) => m.ym === r.month_key)?.ratio ?? 0
       fixedByCat.set(label, (fixedByCat.get(label) ?? 0) + Math.round(r.amount * ratio))
@@ -159,15 +168,18 @@ export async function GET(req: NextRequest) {
     // (구) MonthlyCost '해외' 월 등록액은 운임 인보이스 거래와 동일 금액이 이중 기록되어 제외
     // — 운임은 classifyPurchase 가 인보이스 거래에서 직접 집계 (2026-07-06 검증으로 확인)
 
-    // 대출 이자 (영업외비용) — 월 자료를 기간 비례 배분
+    // 대출 이자 (영업외비용) — loan_payments 가 있는 달은 그 값, 없으면 관리회계 명세의 이자
     let interest = 0
     const interestMissing = !!loanRes.error
+    const loanByMonth = new Map<string, number>()
     if (!loanRes.error) {
-      const byMonth = new Map<string, number>()
       for (const row of loanRes.data ?? []) {
-        byMonth.set(row.month_key, (byMonth.get(row.month_key) ?? 0) + (row.interest ?? 0))
+        loanByMonth.set(row.month_key, (loanByMonth.get(row.month_key) ?? 0) + (row.interest ?? 0))
       }
-      for (const m of months) interest += Math.round((byMonth.get(m.ym) ?? 0) * m.ratio)
+    }
+    for (const m of months) {
+      const v = loanByMonth.has(m.ym) ? loanByMonth.get(m.ym)! : (sumInterestByMonth.get(m.ym) ?? 0)
+      interest += Math.round(v * m.ratio)
     }
 
     return NextResponse.json({

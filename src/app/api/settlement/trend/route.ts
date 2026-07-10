@@ -145,17 +145,23 @@ export async function GET(req: NextRequest) {
         },
       }),
       // 고정비·변동비 = 관리회계 원장 (대표 결정 2026-07-10 — 구 RecurringCost 방식 파기)
-      supabase.from('mgmt_ledger').select('month_key, cost_type, nature, amount').eq('flow', 'out'),
+      supabase.from('mgmt_ledger').select('month_key, cost_type, nature, amount, source').eq('flow', 'out'),
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 날짜별 (버킷 배분용)
       computeSoldCogsByDate(rangeStart, now),
     ])
     const soldDates = [...sold.byDate.entries()] // [YYYY-MM-DD, {cogs,...}]
 
-    // 관리회계 월별 고정/변동 판관비
+    // 관리회계 명세(source='summary') → 월별 고정/변동 판관비 + 이자 (대표 결정 2026-07-10)
     const fixedByMonth = new Map<string, number>()
     const varByMonth = new Map<string, number>()
-    for (const r of (mgmtRes.data ?? []) as { month_key: string; cost_type: string | null; nature: string | null; amount: number }[]) {
+    const sumInterestByMonth = new Map<string, number>()
+    for (const r of (mgmtRes.data ?? []) as { month_key: string; cost_type: string | null; nature: string | null; amount: number; source: string }[]) {
+      if (r.source !== 'summary') continue
+      if (r.nature === '영업외비용') {
+        sumInterestByMonth.set(r.month_key, (sumInterestByMonth.get(r.month_key) ?? 0) + r.amount)
+        continue
+      }
       if (r.nature !== '판관비') continue
       if (r.cost_type === '고정') fixedByMonth.set(r.month_key, (fixedByMonth.get(r.month_key) ?? 0) + r.amount)
       else if (r.cost_type === '변동') varByMonth.set(r.month_key, (varByMonth.get(r.month_key) ?? 0) + r.amount)
@@ -202,7 +208,9 @@ export async function GET(req: NextRequest) {
       for (const m of bucketMonths[bi]) {
         fixed += (fixedByMonth.get(m.ym) ?? 0) * m.ratio
         expenses += (varByMonth.get(m.ym) ?? 0) * m.ratio
-        interest += (interestByMonth.get(m.ym) ?? 0) * m.ratio
+        // 이자: loan_payments 가 있는 달은 그 값, 없으면 관리회계 명세의 이자
+        const iv = interestByMonth.has(m.ym) ? interestByMonth.get(m.ym)! : (sumInterestByMonth.get(m.ym) ?? 0)
+        interest += iv * m.ratio
       }
       expenses = Math.round(expenses)
       return {

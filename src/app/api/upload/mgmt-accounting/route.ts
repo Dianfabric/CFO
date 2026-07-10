@@ -12,7 +12,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 export const runtime = 'nodejs'
 
 interface LedgerRow {
-  source: 'card' | 'bank' | 'personal'
+  source: 'card' | 'bank' | 'personal' | 'summary'
   entry_date: string
   month_key: string
   vendor: string
@@ -142,12 +142,59 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── '관리회계' 명세 시트 (정본, 대표 결정 2026-07-10) ──
+    // 고정비 명세(임대료·급여·이자...) + 변동비 입력칸을 source='summary' 로 흡수.
+    // nature: 법인 몫 → '법인'(엔에이아이디 대기) / 대출이자 → '영업외비용' /
+    //         원금상환 → '원금상환'(손익 제외) / 변동 운임 → '운임'(인보이스 중복 제외) / 나머지 '판관비'
+    const summarySheet = sheet('관리회계')
+    const summaryMonths = new Set<string>()
+    let summaryFixed = 0
+    let summaryVar = 0
+    {
+      const fn = file.name.match(/20(\d{2})\s*-\s*0?(\d{1,2})/)
+      const fileMonth = fn ? `20${fn[1]}-${String(Number(fn[2])).padStart(2, '0')}` : null
+      for (const r of summarySheet) {
+        const type = str(r[2])
+        if (type !== '고정' && type !== '변동') continue
+        const vendor = str(r[1])
+        const amount = parseAmount(r[3])
+        if (!vendor || amount <= 0) continue
+        const rowDate = parseDate(r[0])
+        // 고정 명세는 '한번 입력 후 유지'라 날짜가 과거일 수 있음 → 파일명 월 우선
+        const month =
+          type === '고정'
+            ? (fileMonth ?? rowDate?.slice(0, 7) ?? new Date().toISOString().slice(0, 7))
+            : (rowDate?.slice(0, 7) ?? fileMonth ?? new Date().toISOString().slice(0, 7))
+        const category = str(r[4]) || null
+        const major = str(r[5]) || null
+        const isCorp = /법인/.test(vendor)
+        const isPrincipal = /원금상환/.test(vendor) || (category ?? '').includes('원금상환')
+        const isInterest = (category ?? '').includes('대출이자') || ((major ?? '').includes('금융') && /이자/.test(vendor))
+        const isFreight = type === '변동' && /운임|운송/.test(`${vendor} ${category ?? ''}`)
+        const nature = isCorp ? '법인' : isPrincipal ? '원금상환' : isInterest ? '영업외비용' : isFreight ? '운임' : '판관비'
+        push({
+          source: 'summary',
+          entry_date: type === '고정' ? `${month}-01` : (rowDate ?? `${month}-01`),
+          vendor, amount, flow: 'out',
+          category, major, cost_type: type, discretionary: null, nature,
+          card_name: null, memo: null,
+        })
+        summaryMonths.add(month)
+        if (type === '고정') summaryFixed += amount
+        else summaryVar += amount
+      }
+    }
+
     if (out.length === 0) {
       return NextResponse.json({ error: '관리회계 시트에서 데이터를 찾지 못했습니다' }, { status: 400 })
     }
 
     // ── 저장 — upsert(ignoreDuplicates) 로 재업로드 안전 + 신규만 카운트 ──
     const sb = createServiceClient()
+    // 명세(summary)는 금액이 매달 바뀌므로 해당 월을 교체(delete→insert)
+    if (summaryMonths.size > 0) {
+      await sb.from('mgmt_ledger').delete().eq('source', 'summary').in('month_key', [...summaryMonths])
+    }
     let created = 0
     for (let i = 0; i < out.length; i += 300) {
       const { data, error } = await sb
@@ -156,11 +203,14 @@ export async function POST(request: NextRequest) {
         .select('dedup_key')
       if (error) {
         const missing = /find the table|does not exist/i.test(error.message)
+        const checkFail = /check constraint/i.test(error.message)
         return NextResponse.json(
           {
             error: missing
               ? '관리회계 원장 테이블이 없습니다 — supabase/migrations/2026-07-03_mgmt_ledger.sql 을 실행해 주세요.'
-              : error.message,
+              : checkFail
+                ? "source 'summary' 미허용 — supabase/migrations/2026-07-10_mgmt_summary_source.sql 을 실행해 주세요."
+                : error.message,
             parsed: counts,
           },
           { status: 400 },
@@ -178,6 +228,7 @@ export async function POST(request: NextRequest) {
       card: counts.card,
       bank: counts.bank,
       personal: counts.personal,
+      summary: { months: [...summaryMonths].sort(), fixed: summaryFixed, variable: summaryVar },
       months,
     })
   } catch (error) {
