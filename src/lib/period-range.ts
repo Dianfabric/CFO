@@ -2,11 +2,11 @@
  * 기간 선택(과거 포함) 공용 유틸 — 손익 생키·경영 지표가 공유.
  * 디안 통합(경영 계기판)·색동 신사업에서 사용, 추후 엔에이아이디(법인)도 동일 적용.
  *
- * 주/월/분기는 올해(26년~) 안에서 지나간 기간을 선택할 수 있다:
- * 월 = 1~12 토글, 분기 = 1~4 토글, 주 = offset(0=이번 주, 1=지난 주 ...).
+ * 주/월/분기/반기는 올해(26년~) 안에서 지나간 기간을 선택할 수 있다:
+ * 월 = 1~12 토글, 분기 = 1~4 토글, 반기 = 상/하 토글, 주 = offset(0=이번 주, 1=지난 주 ...).
  */
 
-export type Period = 'week' | 'month' | 'quarter' | 'year'
+export type Period = 'week' | 'month' | 'quarter' | 'half' | 'year'
 
 export interface PeriodRange {
   start: string
@@ -28,8 +28,8 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-/** 기간 종류 + 과거 선택(월 1~12 / 분기 1~4 / 주 offset)을 실제 날짜 범위로 */
-export function rangeFor(period: Period, selMonth: number, selQuarter: number, weekOffset: number): PeriodRange {
+/** 기간 종류 + 과거 선택(월 1~12 / 분기 1~4 / 반기 1~2 / 주 offset)을 실제 날짜 범위로 */
+export function rangeFor(period: Period, selMonth: number, selQuarter: number, weekOffset: number, selHalf = 1): PeriodRange {
   const today = kstToday()
   const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))]
   const ymd = (d: Date) => d.toLocaleDateString('sv-SE')
@@ -58,6 +58,20 @@ export function rangeFor(period: Period, selMonth: number, selQuarter: number, w
     const endD = q === curQ ? now : new Date(y, qStart + 2, 0)
     const months = Array.from({ length: lastM - qStart + 1 }, (_, i) => ({ ym: `${y}-${pad2(qStart + i)}`, w: 1 }))
     return { start: `${y}-${pad2(qStart)}-01`, end: ymd(endD), label: `${q}분기`, months, weekMode: false, isCurrentWeek: false, weekOverlaps: [] }
+  }
+  if (period === 'half') {
+    const curH = m <= 6 ? 1 : 2
+    const h = Math.min(Math.max(1, selHalf), curH)
+    const hStart = h === 1 ? 1 : 7
+    const lastM = h === curH ? m : hStart + 5
+    const endD = h === curH ? now : new Date(y, hStart + 5, 0)
+    const months = Array.from({ length: lastM - hStart + 1 }, (_, i) => ({ ym: `${y}-${pad2(hStart + i)}`, w: 1 }))
+    return {
+      start: `${y}-${pad2(hStart)}-01`,
+      end: ymd(endD),
+      label: h === 1 ? '상반기' : '하반기',
+      months, weekMode: false, isCurrentWeek: false, weekOverlaps: [],
+    }
   }
   // 주 — weekOffset 0 = 이번 주, 1 = 지난 주 ...
   const dow = now.getDay()

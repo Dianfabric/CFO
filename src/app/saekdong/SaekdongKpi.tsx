@@ -31,6 +31,7 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'week', label: '주' },
   { key: 'month', label: '월' },
   { key: 'quarter', label: '분기' },
+  { key: 'half', label: '반기' },
   { key: 'year', label: '년' },
 ]
 
@@ -53,13 +54,15 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
   // 과거 기간 선택 (26년 내) — 월 1~12 / 분기 1~4 / 주 offset(0=이번 주)
   const nowM = Number(kstToday().slice(5, 7))
   const curQ = Math.floor((nowM - 1) / 3) + 1
+  const curH = nowM <= 6 ? 1 : 2
   const [selMonth, setSelMonth] = useState(nowM)
   const [selQuarter, setSelQuarter] = useState(curQ)
+  const [selHalf, setSelHalf] = useState(curH)
   const [weekOffset, setWeekOffset] = useState(0)
 
   const range = useMemo(
-    () => rangeFor(period, selMonth, selQuarter, weekOffset),
-    [period, selMonth, selQuarter, weekOffset],
+    () => rangeFor(period, selMonth, selQuarter, weekOffset, selHalf),
+    [period, selMonth, selQuarter, weekOffset, selHalf],
   )
 
   const fetchAll = useCallback(async () => {
@@ -234,6 +237,27 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
                   }}
                 >
                   {q}분기
+                </button>
+              )
+            })}
+          {period === 'half' &&
+            [1, 2].map((h) => {
+              const active = Math.min(selHalf, curH) === h
+              return (
+                <button
+                  key={h}
+                  type="button"
+                  disabled={h > curH}
+                  onClick={() => setSelHalf(h)}
+                  className="h-7 px-3 text-[11px] font-bold transition-colors disabled:opacity-25"
+                  style={{
+                    border: '1px solid var(--nv-hairline, #e2e8f0)',
+                    borderRadius: '2px',
+                    backgroundColor: active ? '#000' : 'white',
+                    color: active ? '#fff' : '#64748b',
+                  }}
+                >
+                  {h === 1 ? '상반기 (1~6월)' : '하반기 (7~12월)'}
                 </button>
               )
             })}

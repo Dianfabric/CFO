@@ -1,8 +1,9 @@
 /**
- * GET /api/settlement/trend?unit=month|week|year
+ * GET /api/settlement/trend?unit=month|week|quarter|half|year
  *
  * 본체(일계표) 기간별 손익 추이 — 경영 그래프용 버킷 집계.
- * - month: 최근 12개월 · week: 최근 12주(월~일) · year: 데이터 시작 연도~올해
+ * - month: 최근 12개월 · week: 최근 12주(월~일) · quarter: 최근 8분기 ·
+ *   half: 최근 6반기 · year: 데이터 시작 연도~올해
  * - 버킷마다: sales(잔액 보정 제외) / fabricCogs / expenses / shipping /
  *   fixed(영업일 배분) / interest(대출 이자)
  * 색동·디안몰 매출 합성은 클라이언트에서 (아임웹 공유 캐시 재사용).
@@ -75,7 +76,7 @@ interface Bucket {
 
 export async function GET(req: NextRequest) {
   try {
-    const unit = (req.nextUrl.searchParams.get('unit') ?? 'month') as 'month' | 'week' | 'year'
+    const unit = (req.nextUrl.searchParams.get('unit') ?? 'month') as 'month' | 'week' | 'quarter' | 'half' | 'year'
     const now = new Date()
     now.setHours(23, 59, 59, 999)
     const today = new Date()
@@ -110,6 +111,38 @@ export async function GET(req: NextRequest) {
         buckets.push({
           key: String(y),
           label: `${y}년`,
+          start: ymd(s),
+          end: ymd(e > today ? today : e),
+        })
+      }
+    } else if (unit === 'quarter') {
+      // 최근 8분기
+      const curQ = Math.floor(today.getMonth() / 3) // 0-based
+      for (let i = 7; i >= 0; i--) {
+        const qIdx = curQ - i
+        const y = today.getFullYear() + Math.floor(qIdx / 4)
+        const q = ((qIdx % 4) + 4) % 4 // 0~3
+        const s = new Date(y, q * 3, 1)
+        const e = new Date(y, q * 3 + 3, 0)
+        buckets.push({
+          key: `${y}-Q${q + 1}`,
+          label: `${String(y).slice(2)}.${q + 1}Q`,
+          start: ymd(s),
+          end: ymd(e > today ? today : e),
+        })
+      }
+    } else if (unit === 'half') {
+      // 최근 6반기 (3년)
+      const curH = today.getMonth() < 6 ? 0 : 1 // 0=상, 1=하
+      for (let i = 5; i >= 0; i--) {
+        const hIdx = curH - i
+        const y = today.getFullYear() + Math.floor(hIdx / 2)
+        const h = ((hIdx % 2) + 2) % 2 // 0=상, 1=하
+        const s = new Date(y, h * 6, 1)
+        const e = new Date(y, h * 6 + 6, 0)
+        buckets.push({
+          key: `${y}-H${h + 1}`,
+          label: `${String(y).slice(2)}.${h === 0 ? '상' : '하'}`,
           start: ymd(s),
           end: ymd(e > today ? today : e),
         })

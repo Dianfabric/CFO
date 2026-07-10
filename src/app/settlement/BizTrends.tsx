@@ -25,7 +25,7 @@ const LIVE_FROM = 2026 // 이 해부터 시스템 실시간 — 이전은 관리
 
 const box: React.CSSProperties = { border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }
 
-type Unit = 'week' | 'month' | 'year'
+type Unit = 'week' | 'month' | 'quarter' | 'half' | 'year'
 type Entity = 'total' | 'body' | 'naid'
 
 interface TrendBucket {
@@ -63,6 +63,8 @@ interface MagamData {
 const UNITS: { key: Unit; label: string }[] = [
   { key: 'week', label: '주별' },
   { key: 'month', label: '월별' },
+  { key: 'quarter', label: '분기별' },
+  { key: 'half', label: '반기별' },
   { key: 'year', label: '년도별' },
 ]
 const ENTITIES: { key: Entity; label: string }[] = [
@@ -262,6 +264,28 @@ export default function BizTrends() {
       }))
       const sys = chartData.filter((row) => Number(row.key) >= LIVE_FROM)
       return [...arch, ...sys]
+    }
+    if (unit === 'quarter' || unit === 'half') {
+      // 26년 이전 버킷은 관리 장부 월별 합으로 백필 (버킷 키 '2025-Q3' / '2025-H2')
+      return chartData.map((row) => {
+        const y = Number(row.key.slice(0, 4))
+        if (y >= LIVE_FROM) return row
+        const n = Number(row.key.slice(6)) // Q1~4 / H1~2
+        const startM = unit === 'quarter' ? (n - 1) * 3 + 1 : (n - 1) * 6 + 1
+        const len = unit === 'quarter' ? 3 : 6
+        let sales = 0
+        let spend = 0
+        let found = false
+        for (let i = 0; i < len; i++) {
+          const h = archByYm.get(`${y}-${String(startM + i).padStart(2, '0')}`)
+          if (!h) continue
+          found = true
+          sales += h.sales
+          spend += h.purchase + h.expense
+        }
+        if (!found) return row
+        return { ...row, 매출: sales, 지출: spend, 이익: sales - spend }
+      })
     }
     return chartData // 주별은 26년 시스템 데이터부터
   }, [chartData, unit, entity])
