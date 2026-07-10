@@ -109,9 +109,19 @@ function bucketRevenue(map: Map<string, number>, overlaps: ReturnType<typeof mon
   return Math.round(overlaps.reduce((s, o) => s + (map.get(o.ym) ?? 0) * (o.days / o.daysInMonth), 0))
 }
 
+const SERIES: { key: '매출' | '지출' | '이익'; color: string; kind: 'bar' | 'line' }[] = [
+  { key: '매출', color: '#76b900', kind: 'bar' },
+  { key: '지출', color: '#f87171', kind: 'bar' },
+  { key: '이익', color: '#0f172a', kind: 'line' },
+]
+
 export default function BizTrends() {
   const [unit, setUnit] = useState<Unit>('month')
   const [entity, setEntity] = useState<Entity>('total')
+  // 시리즈 켜고 끄기 — 기본 3개 모두 표시 (끄면 남은 시리즈 기준으로 축이 다시 잡힘)
+  const [seriesOn, setSeriesOn] = useState<Record<'매출' | '지출' | '이익', boolean>>({
+    매출: true, 지출: true, 이익: true,
+  })
   const [trends, setTrends] = useState<Partial<Record<Unit, TrendBucket[]>>>({})
   const [saekOn, setSaekOn] = useState<SeriesData | null>(null)
   const [saekOff, setSaekOff] = useState<SeriesData | null>(null)
@@ -365,26 +375,63 @@ export default function BizTrends() {
             추이 불러오는 중...
           </div>
         ) : (
-          <div className="h-72 -ml-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={finalData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#999' }} />
-                <YAxis
-                  tick={{ fontSize: 10, fill: '#999' }}
-                  tickFormatter={(v: number) =>
-                    Math.abs(v) >= 100000000 ? `${(v / 100000000).toFixed(1)}억` : Math.abs(v) >= 10000 ? `${Math.round(v / 10000).toLocaleString()}만` : `${v}`
-                  }
-                  width={52}
-                />
-                <Tooltip formatter={(v) => formatKRW(Number(v))} labelStyle={{ fontSize: 11 }} contentStyle={{ fontSize: 12, borderRadius: 2 }} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="매출" fill="#76b900" radius={[2, 2, 0, 0]} />
-                <Bar dataKey="지출" fill="#f87171" radius={[2, 2, 0, 0]} />
-                <Line type="monotone" dataKey="이익" stroke="#0f172a" strokeWidth={2} dot={{ r: 2.5 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+          <>
+            {/* 시리즈 켜기/끄기 — 끄면 남은 시리즈 기준으로 축이 다시 잡힘 */}
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+              {SERIES.map((s) => {
+                const on = seriesOn[s.key]
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setSeriesOn((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
+                    className="h-7 px-2.5 inline-flex items-center gap-1.5 text-[11px] font-bold transition-all"
+                    style={{
+                      border: `1px solid ${on ? s.color : 'var(--nv-hairline, #e2e8f0)'}`,
+                      borderRadius: '2px',
+                      backgroundColor: on ? `${s.color}14` : 'white',
+                      color: on ? (s.key === '이익' ? '#0f172a' : s.color) : '#cbd5e1',
+                    }}
+                    aria-pressed={on}
+                  >
+                    <span
+                      className="inline-block"
+                      style={{
+                        width: 10,
+                        height: s.kind === 'line' ? 2.5 : 10,
+                        borderRadius: s.kind === 'line' ? 1 : 2,
+                        backgroundColor: on ? s.color : '#cbd5e1',
+                      }}
+                    />
+                    {s.key}
+                  </button>
+                )
+              })}
+              {!seriesOn.매출 && !seriesOn.지출 && !seriesOn.이익 && (
+                <span className="text-[11px] text-slate-400">— 모두 꺼짐 · 버튼을 눌러 다시 켜세요</span>
+              )}
+            </div>
+            <div className="h-72 -ml-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={finalData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#999' }} />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: '#999' }}
+                    tickFormatter={(v: number) =>
+                      Math.abs(v) >= 100000000 ? `${(v / 100000000).toFixed(1)}억` : Math.abs(v) >= 10000 ? `${Math.round(v / 10000).toLocaleString()}만` : `${v}`
+                    }
+                    width={52}
+                  />
+                  <Tooltip formatter={(v) => formatKRW(Number(v))} labelStyle={{ fontSize: 11 }} contentStyle={{ fontSize: 12, borderRadius: 2 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {seriesOn.매출 && <Bar dataKey="매출" fill="#76b900" radius={[2, 2, 0, 0]} />}
+                  {seriesOn.지출 && <Bar dataKey="지출" fill="#f87171" radius={[2, 2, 0, 0]} />}
+                  {seriesOn.이익 && <Line type="monotone" dataKey="이익" stroke="#0f172a" strokeWidth={2} dot={{ r: 2.5 }} />}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </>
         )}
         <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
           공급가 기준 · 지출 = 매출원가 + 변동비 + 고정비(월 등록액 배분) + 대출이자 · 이익 = 매출 − 지출 (세금 반영 전)
