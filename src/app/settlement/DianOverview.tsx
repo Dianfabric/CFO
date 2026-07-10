@@ -463,7 +463,7 @@ export default function DianOverview() {
       bep, bepRate,
       breakdowns: {
         cogs: [{ label: '법인 매입(세금계산서)', amount: cogs }],
-        fixed: [{ label: '법인 운영비(임대·급여·4대보험)', amount: fixed }],
+        fixed: [{ label: '법인 운영비', amount: fixed }],
         nonOp: [{ label: '법인 대출이자', amount: nonOp }],
       },
     }

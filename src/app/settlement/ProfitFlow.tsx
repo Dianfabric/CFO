@@ -59,7 +59,8 @@ const NODE_W = 12
 const FLOW_TOP = 64
 const MAX_H = 160
 const COST_Y = 258
-const COST_MAX_H = 56
+const COST_MAX_H = 64
+const COST_W = 22 // 비용 막대 폭 — 분할 세그먼트가 보이도록 메인 노드보다 넓게
 
 /** 두 세로 구간을 잇는 부드러운 밴드 */
 function band(x0: number, y0a: number, y0b: number, x1: number, y1a: number, y1b: number): string {
@@ -93,7 +94,7 @@ export default function ProfitFlow(p: Props) {
   const hasBreakdown = (['cogs', 'variable', 'fixed', 'nonOp'] as const).some((k) =>
     (p.breakdowns?.[k] ?? []).some((it) => it.amount > 0),
   )
-  const vbH = hasBreakdown ? 458 : 352
+  const vbH = hasBreakdown ? 448 : 352
 
   // 비용 막대 분할 색 — 큰 항목부터 진한 빨강 → 연한 빨강, 마지막은 '기타'
   const SEG_COLORS = ['#dc2626', '#ef4444', '#f87171', '#fca5a5', '#fecaca']
@@ -178,11 +179,12 @@ export default function ProfitFlow(p: Props) {
               {/* 비용 분기 밴드 + 비용 바 */}
               {next && costs[i].v > 0 && (() => {
                 const c = costs[i]
-                const costX = COL_X[i + 1] - 60
-                const cx2 = costX + NODE_W / 2
-                const ch = Math.max(4, Math.min(COST_MAX_H, Math.round(c.v * unit)))
+                const costX = COL_X[i + 1] - 72
+                const cx2 = costX + COST_W / 2
+                // 비용 막대는 갈라짐이 보이도록 확대 스케일 (최소 28px 보장)
+                const ch = Math.max(28, Math.min(COST_MAX_H, Math.round(c.v * unit * 1.5)))
                 const splitTop = FLOW_TOP + Math.min(mh[i + 1], mh[i] - 2)
-                // 세부 구성 — 상위 4개 + 나머지 '기타' (막대 분할 + 색상 칩 범례가 1:1 대응)
+                // 세부 구성 — 상위 4개 + 나머지 '기타'
                 const items = (p.breakdowns?.[c.key] ?? [])
                   .filter((it) => it.amount > 0)
                   .sort((a, b) => b.amount - a.amount)
@@ -197,50 +199,70 @@ export default function ProfitFlow(p: Props) {
                     : []),
                 ]
                 const segTotal = segs.reduce((s, it) => s + it.amount, 0)
-                // 막대를 구성비례로 분할 — 뚜쥬루식 '어디에 얼마 쓰는지' 시각화
+                // 뚜쥬루식 — 막대를 구성비례로 가르고, 각 조각 옆에 품목·숫자를 리더선으로 연결
                 let segY = COST_Y
-                const segRects = segs.length > 1
-                  ? segs.map((sg) => {
-                      const h = Math.max(1, (sg.amount / segTotal) * ch)
-                      const r = { ...sg, y: segY, h }
-                      segY += h
-                      return r
-                    })
-                  : []
+                const segRects = segs.map((sg) => {
+                  const h = Math.max(2, (sg.amount / segTotal) * ch)
+                  const r = { ...sg, y: segY, h }
+                  segY += h
+                  return r
+                })
+                // 라벨 y 좌표 — 조각 중심 기준, 겹치면 13px 간격으로 아래로 밀기
+                const LABEL_GAP = 13
+                let prevY = COST_Y - LABEL_GAP
+                const labelY = segRects.map((sg) => {
+                  const yy = Math.max(sg.y + sg.h / 2, prevY + LABEL_GAP)
+                  prevY = yy
+                  return yy
+                })
+                const stackBottom = Math.max(COST_Y + ch, labelY[labelY.length - 1] ?? COST_Y + ch)
+                const multi = segs.length > 1
                 return (
                   <>
                     <path
                       d={band(x + NODE_W, splitTop, FLOW_TOP + mh[i], costX, COST_Y, COST_Y + ch)}
                       fill="rgba(239,68,68,0.18)"
                     />
-                    {segRects.length > 1 ? (
+                    {multi ? (
                       segRects.map((sg) => (
-                        <rect key={sg.label} x={costX} y={sg.y} width={NODE_W} height={sg.h} fill={sg.color} />
+                        <rect
+                          key={sg.label}
+                          x={costX} y={sg.y} width={COST_W} height={sg.h}
+                          fill={sg.color} stroke="#fff" strokeWidth="0.8"
+                        />
                       ))
                     ) : (
-                      <rect x={costX} y={COST_Y} width={NODE_W} height={ch} fill="#ef4444" rx="1.5" />
+                      <rect x={costX} y={COST_Y} width={COST_W} height={ch} fill="#ef4444" rx="1.5" />
                     )}
-                    <text x={cx2} y={COST_Y + ch + 18} textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748b">
+                    {/* 조각 → 품목·숫자 리더선 라벨 (막대 오른쪽) */}
+                    {segRects.map((sg, k) => (
+                      <g key={`lb-${sg.label}`}>
+                        <path
+                          d={`M${costX + COST_W},${sg.y + sg.h / 2} C${costX + COST_W + 7},${sg.y + sg.h / 2} ${costX + COST_W + 7},${labelY[k]} ${costX + COST_W + 13},${labelY[k]}`}
+                          fill="none" stroke={multi ? sg.color : '#ef4444'} strokeWidth="1.2"
+                        />
+                        <text
+                          x={costX + COST_W + 17} y={labelY[k] + 3.2}
+                          fontSize="9.5" fill="#64748b"
+                          style={{ fontVariantNumeric: 'tabular-nums' }}
+                        >
+                          {sg.label} <tspan fontWeight="800" fill="#334155">{compactKRW(sg.amount)}</tspan>
+                          {multi && (
+                            <tspan fill="#b91c1c" fontWeight="700"> {segTotal > 0 ? Math.round((sg.amount / segTotal) * 100) : 0}%</tspan>
+                          )}
+                        </text>
+                      </g>
+                    ))}
+                    {/* 총액 헤더 — 막대·라벨 스택 아래 */}
+                    <text x={cx2} y={stackBottom + 20} textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748b">
                       (−) {c.label}
                     </text>
-                    <text x={cx2} y={COST_Y + ch + 34} textAnchor="middle" fontSize="13" fontWeight="700" fill="#b91c1c" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    <text x={cx2} y={stackBottom + 36} textAnchor="middle" fontSize="13" fontWeight="700" fill="#b91c1c" style={{ fontVariantNumeric: 'tabular-nums' }}>
                       {formatKRW(c.v)}
                     </text>
-                    <text x={cx2} y={COST_Y + ch + 48} textAnchor="middle" fontSize="10" fill="#94a3b8">
+                    <text x={cx2} y={stackBottom + 50} textAnchor="middle" fontSize="10" fill="#94a3b8">
                       {c.rateName} {rate(c.v).toFixed(1)}%
                     </text>
-                    {segs.map((sg, k) => (
-                      <text
-                        key={sg.label}
-                        x={cx2} y={COST_Y + ch + 63 + k * 13}
-                        textAnchor="middle" fontSize="9.5" fill="#94a3b8"
-                        style={{ fontVariantNumeric: 'tabular-nums' }}
-                      >
-                        <tspan fill={segs.length > 1 ? sg.color : '#94a3b8'} fontWeight="800">▪ </tspan>
-                        {sg.label} <tspan fontWeight="700" fill="#64748b">{compactKRW(sg.amount)}</tspan>
-                        <tspan fill="#cbd5e1"> {segTotal > 0 ? Math.round((sg.amount / segTotal) * 100) : 0}%</tspan>
-                      </text>
-                    ))}
                   </>
                 )
               })()}
