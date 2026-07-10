@@ -26,7 +26,7 @@ const LIVE_FROM = 2026 // 이 해부터 시스템 실시간 — 이전은 관리
 const box: React.CSSProperties = { border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }
 
 type Unit = 'week' | 'month' | 'quarter' | 'half' | 'year'
-type Entity = 'total' | 'body' | 'naid'
+type Entity = 'total' | 'body' | 'saek' | 'naid'
 
 interface TrendBucket {
   key: string
@@ -70,6 +70,7 @@ const UNITS: { key: Unit; label: string }[] = [
 const ENTITIES: { key: Entity; label: string }[] = [
   { key: 'total', label: '통합 (본체+색동)' },
   { key: 'body', label: '디안 본체' },
+  { key: 'saek', label: '색동공장' },
   { key: 'naid', label: '엔에이아이디 (법인)' },
 ]
 
@@ -229,6 +230,9 @@ export default function BizTrends() {
       } else if (entity === 'body') {
         rev = b.sales - saekOffline + shopSupply
         spend = bodySpend
+      } else if (entity === 'saek') {
+        rev = saekOnSupply + saekOffline // 색동 온라인(공급가) + 오프라인
+        spend = saekSpend // 매입 + 기준단가 추정 원가 + 판관비 + 영업외
       } else if (entity === 'naid') {
         rev = b.naidSales ?? 0 // 법인 매출 (세금계산서)
         spend = (b.naidCost ?? 0) + (b.naidCogs ?? 0) // 운영비+이자+매입
@@ -240,7 +244,7 @@ export default function BizTrends() {
   // ── 26년 이전 관리 장부 백필 (통합·본체 공통 — 당시엔 색동·법인 없음) ──
   const finalData = useMemo(() => {
     if (!chartData) return null
-    if (entity === 'naid') return chartData
+    if (entity === 'naid' || entity === 'saek') return chartData // 색동·법인은 26년부터 — 백필 없음
     const archByYm = new Map(HISTORY_SALES.map((h) => [h.ym, h]))
     if (unit === 'month') {
       return chartData.map((row) => {
