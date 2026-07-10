@@ -34,16 +34,6 @@ function normName(s: string): string {
   return String(s || '').replace(/\[[^\]]*\]/g, '').toLowerCase().replace(/\s+/g, '')
 }
 
-/** 확정월(전월) 범위 — KST */
-function prevMonthRange(): { key: string; start: string; end: string } {
-  const today = kstToday()
-  const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))]
-  const first = new Date(y, m - 2, 1) // 전월 1일
-  const last = new Date(y, m - 1, 0) // 전월 말일
-  const ymd = (d: Date) => d.toLocaleDateString('sv-SE')
-  return { key: ymd(first).slice(0, 7), start: ymd(first), end: ymd(last) }
-}
-
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'week', label: '주' },
   { key: 'month', label: '월' },
@@ -73,44 +63,6 @@ interface BodyPnl {
   error?: string
 }
 
-// 카운트업
-function useCountUp(target: number, durationMs = 1400): number {
-  const [val, setVal] = useState(0)
-  const raf = useRef<number>(0)
-  useEffect(() => {
-    const start = performance.now()
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / durationMs)
-      setVal(target * (1 - Math.pow(1 - t, 3)))
-      if (t < 1) raf.current = requestAnimationFrame(tick)
-    }
-    raf.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf.current)
-  }, [target, durationMs])
-  return val
-}
-
-function Sparkline({ values, width = 130, height = 36 }: { values: number[]; width?: number; height?: number }) {
-  if (values.length < 2) return null
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const pts = values.map((v, i) => ({
-    x: (i / (values.length - 1)) * (width - 4) + 2,
-    y: height - 4 - ((v - min) / range) * (height - 10),
-  }))
-  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-  const area = `${d} L${pts[pts.length - 1].x.toFixed(1)},${height} L${pts[0].x.toFixed(1)},${height} Z`
-  const last = pts[pts.length - 1]
-  return (
-    <svg width={width} height={height} className="overflow-visible">
-      <path d={area} fill="#76b900" opacity={0.14} className="ov-fade" />
-      <path d={d} fill="none" stroke="#76b900" strokeWidth="1.8" strokeLinecap="round" pathLength={100} className="ov-draw" />
-      <circle cx={last.x} cy={last.y} r="2.6" fill="#76b900" className="ov-dot" />
-    </svg>
-  )
-}
-
 /** 기간 선택 상태 묶음 — 블록마다 독립 선택 (통합·본체·추후 법인) */
 function usePeriodSel() {
   const nowM = Number(kstToday().slice(5, 7))
@@ -138,18 +90,16 @@ export default function DianOverview() {
   const { period, range, rangeKey } = main
   const bodySel = usePeriodSel() // 본체 블록 독립 선택
   const naidSel = usePeriodSel() // 법인(엔에이아이디) 블록 독립 선택
-  const [dian, setDian] = useState<SeriesData | null>(null)
+  const shareSel = usePeriodSel() // 매출 비중 도넛 독립 선택 (주 제외)
   const [saekOn, setSaekOn] = useState<SeriesData | null>(null)
   const [saekOff, setSaekOff] = useState<SeriesData | null>(null)
   const [dianShop, setDianShop] = useState<SeriesData | null>(null) // 디안 원단몰 — 본체 매출에 편입
-  const [bodyOpPrev, setBodyOpPrev] = useState<number | null>(null) // 본체 확정월 영업이익
   const [saekCosts, setSaekCosts] = useState<{
     purchases: SaekdongPurchase[]
     expenses: SaekdongExpense[]
     itemCosts: SaekdongItemCost[]
   } | null>(null)
   const [bodyPnl, setBodyPnl] = useState<Record<string, BodyPnl>>({})
-  const [pulsePnl, setPulsePnl] = useState<BodyPnl | null>(null) // 확정월(전월) 본체 손익 재료
   const [loading, setLoading] = useState(true)
 
   // 기간(과거 포함) 변경 시 본체 손익 재료 조회 (범위별 1회 캐시 — 통합·본체 선택기 공유)
@@ -177,36 +127,24 @@ export default function DianOverview() {
   useEffect(() => {
     fetchPnlFor(naidSel.rangeKey, naidSel.range.start, naidSel.range.end)
   }, [naidSel.rangeKey, naidSel.range.start, naidSel.range.end, fetchPnlFor])
+  useEffect(() => {
+    fetchPnlFor(shareSel.rangeKey, shareSel.range.start, shareSel.range.end)
+  }, [shareSel.rangeKey, shareSel.range.start, shareSel.range.end, fetchPnlFor])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const pm = prevMonthRange()
-      const [d, s, o, st, sc, pp, ds] = await Promise.all([
-        fetch('/api/settlement/monthly').then((r) => r.json()),
+      const [s, o, sc, ds] = await Promise.all([
         fetchSharedSales<SeriesData>().catch(() => null),
         fetchSharedOffline<SeriesData>().catch(() => null),
-        // 확정월 본체 영업이익 (결산 API — 매입원가·비용·고정비 반영)
-        fetch(`/api/settlement/daily?startDate=${pm.start}&endDate=${pm.end}`)
-          .then((r) => r.json())
-          .catch(() => null),
         listSaekdongCosts().catch(() => null),
-        // 확정월 본체 비용 구조 (PULSE 비용 표시용)
-        fetch(`/api/settlement/pnl?start=${pm.start}&end=${pm.end}`)
-          .then((r) => r.json())
-          .catch(() => null),
         // 디안 원단몰 (아임웹 2호점) — 본체 매출에 편입
         fetchSharedDianShop<SeriesData>().catch(() => null),
       ])
-      setDian(d)
       setSaekOn(s)
       setSaekOff(o)
       setDianShop(ds)
-      setBodyOpPrev(
-        st && typeof st.dailyOperatingProfit === 'number' ? st.dailyOperatingProfit : null,
-      )
       if (sc) setSaekCosts({ purchases: sc.purchases, expenses: sc.expenses, itemCosts: sc.itemCosts })
-      if (pp && !pp.error) setPulsePnl(pp as BodyPnl)
     } catch {
       // 부가 표시 — 실패 시 0
     } finally {
@@ -216,109 +154,18 @@ export default function DianOverview() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const m = useMemo(() => {
-    // 기간 매출 (공급가 기준) — 본체는 DB 집계(pnl) 우선, 없으면 월 시계열
-    const bodyForRange = bodyPnl[rangeKey]
-    const dianBody = bodyForRange ? bodyForRange.sales : seriesRevenue(dian, range) // 일계표 전체 (색동 오프라인 포함)
-    const saekOnline = Math.round(seriesRevenue(saekOn, range) / 1.1)
-    const saekOffline = seriesRevenue(saekOff, range)
-    const shopSupply = Math.round(seriesRevenue(dianShop, range) / 1.1) // 디안 원단몰 — 본체 소속
-    const naidSales = bodyForRange?.naid?.sales ?? 0 // 법인 매출 (세금계산서)
-    const total = dianBody + saekOnline + shopSupply + naidSales // 색동 오프라인은 dianBody 에 포함 — 이중계상 방지
-    const saekTotal = saekOnline + saekOffline
-    const dianFabric = dianBody - saekOffline + shopSupply
-
-    // 12개월 통합 시계열 (본체 + 색동 온라인 + 디안몰 공급가)
-    const onMap = new Map((saekOn?.monthly ?? []).map((x) => [x.month, x.revenue]))
-    const shopMap = new Map((dianShop?.monthly ?? []).map((x) => [x.month, x.revenue]))
-    const series = (dian?.monthly ?? []).map(
-      (x) =>
-        x.revenue +
-        Math.round((onMap.get(x.month) ?? 0) / 1.1) +
-        Math.round((shopMap.get(x.month) ?? 0) / 1.1),
-    )
-    const months = (dian?.monthly ?? []).map((x) => x.month)
-
-    // 마지막 완료월 성장률 (진행 중인 달 제외)
-    const nowMonth = kstToday().slice(0, 7)
-    let lastIdx = months.length - 1
-    if (months[lastIdx] === nowMonth) lastIdx -= 1
-    const lastRev = lastIdx >= 0 ? series[lastIdx] : 0
-    const prevRev = lastIdx - 1 >= 0 ? series[lastIdx - 1] : 0
-    const growth = prevRev > 0 ? ((lastRev - prevRev) / prevRev) * 100 : null
-    const lastLabel = lastIdx >= 0 ? `${Number(months[lastIdx].slice(5))}월` : '—'
-    // 마지막 완료월 색동 비중
-    const lastSaekOn = lastIdx >= 0 ? Math.round((onMap.get(months[lastIdx]) ?? 0) / 1.1) : 0
-    const offMap = new Map((saekOff?.monthly ?? []).map((x) => [x.month, x.revenue]))
-    const lastSaekOff = lastIdx >= 0 ? (offMap.get(months[lastIdx]) ?? 0) : 0
-    const saekShare = lastRev > 0 ? ((lastSaekOn + lastSaekOff) / lastRev) * 100 : null
-
-    // ── 확정월 색동 비용 (매출원가·변동·고정) — 통합 영업이익과 PULSE 비용 구조가 공유 ──
-    let saekPm = { cogs: 0, variable: 0, fixed: 0 }
-    if (lastIdx >= 0 && saekCosts) {
-      const pmKey = months[lastIdx]
-      const exps = saekCosts.expenses
-      const monthlyActive = (e: SaekdongExpense) =>
-        (!e.start_month || e.start_month <= pmKey) && (!e.end_month || e.end_month >= pmKey)
-      const expSum = (filter: (e: SaekdongExpense) => boolean) =>
-        exps.reduce(
-          (s, e) =>
-            s +
-            (e.is_monthly
-              ? monthlyActive(e) && filter(e) ? e.amount : 0
-              : (e.expense_date ?? '').startsWith(pmKey) && filter(e) ? e.amount : 0),
-          0,
-        )
-      // 색동 매출원가: 확정월 매입 + 성격=매출원가 비용 + 기준단가 추정(올해 원가율 × 확정월 온라인)
-      const purch = saekCosts.purchases
-        .filter((p) => p.purchase_date.startsWith(pmKey))
-        .reduce((s, p) => s + p.amount, 0)
-      const purchasedKeys = new Set(saekCosts.purchases.map((p) => normName(p.item_name)))
-      const stdMap = new Map(saekCosts.itemCosts.map((c) => [normName(c.item_name), c.unit_cost]))
-      let yearStdCogs = 0
-      for (const pr of saekOn?.products ?? []) {
-        const k = normName(pr.prodName)
-        if (purchasedKeys.has(k)) continue
-        const uc = stdMap.get(k)
-        if (uc != null) yearStdCogs += uc * pr.qty
-      }
-      const yearOnlineSupply = Math.round((saekOn?.thisYear ?? 0) / 1.1)
-      const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
-      saekPm = {
-        cogs: purch + expSum((e) => e.nature === '매출원가') + Math.round(lastSaekOn * stdRate),
-        variable: expSum((e) => e.cost_type === 'variable' && e.nature === '판관비'),
-        fixed: expSum((e) => e.cost_type === 'fixed' && e.nature === '판관비'),
-      }
-    }
-
-    // ── 확정월 통합 영업이익 (근사) ──
-    // = 본체 영업이익(결산 API) + 색동 영업이익 − 색동 오프라인 매출(이중계상 제거)
-    let profit: number | null = null
-    let profitRate: number | null = null
-    if (bodyOpPrev != null && lastIdx >= 0) {
-      const saekOp = lastSaekOn + lastSaekOff - saekPm.cogs - saekPm.variable - saekPm.fixed
-      profit = bodyOpPrev + saekOp - lastSaekOff // 오프라인 매출 이중계상 제거
-      profitRate = lastRev > 0 ? (profit / lastRev) * 100 : null
-    }
-
-    // ── 확정월 통합 비용 구조 (본체 pnl + 색동) — PULSE 표시용 ──
-    let pulseCosts: { cogs: number; variable: number; fixed: number; total: number; rate: number | null } | null = null
-    if (pulsePnl && lastIdx >= 0) {
-      const cogs = pulsePnl.fabricCogs + saekPm.cogs
-      const variable = pulsePnl.expenses + pulsePnl.shipping + saekPm.variable
-      const fixed = pulsePnl.fixed + saekPm.fixed
-      const totalCost = cogs + variable + fixed
-      pulseCosts = {
-        cogs, variable, fixed, total: totalCost,
-        rate: lastRev > 0 ? (totalCost / lastRev) * 100 : null,
-      }
-    }
-
-    return {
-      dianBody, saekOnline, saekOffline, total, saekTotal, dianFabric,
-      series, lastRev, growth, lastLabel, saekShare, profit, profitRate, pulseCosts,
-    }
-  }, [dian, saekOn, saekOff, dianShop, range, rangeKey, bodyPnl, bodyOpPrev, saekCosts, pulsePnl])
+  // 매출 비중 도넛 데이터 — 본체(원단+쇼핑몰) / 색동(온+오프) / 법인, 독립 기간 선택
+  const shareData = useMemo(() => {
+    const body = bodyPnl[shareSel.rangeKey]
+    if (!body) return null
+    const saekOffline = seriesRevenue(saekOff, shareSel.range)
+    const saekOnline = Math.round(seriesRevenue(saekOn, shareSel.range) / 1.1)
+    const shopSupply = Math.round(seriesRevenue(dianShop, shareSel.range) / 1.1)
+    const bodyRev = body.sales - saekOffline + shopSupply
+    const naidRev = body.naid?.sales ?? 0
+    const saekRev = saekOnline + saekOffline
+    return { bodyRev, saekRev, naidRev, total: bodyRev + saekRev + naidRev }
+  }, [bodyPnl, shareSel.rangeKey, shareSel.range, saekOn, saekOff, dianShop])
 
   // ── 색동 기간 손익 사슬 (색동 계기판과 동일 규칙, 과거 기간 지원) ──
   const saekChain = useMemo(() => {
@@ -484,8 +331,6 @@ export default function DianOverview() {
     }
   }, [bodyPnl, naidSel.rangeKey])
 
-  const lastRevCount = useCountUp(m.lastRev)
-
   return (
     <div className="space-y-3">
       <style>{`
@@ -547,16 +392,6 @@ export default function DianOverview() {
               breakdowns={chain.breakdowns}
               periodKey={rangeKey}
             />
-            {/* 숫자 스트립 — 다이어그램과 동일 사슬 */}
-            <ChainStrip chain={chain} />
-            <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-              공급가 기준 · 총매출 = 일계표 + 색동 온라인 + 디안 쇼핑몰(÷1.1 환산, 원가 미연동) ·
-              매출원가 = 본체 판매원가(단가표) + 운임·관세 + 색동 매입·기준단가 추정 · 변동비 =
-              관리회계 변동 판관비 + 국내 배송 + 색동 변동 · 고정비 = 관리회계 고정 판관비 ·
-              순이익 = 영업이익 − 영업외비용(색동 등록분 + 대출이자) — 종소세·법인세 반영 전
-              {range.weekMode && !range.isCurrentWeek && ' · 지난 주의 색동 온라인 매출은 월 매출 일할 배분 근사'}
-              {chain.interestMissing && ' · ⚠ 대출 이자 미연동 (loan_payments SQL 실행 대기)'}
-            </p>
           </>
         )}
       </div>
@@ -603,16 +438,6 @@ export default function DianOverview() {
               nonOpLabel="대출 이자"
               periodKey={`body-${bodySel.rangeKey}`}
             />
-            <ChainStrip chain={bodyChain} nonOpLabel="대출 이자" />
-            <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-              매출 = 일계표 + 디안 쇼핑몰(÷1.1 공급가 환산, 원가 미연동) − 색동 오프라인(해당
-              원가는 색동에서 관리) · 매출원가 = 판매수량×단가표(TMS) 원가 + 해외운임·관세
-              {bodyPnl[bodySel.rangeKey]?.cogsCoverage != null &&
-                ` (단가표 매칭 ${bodyPnl[bodySel.rangeKey]!.cogsCoverage}%)`}{' '}
-              · 원단 매입 인보이스는 재고 취득으로 손익 미반영 · 변동비 = 관리회계 변동 판관비 +
-              국내 배송 · 고정비 = 관리회계 고정 판관비 (월 시트 업로드 기준) · 순이익 = 영업이익 −
-              대출 이자 (종합소득세 반영 전)
-            </p>
           </>
         )}
       </div>
@@ -659,142 +484,45 @@ export default function DianOverview() {
               nonOpLabel="법인 이자"
               periodKey={`naid-${naidSel.rangeKey}`}
             />
-            <ChainStrip chain={naidChain} nonOpLabel="법인 이자" />
-            <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-              매출·매입 = 법인 세금계산서(공급가, 이것 외 매출·매입 없음 — 대표 확인) · 운영비·이자 =
-              관리회계 명세의 &lsquo;법인&rsquo; 항목 자동 분류 · 통합(디안 전체) 손익에도 동일 반영 ·
-              세금계산서 파일을 올리면 사업자번호(835-81-02363)로 자동 인식되어 여기에 쌓입니다
-            </p>
           </>
         )}
       </div>
 
-      {/* 밴드 1 — 통합 매출 스트립 */}
-      <div className="px-4 py-5 sm:px-6" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
-        {loading ? (
-          <p className="text-[13px] text-white/60 py-3">
-            <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
-            통합 매출 불러오는 중... (색동 온라인 첫 조회는 오래 걸릴 수 있어요)
-          </p>
-        ) : (
-          <div className="flex flex-wrap items-stretch gap-y-5">
-            <Cell first label={`총매출 · ${range.label}`} big>
-              <span style={{ color: '#76b900' }}>{formatKRW(m.total)}</span>
-            </Cell>
-            <Cell label="디안 본체 (원단 + 쇼핑몰)">
-              <span className="text-white">{formatKRW(m.dianFabric)}</span>
-            </Cell>
-            <Cell label="색동 (온라인+오프라인)">
-              <span className="text-white">{formatKRW(m.saekTotal)}</span>
-            </Cell>
-            <Cell label="엔에이아이디 (법인)">
-              <span className="text-white">{formatKRW(bodyPnl[rangeKey]?.naid?.sales ?? 0)}</span>
-            </Cell>
+      {/* 매출 비중 도넛 — 디안 전체 매출 중 본체·색동·법인 */}
+      <div
+        className="bg-white p-4 sm:p-5"
+        style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }}
+      >
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <h3 className="text-[14px] font-bold text-slate-900">디안 매출 비중 — 어디서 벌고 있나</h3>
+          <span className="text-[11px] text-slate-400">
+            · {shareSel.range.label} · 공급가 기준 · 본체(원단+쇼핑몰) / 색동 / 법인
+          </span>
+          <div className="ml-auto">
+            <PeriodButtons sel={shareSel} exclude={['week']} />
           </div>
-        )}
-        {!loading && (saekOn?.error || dian?.error) && (
-          <p className="mt-3 text-[11px] font-medium" style={{ color: '#fbbf24' }}>
-            ⚠ 일부 매출 조회 실패 — 위 지표는 일부가 빠진 값입니다. 잠시 후 새로고침 해주세요.
-          </p>
-        )}
-      </div>
-
-      {/* 밴드 2 — DIAN PULSE 타이포 */}
-      <div className="px-4 py-4 sm:px-6" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
-        <div className="flex items-center gap-1.5 mb-3">
-          <span className="inline-block w-1.5 h-1.5 rounded-full ov-dot" style={{ backgroundColor: '#76b900' }} />
-          <span className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            Dian Pulse
-          </span>
-          <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            · {m.lastLabel} 확정 기준 (본체 + 색동 온라인)
-          </span>
         </div>
-        {loading ? (
-          <p className="text-[12px] text-white/50">준비 중...</p>
+        <div className="mb-2">
+          <PastPicker sel={shareSel} />
+        </div>
+        {loading || !shareData ? (
+          <p className="py-8 text-center text-[12px] text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+            매출 비중 계산 중...
+          </p>
         ) : (
-          <div className="flex flex-wrap items-stretch gap-y-5">
-            <Cell first label={`${m.lastLabel} 총매출`} big>
-              <div className="flex items-end gap-3">
-                <div>
-                  <span style={{ color: '#76b900' }}>{formatKRW(Math.round(lastRevCount))}</span>
-                  <p
-                    className="mt-1 text-[11px] font-bold tabular-nums"
-                    style={{ color: m.growth == null ? 'rgba(255,255,255,0.4)' : m.growth >= 0 ? '#76b900' : '#f87171' }}
-                  >
-                    {m.growth == null ? '전월 데이터 없음' : `${m.growth >= 0 ? '▲' : '▼'} ${Math.abs(m.growth).toFixed(1)}% 전월 대비`}
-                  </p>
-                </div>
-                <Sparkline values={m.series} />
-              </div>
-            </Cell>
-            <Cell label="색동 비중">
-              <span className="text-white">
-                {m.saekShare == null ? '—' : `${m.saekShare.toFixed(1)}%`}
-              </span>
-              <p className="mt-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                {m.lastLabel} 총매출 중 색동
-              </p>
-            </Cell>
-            <Cell label={`${m.lastLabel} 총비용`}>
-              {m.pulseCosts == null ? (
-                <span style={{ color: 'rgba(255,255,255,0.35)' }}>—</span>
-              ) : (
-                <>
-                  <span style={{ color: '#f87171' }}>{formatKRW(m.pulseCosts.total)}</span>
-                  <p className="mt-1 text-[11px] font-bold tabular-nums" style={{ color: 'rgba(248,113,113,0.85)' }}>
-                    매출 대비 {m.pulseCosts.rate == null ? '—' : `${m.pulseCosts.rate.toFixed(1)}%`}
-                  </p>
-                  <p className="mt-0.5 text-[10px] tabular-nums" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    원가 {formatKRW(m.pulseCosts.cogs)} · 변동 {formatKRW(m.pulseCosts.variable)} · 고정 {formatKRW(m.pulseCosts.fixed)}
-                  </p>
-                </>
-              )}
-            </Cell>
-            <Cell label={`${m.lastLabel} 통합 영업이익`}>
-              {m.profit == null ? (
-                <>
-                  <span style={{ color: 'rgba(255,255,255,0.35)' }}>—</span>
-                  <p className="mt-1 text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    결산 데이터 없음
-                  </p>
-                </>
-              ) : (
-                <>
-                  <span style={{ color: m.profit >= 0 ? '#76b900' : '#f87171' }}>
-                    {formatKRW(m.profit)}
-                  </span>
-                  <p
-                    className="mt-1 text-[11px] font-bold tabular-nums"
-                    style={{ color: m.profit >= 0 ? 'rgba(118,185,0,0.9)' : '#f87171' }}
-                  >
-                    영업이익률 {m.profitRate == null ? '—' : `${m.profitRate.toFixed(1)}%`}
-                  </p>
-                  <p className="mt-0.5 text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                    본체 + 색동 (근사)
-                  </p>
-                </>
-              )}
-            </Cell>
-            <Cell label="엔에이아이디" dim>
-              <span style={{ color: 'rgba(255,255,255,0.35)' }}>연동 예정</span>
-            </Cell>
-          </div>
+          <RevenueShareDonut data={shareData} periodKey={shareSel.rangeKey} />
         )}
       </div>
     </div>
   )
 }
 
-function pct(v: number, base: number): number {
-  return base > 0 ? (v / base) * 100 : 0
-}
-
-/** 주/월/분기/년 버튼 — 블록별 독립 선택기 */
-function PeriodButtons({ sel }: { sel: PeriodSel }) {
+/** 주/월/분기/반기/년 버튼 — 블록별 독립 선택기 (exclude 로 일부 기간 숨김) */
+function PeriodButtons({ sel, exclude }: { sel: PeriodSel; exclude?: Period[] }) {
   return (
     <div className="inline-flex overflow-hidden rounded-sm border border-slate-200">
-      {PERIODS.map((p) => (
+      {PERIODS.filter((p) => !exclude?.includes(p.key)).map((p) => (
         <button
           key={p.key}
           type="button"
@@ -910,127 +638,73 @@ function PastPicker({ sel }: { sel: PeriodSel }) {
   )
 }
 
-/** 손익 사슬 데이터 — 통합·본체·(추후) 법인 스트립이 공유 */
-interface ChainData {
-  revenue: number
-  cogs: number
-  gross: number
-  variable: number
-  contribution: number
-  fixed: number
-  operating: number
-  nonOp: number
-  net: number
-  bep: number | null
-  bepRate: number | null
-}
-
-/** 검은 숫자 스트립 — 사슬 전체 + BEP (색동 계기판과 동일 포맷) */
-function ChainStrip({
-  chain, netLabel = '순이익', nonOpLabel = '영업외·이자',
+/** 매출 비중 도넛 — 디안 전체 매출 중 본체·색동·법인 구성 (타이포 + 원형) */
+function RevenueShareDonut({
+  data, periodKey,
 }: {
-  chain: ChainData
-  netLabel?: string
-  nonOpLabel?: string
+  data: { bodyRev: number; saekRev: number; naidRev: number; total: number }
+  periodKey: string
 }) {
+  const segs = [
+    { label: '디안 본체', sub: '원단 + 쇼핑몰', value: Math.max(0, data.bodyRev), color: '#76b900' },
+    { label: '색동', sub: '온라인 + 오프라인', value: Math.max(0, data.saekRev), color: '#38bdf8' },
+    { label: '엔에이아이디', sub: '법인 · 세금계산서', value: Math.max(0, data.naidRev), color: '#a78bfa' },
+  ]
+  const total = segs.reduce((s, x) => s + x.value, 0)
+  const R = 74
+  const STROKE = 30
+  const C = 2 * Math.PI * R
+
+  // 도넛 호 — stroke-dasharray 로 비율만큼, -90°에서 시작해 시계방향 누적
+  let acc = 0
+  const arcs = segs.map((sg) => {
+    const frac = total > 0 ? sg.value / total : 0
+    const a = { ...sg, frac, offset: acc }
+    acc += frac
+    return a
+  })
+
   return (
-    <div className="mt-3 px-4 py-5 sm:px-6" style={{ backgroundColor: '#000', borderRadius: '2px' }}>
-      <div className="flex flex-wrap items-stretch gap-y-5">
-        <StripMetric label="매출" value={chain.revenue} big first />
-        <StripMetric label="매출원가" value={chain.cogs} negative dim />
-        <StripMetric label="매출총이익" value={chain.gross} rate={pct(chain.gross, chain.revenue)} />
-        <StripMetric label="변동비" value={chain.variable} negative dim />
-        <StripMetric label="공헌이익" value={chain.contribution} rate={pct(chain.contribution, chain.revenue)} />
-        <StripMetric label="고정비" value={chain.fixed} negative dim />
-        <StripMetric label="영업이익" value={chain.operating} rate={pct(chain.operating, chain.revenue)} big />
-        {chain.nonOp > 0 && (
-          <>
-            <StripMetric label={nonOpLabel} value={chain.nonOp} negative dim />
-            <StripMetric label={netLabel} value={chain.net} rate={pct(chain.net, chain.revenue)} big />
-          </>
-        )}
-        {/* BEP — 공헌이익 ÷ 고정비 */}
-        <div className="px-4 sm:px-5" style={{ borderLeft: '1px solid rgba(255,255,255,0.14)' }}>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            BEP 달성률
-          </p>
-          <p
-            className="mt-1 font-bold tabular-nums leading-none text-[24px] sm:text-[28px]"
-            style={{ color: chain.bepRate == null ? 'rgba(255,255,255,0.35)' : chain.bepRate >= 100 ? '#76b900' : '#f87171' }}
-          >
-            {chain.bepRate == null ? '—' : `${chain.bepRate.toFixed(1)}%`}
-          </p>
-          <p className="mt-1 text-[11px] tabular-nums" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            {chain.bepRate == null
-              ? '고정비 미등록'
-              : chain.bep == null
-                ? 'BEP 매출 산출 불가 (공헌이익 적자)'
-                : `BEP 매출 ${formatKRW(chain.bep)}`}
-          </p>
+    <div key={periodKey} className="flex flex-wrap items-center gap-x-10 gap-y-5 py-2">
+      {/* 원형 그래프 */}
+      <div className="relative shrink-0 mx-auto sm:mx-0">
+        <svg width={200} height={200} viewBox="0 0 200 200" role="img" aria-label="사업체별 매출 비중">
+          <circle cx="100" cy="100" r={R} fill="none" stroke="#f1f5f9" strokeWidth={STROKE} />
+          {total > 0 &&
+            arcs.filter((a) => a.frac > 0).map((a) => (
+              <circle
+                key={a.label}
+                cx="100" cy="100" r={R} fill="none"
+                stroke={a.color} strokeWidth={STROKE}
+                strokeDasharray={`${Math.max(0.5, a.frac * C - 1.5)} ${C}`}
+                strokeDashoffset={-a.offset * C}
+                transform="rotate(-90 100 100)"
+              />
+            ))}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">총매출</span>
+          <span className="text-[17px] font-bold tabular-nums text-slate-900 leading-tight">
+            {formatKRW(total)}
+          </span>
         </div>
       </div>
-    </div>
-  )
-}
 
-/** 검은 스트립 숫자 셀 — 색동 계기판과 동일 포맷 */
-function StripMetric({
-  label, value, rate, big, dim, negative, first,
-}: {
-  label: string
-  value: number
-  rate?: number
-  big?: boolean
-  dim?: boolean
-  negative?: boolean
-  first?: boolean
-}) {
-  const color = dim
-    ? 'rgba(255,255,255,0.55)'
-    : value >= 0
-      ? big
-        ? '#76b900'
-        : '#ffffff'
-      : '#f87171'
-  return (
-    <div
-      className="px-4 sm:px-5 first:pl-0"
-      style={{ borderLeft: first ? 'none' : '1px solid rgba(255,255,255,0.14)' }}
-    >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.45)' }}>
-        {negative ? `(-) ${label}` : label}
-      </p>
-      <p
-        className={`mt-1 font-bold tabular-nums leading-none ${big ? 'text-[24px] sm:text-[28px]' : 'text-[19px] sm:text-[22px]'}`}
-        style={{ color }}
-      >
-        {formatKRW(Math.abs(value))}
-      </p>
-      {rate != null && (
-        <p className="mt-1 text-[11px] font-bold tabular-nums" style={{ color: value >= 0 ? 'rgba(118,185,0,0.9)' : '#f87171' }}>
-          {rate.toFixed(1)}%
-        </p>
-      )}
-    </div>
-  )
-}
-
-function Cell({
-  label, big, dim, first, children,
-}: {
-  label: string
-  big?: boolean
-  dim?: boolean
-  first?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <div className="px-4 sm:px-6 first:pl-0" style={{ borderLeft: first ? 'none' : '1px solid rgba(255,255,255,0.14)' }}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: dim ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.45)' }}>
-        {label}
-      </p>
-      <div className={`mt-1 font-bold tabular-nums leading-none ${big ? 'text-[26px] sm:text-[30px]' : 'text-[19px] sm:text-[22px]'}`}>
-        {children}
+      {/* 타이포 범례 — 비중이 큰 순서 */}
+      <div className="flex-1 min-w-[240px] grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
+        {[...arcs].sort((a, b) => b.value - a.value).map((a) => (
+          <div key={a.label}>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: a.color }} />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{a.label}</span>
+            </div>
+            <p className="mt-1 text-[26px] sm:text-[30px] font-bold tabular-nums leading-none" style={{ color: a.color }}>
+              {total > 0 ? `${(a.frac * 100).toFixed(1)}%` : '—'}
+            </p>
+            <p className="mt-1 text-[13px] font-bold tabular-nums text-slate-800">{formatKRW(a.value)}</p>
+            <p className="text-[10px] text-slate-400">{a.sub}</p>
+          </div>
+        ))}
       </div>
     </div>
   )
