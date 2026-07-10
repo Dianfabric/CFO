@@ -17,8 +17,21 @@ export default function ServiceWorkerRegistrar() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!('serviceWorker' in navigator)) return
-    // dev 환경에서는 SW 등록 안 함 (Turbopack HMR 과 충돌 방지)
-    if (process.env.NODE_ENV !== 'production') return
+    // dev 환경: 등록 안 함 + 과거에 등록된 SW·캐시를 적극 해제.
+    // (남아있는 SW가 dev 서버 재시작 순간 낡은 HTML을 캐시로 제공 → hydration 오류 원인)
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => {})
+      if (typeof caches !== 'undefined') {
+        caches
+          .keys()
+          .then((keys) => keys.filter((k) => k.startsWith('diavis-')).forEach((k) => caches.delete(k)))
+          .catch(() => {})
+      }
+      return
+    }
 
     let registration: ServiceWorkerRegistration | null = null
 

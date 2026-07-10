@@ -49,6 +49,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url)
   if (url.pathname.startsWith('/api/')) return
 
+  // 2.5) 로컬 개발(dev)은 SW 완전 우회 — 서버 재시작 순간 낡은 HTML 제공 방지
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return
+
   // 3) Supabase / 외부 도메인은 SW 우회
   if (url.origin !== self.location.origin) return
 
