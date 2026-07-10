@@ -88,10 +88,13 @@ export async function GET(req: NextRequest) {
         select: { totalAmount: true, description: true, items: { select: { productName: true } } },
       }),
       // 고정비·변동비 = 관리회계 원장 (대표 결정 2026-07-10 — 구 RecurringCost 방식 파기)
+      // 명세(summary)만 조회 — 분류시트(card/bank) 행까지 가져오면 다개월 범위에서
+      // Supabase 1,000행 제한에 잘려 고정비가 축소 집계됨 (2026-07-10 반기 추가 때 발견)
       supabase
         .from('mgmt_ledger')
         .select('month_key, cost_type, nature, amount, major, category, source')
         .eq('flow', 'out')
+        .eq('source', 'summary')
         .in('month_key', months.map((m) => m.ym)),
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 팔린 수량 × TMS 기준단가 × 환율 (대표 결정 2026-07-06)

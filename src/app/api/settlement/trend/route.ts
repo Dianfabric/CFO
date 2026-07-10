@@ -178,7 +178,8 @@ export async function GET(req: NextRequest) {
         },
       }),
       // 고정비·변동비 = 관리회계 원장 (대표 결정 2026-07-10 — 구 RecurringCost 방식 파기)
-      supabase.from('mgmt_ledger').select('month_key, cost_type, nature, amount, source').eq('flow', 'out'),
+      // 명세(summary)만 조회 — 분류시트 행 포함 시 Supabase 1,000행 제한에 잘림
+      supabase.from('mgmt_ledger').select('month_key, cost_type, nature, amount, source').eq('flow', 'out').eq('source', 'summary'),
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 날짜별 (버킷 배분용)
       computeSoldCogsByDate(rangeStart, now),
