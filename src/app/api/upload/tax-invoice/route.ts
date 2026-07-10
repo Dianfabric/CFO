@@ -82,6 +82,58 @@ export async function POST(request: NextRequest) {
       direction = buyerBiz === DIAN_BIZ_NO && supplierBiz !== DIAN_BIZ_NO ? 'purchase' : 'sales'
     }
 
+    // ── 법인(엔에이아이디) 세금계산서 자동 분기 — 법인 매출·매입의 정본 (대표 결정 2026-07-10) ──
+    const NAID_BIZ_NO = '835-81-02363'
+    const ownerLine = (rows[0] ?? []).map((c) => String(c ?? '')).join(' ')
+    if (ownerLine.includes(NAID_BIZ_NO)) {
+      const supabase = await createClient()
+      const dir: 'sale' | 'purchase' = direction === 'purchase' ? 'purchase' : 'sale'
+      const recs: {
+        approval_no: string; direction: string; issue_date: string; month_key: string
+        counterparty: string | null; supply_amount: number; tax_amount: number; item: string | null
+      }[] = []
+      for (let i = dataStartRow; i < rows.length; i++) {
+        const r = rows[i] ?? []
+        const d = parseDate(r[0])
+        const approval = String(r[1] ?? '').trim()
+        if (!d || !approval) continue
+        const iso = d.toISOString()
+        recs.push({
+          approval_no: approval,
+          direction: dir,
+          issue_date: iso.slice(0, 10),
+          month_key: iso.slice(0, 7),
+          counterparty: String((dir === 'sale' ? r[11] : r[6]) ?? '').trim() || null,
+          supply_amount: parseNum(r[15]),
+          tax_amount: parseNum(r[16]),
+          item: String(r[26] ?? '').trim() || null,
+        })
+      }
+      if (recs.length === 0) {
+        return NextResponse.json({ error: '법인 계산서 데이터 행을 찾지 못했습니다' }, { status: 400 })
+      }
+      const { error } = await supabase.from('naid_invoices').upsert(recs, { onConflict: 'approval_no' })
+      if (error) {
+        const missing = /find the table|does not exist|schema cache/i.test(error.message)
+        return NextResponse.json(
+          {
+            error: missing
+              ? 'naid_invoices 테이블이 없습니다 — supabase/migrations/2026-07-10_naid_invoices.sql 실행 필요'
+              : error.message,
+          },
+          { status: missing ? 409 : 500 },
+        )
+      }
+      return NextResponse.json({
+        success: true,
+        naid: true,
+        direction: dir,
+        count: recs.length,
+        supplySum: recs.reduce((s, x) => s + x.supply_amount, 0),
+        months: [...new Set(recs.map((x) => x.month_key))].sort(),
+      })
+    }
+
     // ── 매입 세금계산서 → Supabase 저장 + 일계표 매입 거래 대사 ──
     if (direction === 'purchase') {
       const supabase = await createClient()

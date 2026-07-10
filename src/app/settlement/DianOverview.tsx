@@ -63,7 +63,8 @@ interface BodyPnl {
   shipping: number
   fixed: number
   fixedBreakdown?: { label: string; amount: number }[]
-  naid?: { fixed: number; interest: number } // 엔에이아이디(법인) — 관리회계 명세 자동 분류
+  // 엔에이아이디(법인): 매출·매입 = 세금계산서 / 운영비·이자 = 관리회계 명세
+  naid?: { sales?: number; cogs?: number; fixed: number; interest: number }
   interest: number
   interestMissing?: boolean
   error?: string
@@ -217,7 +218,8 @@ export default function DianOverview() {
     const saekOnline = Math.round(seriesRevenue(saekOn, range) / 1.1)
     const saekOffline = seriesRevenue(saekOff, range)
     const shopSupply = Math.round(seriesRevenue(dianShop, range) / 1.1) // 디안 원단몰 — 본체 소속
-    const total = dianBody + saekOnline + shopSupply // 색동 오프라인은 dianBody 에 포함 — 이중계상 방지
+    const naidSales = bodyForRange?.naid?.sales ?? 0 // 법인 매출 (세금계산서)
+    const total = dianBody + saekOnline + shopSupply + naidSales // 색동 오프라인은 dianBody 에 포함 — 이중계상 방지
     const saekTotal = saekOnline + saekOffline
     const dianFabric = dianBody - saekOffline + shopSupply
 
@@ -361,8 +363,10 @@ export default function DianOverview() {
     const body = bodyPnl[rangeKey]
     if (!body) return null
     const shopSupply = Math.round(seriesRevenue(dianShop, range) / 1.1) // 디안 원단몰 — 본체 소속 (원가 미연동)
-    const revenue = body.sales + saekChain.onlineSupply + shopSupply
-    const cogs = body.fabricCogs + saekChain.cogs
+    const naidSales = body.naid?.sales ?? 0
+    const naidCogs = body.naid?.cogs ?? 0
+    const revenue = body.sales + saekChain.onlineSupply + shopSupply + naidSales
+    const cogs = body.fabricCogs + saekChain.cogs + naidCogs
     const gross = revenue - cogs
     const variable = body.expenses + body.shipping + saekChain.variable
     const contribution = gross - variable
@@ -381,6 +385,7 @@ export default function DianOverview() {
       cogs: [
         { label: '본체 판매원가(단가표)', amount: body.soldCogs ?? body.fabricCogs },
         { label: '해외운임·관세', amount: body.freightCogs ?? 0 },
+        { label: '법인 매입', amount: naidCogs },
         { label: '색동 매입·원가', amount: saekChain.cogs },
       ],
       variable: [
@@ -439,20 +444,25 @@ export default function DianOverview() {
     return { revenue, cogs, gross, variable, contribution, fixed, operating, nonOp, net, bep, bepRate, breakdowns }
   }, [bodyPnl, bodySel.rangeKey, saekOff, dianShop, bodySel.range])
 
-  // ── 엔에이아이디(법인) 손익 사슬 — 비용은 관리회계 명세 자동 분류, 매출은 자료 연동 예정 ──
+  // ── 엔에이아이디(법인) 손익 사슬 — 매출·매입 = 세금계산서 / 운영비·이자 = 관리회계 명세 ──
   const naidChain = useMemo(() => {
     const body = bodyPnl[naidSel.rangeKey]
     if (!body) return null
+    const revenue = body.naid?.sales ?? 0
+    const cogs = body.naid?.cogs ?? 0
     const fixed = body.naid?.fixed ?? 0
     const nonOp = body.naid?.interest ?? 0
-    const revenue = 0 // 법인 매출·매입 자료 연동 예정
-    const operating = -fixed
+    const gross = revenue - cogs
+    const contribution = gross // 법인 변동비는 관리회계에 별도 항목 생기면 분리
+    const operating = contribution - fixed
+    const bepRate = fixed > 0 ? (contribution / fixed) * 100 : null
+    const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
     return {
-      revenue, cogs: 0, gross: 0, variable: 0, contribution: 0,
+      revenue, cogs, gross, variable: 0, contribution,
       fixed, operating, nonOp, net: operating - nonOp,
-      bep: null as number | null,
-      bepRate: fixed > 0 ? 0 : null,
+      bep, bepRate,
       breakdowns: {
+        cogs: [{ label: '법인 매입(세금계산서)', amount: cogs }],
         fixed: [{ label: '법인 운영비(임대·급여·4대보험)', amount: fixed }],
         nonOp: [{ label: '법인 대출이자', amount: nonOp }],
       },
@@ -602,7 +612,7 @@ export default function DianOverview() {
             엔에이아이디(법인)는 이렇게 벌고 쓴다
           </h3>
           <span className="text-[11px] text-slate-400">
-            · {naidSel.range.label} · 비용 = 관리회계 명세 자동 분류 · 매출 연동 예정
+            · {naidSel.range.label} · 매출·매입 = 세금계산서 · 운영비·이자 = 관리회계 명세
           </span>
           <div className="ml-auto">
             <PeriodButtons sel={naidSel} />
@@ -636,9 +646,9 @@ export default function DianOverview() {
             />
             <ChainStrip chain={naidChain} nonOpLabel="법인 이자" />
             <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
-              비용 = 관리회계 명세의 &lsquo;법인&rsquo; 항목 자동 분류 (운영비 → 고정비 · 대출이자 →
-              영업외) · 통합(디안 전체) 손익에도 동일 반영 · 법인 매출·매입 자료(세금계산서·통장)가
-              연동되면 매출·원가 사슬과 생키가 채워집니다 — 현재 매출 0은 미연동 상태
+              매출·매입 = 법인 세금계산서(공급가, 이것 외 매출·매입 없음 — 대표 확인) · 운영비·이자 =
+              관리회계 명세의 &lsquo;법인&rsquo; 항목 자동 분류 · 통합(디안 전체) 손익에도 동일 반영 ·
+              세금계산서 파일을 올리면 사업자번호(835-81-02363)로 자동 인식되어 여기에 쌓입니다
             </p>
           </>
         )}
@@ -662,8 +672,8 @@ export default function DianOverview() {
             <Cell label="색동 (온라인+오프라인)">
               <span className="text-white">{formatKRW(m.saekTotal)}</span>
             </Cell>
-            <Cell label="엔에이아이디 (법인)" dim>
-              <span style={{ color: 'rgba(255,255,255,0.35)' }}>연동 예정</span>
+            <Cell label="엔에이아이디 (법인)">
+              <span className="text-white">{formatKRW(bodyPnl[rangeKey]?.naid?.sales ?? 0)}</span>
             </Cell>
           </div>
         )}

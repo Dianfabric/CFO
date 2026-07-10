@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
 
     const rangeStart = new Date(buckets[0].start + 'T00:00:00')
     const supabase = await createClient()
-    const [txs, mgmtRes, loanRes, sold] = await Promise.all([
+    const [txs, mgmtRes, loanRes, sold, naidInvRes] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           date: { gte: rangeStart, lte: now },
@@ -149,6 +149,8 @@ export async function GET(req: NextRequest) {
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 날짜별 (버킷 배분용)
       computeSoldCogsByDate(rangeStart, now),
+      // 법인 매출·매입 = 세금계산서 (대표 결정 2026-07-10)
+      supabase.from('naid_invoices').select('month_key, direction, supply_amount'),
     ])
     const soldDates = [...sold.byDate.entries()] // [YYYY-MM-DD, {cogs,...}]
 
@@ -157,6 +159,12 @@ export async function GET(req: NextRequest) {
     const varByMonth = new Map<string, number>()
     const sumInterestByMonth = new Map<string, number>()
     const naidByMonth = new Map<string, number>() // 법인 비용(고정+이자) — naid 탭·통합용
+    const naidSalesByMonth = new Map<string, number>()
+    const naidCogsByMonth = new Map<string, number>()
+    for (const r of (naidInvRes.data ?? []) as { month_key: string; direction: string; supply_amount: number }[]) {
+      const map = r.direction === 'sale' ? naidSalesByMonth : naidCogsByMonth
+      map.set(r.month_key, (map.get(r.month_key) ?? 0) + r.supply_amount)
+    }
     for (const r of (mgmtRes.data ?? []) as { month_key: string; cost_type: string | null; nature: string | null; amount: number; source: string }[]) {
       if (r.source !== 'summary') continue
       if (r.nature === '영업외비용') {
@@ -211,10 +219,14 @@ export async function GET(req: NextRequest) {
       let fixed = 0
       let interest = 0
       let naidCost = 0
+      let naidSales = 0
+      let naidCogs = 0
       for (const m of bucketMonths[bi]) {
         fixed += (fixedByMonth.get(m.ym) ?? 0) * m.ratio
         expenses += (varByMonth.get(m.ym) ?? 0) * m.ratio
         naidCost += (naidByMonth.get(m.ym) ?? 0) * m.ratio
+        naidSales += (naidSalesByMonth.get(m.ym) ?? 0) * m.ratio
+        naidCogs += (naidCogsByMonth.get(m.ym) ?? 0) * m.ratio
         // 이자: loan_payments 가 있는 달은 그 값, 없으면 관리회계 명세의 이자
         const iv = interestByMonth.has(m.ym) ? interestByMonth.get(m.ym)! : (sumInterestByMonth.get(m.ym) ?? 0)
         interest += iv * m.ratio
@@ -232,6 +244,8 @@ export async function GET(req: NextRequest) {
         fixed: Math.round(fixed),
         interest: Math.round(interest),
         naidCost: Math.round(naidCost), // 법인 비용 (고정+이자)
+        naidSales: Math.round(naidSales), // 법인 매출 (세금계산서 공급가)
+        naidCogs: Math.round(naidCogs), // 법인 매입 (세금계산서 공급가)
       }
     })
 

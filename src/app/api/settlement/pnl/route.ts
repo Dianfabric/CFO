@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient()
-    const [salesAgg, purchases, expenseRows, mgmtRes, loanRes, sold] = await Promise.all([
+    const [salesAgg, purchases, expenseRows, mgmtRes, loanRes, sold, naidInvRes] = await Promise.all([
       prisma.transaction.aggregate({
         where: { type: 'SALE', date: { gte: rangeStart, lte: rangeEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         _sum: { totalAmount: true },
@@ -96,6 +96,11 @@ export async function GET(req: NextRequest) {
       supabase.from('loan_payments').select('month_key, interest'),
       // 판매 기준 원가 — 팔린 수량 × TMS 기준단가 × 환율 (대표 결정 2026-07-06)
       computeSoldCogsByDate(rangeStart, rangeEnd),
+      // 법인 매출·매입 = 세금계산서가 정본 (대표 결정 2026-07-10)
+      supabase
+        .from('naid_invoices')
+        .select('month_key, direction, supply_amount')
+        .in('month_key', months.map((m) => m.ym)),
     ])
 
     // 매입 분류: 해외운임·관세 → 매출원가 / 국내 배송 → 변동비 / 원단 인보이스 → 재고 취득(제외)
@@ -153,15 +158,27 @@ export async function GET(req: NextRequest) {
         varByMonth.set(r.month_key, (varByMonth.get(r.month_key) ?? 0) + r.amount)
       }
     }
+    // 법인 매출·매입 (세금계산서, 공급가 기준)
+    const naidSalesByMonth = new Map<string, number>()
+    const naidCogsByMonth = new Map<string, number>()
+    for (const r of (naidInvRes.data ?? []) as { month_key: string; direction: string; supply_amount: number }[]) {
+      const map = r.direction === 'sale' ? naidSalesByMonth : naidCogsByMonth
+      map.set(r.month_key, (map.get(r.month_key) ?? 0) + r.supply_amount)
+    }
+
     let fixed = 0
     let expensesSum = 0
     let naidFixed = 0
     let naidInterest = 0
+    let naidSales = 0
+    let naidCogs = 0
     for (const m of months) {
       fixed += Math.round((fixedByMonth.get(m.ym) ?? 0) * m.ratio)
       expensesSum += Math.round((varByMonth.get(m.ym) ?? 0) * m.ratio)
       naidFixed += Math.round((naidFixedByMonth.get(m.ym) ?? 0) * m.ratio)
       naidInterest += Math.round((naidInterestByMonth.get(m.ym) ?? 0) * m.ratio)
+      naidSales += Math.round((naidSalesByMonth.get(m.ym) ?? 0) * m.ratio)
+      naidCogs += Math.round((naidCogsByMonth.get(m.ym) ?? 0) * m.ratio)
     }
     // 고정비 분해 — 관리회계 대분류(major) 기준
     const monthSet = new Set(months.filter((m) => m.ratio > 0).map((m) => m.ym))
@@ -209,7 +226,8 @@ export async function GET(req: NextRequest) {
       shipping: purchShipping, // 국내 배송 (해외운임은 freightCogs 로)
       fixed,
       fixedBreakdown,
-      naid: { fixed: naidFixed, interest: naidInterest }, // 엔에이아이디(법인) — 관리회계 명세 자동 분류
+      // 엔에이아이디(법인): 매출·매입 = 세금계산서 / 운영비·이자 = 관리회계 명세
+      naid: { sales: naidSales, cogs: naidCogs, fixed: naidFixed, interest: naidInterest },
       mgmtMissing,
       mgmtMissingMonths,
       interest,
