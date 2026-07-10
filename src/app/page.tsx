@@ -10,6 +10,7 @@
  * 3. AI 도구 강조 (Sparkles + 그린)
  * 4. 최근 활동 / 안내
  */
+import { Suspense } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -130,7 +131,18 @@ export default function DiavisHomePage() {
           ================================================== */}
       <section style={{ backgroundColor: 'var(--nv-canvas)' }}>
         <div className="max-w-[1280px] mx-auto px-6 sm:px-12 py-10">
-          <DailyOpsBlock />
+          {/* async RSC(DB 조회)는 Suspense 경계 안에서 스트리밍 — 페이지 셸과 분리해
+              dev 하이드레이션 어긋남 방지 + 홈 첫 렌더가 DB를 기다리지 않음 */}
+          <Suspense
+            fallback={
+              <div className="space-y-6">
+                <div className="h-6 w-52 rounded bg-slate-200/70 animate-pulse" />
+                <div className="h-40 rounded bg-slate-100 animate-pulse" />
+              </div>
+            }
+          >
+            <DailyOpsBlock />
+          </Suspense>
         </div>
       </section>
 
