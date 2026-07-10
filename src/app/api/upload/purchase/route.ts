@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
+import { createServiceClient } from '@/lib/supabase/server'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
 export const runtime = 'nodejs'
+export const maxDuration = 300
+
+const STORAGE_BUCKET = 'shipping-uploads'
+
+/** 같은 날 + 같은 설명 + 같은 금액이 이미 있으면 중복 — 재업로드 이중 등록 방지 */
+async function isDuplicate(txDate: Date, type: 'PURCHASE' | 'EXPENSE', description: string, amount: number): Promise<boolean> {
+  const dayStart = new Date(txDate); dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(txDate); dayEnd.setHours(23, 59, 59, 999)
+  const existing = await prisma.transaction.findFirst({
+    where: { type, description, totalAmount: amount, date: { gte: dayStart, lte: dayEnd } },
+    select: { id: true },
+  })
+  return !!existing
+}
 
 async function getPdfParse() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -31,45 +46,144 @@ async function upsertMonthlyCost(amount: number, yearMonth: string, notes: strin
   }
 }
 
+// 4MB 초과 파일용 — Supabase Storage 서명 업로드 URL 발급 (Vercel 요청 한도 4.5MB 우회)
+export async function GET(request: NextRequest) {
+  try {
+    if (request.nextUrl.searchParams.get('signedUrl') !== '1') {
+      return NextResponse.json({ error: 'signedUrl=1 필요' }, { status: 400 })
+    }
+    const name = (request.nextUrl.searchParams.get('name') ?? 'file.pdf').replace(/[^\w.\-가-힣]/g, '_')
+    const path = `tmp/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${name}`
+    const supabase = createServiceClient()
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUploadUrl(path)
+    if (error || !data) {
+      return NextResponse.json({ error: `업로드 URL 발급 실패: ${error?.message ?? ''}` }, { status: 500 })
+    }
+    return NextResponse.json({ path: data.path, token: data.token })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: msg.slice(0, 300) }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-    if (!file) return NextResponse.json({ error: '파일이 없습니다' }, { status: 400 })
+    const contentType = request.headers.get('content-type') || ''
+    let buffer: Buffer
+    let storagePath: string | null = null
 
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const pdfParse = await getPdfParse()
-    const data = await pdfParse(buffer)
-    const text = data.text as string
-
-    // 문서 유형 자동 판별
-    const hasGlogi = text.includes('GLOGITECH') || (text.includes('Ocean Inbound') && text.includes('TOTAL AMOUNT'))
-    const hasImportDecl = text.includes('수입신고필증') || text.includes('수 입 신 고 필 증')
-    const hasImportTax = text.includes('수입세금계산서') || text.includes('수 입 세 금 계 산 서')
-
-    // 배 통관 번들 (글로지텍 INVOICE + 수입신고필증/세금계산서 한 PDF에 묶임)
-    if (hasGlogi && (hasImportDecl || hasImportTax)) {
-      return handleBundlePDF(text)
-    }
-
-    if (hasImportTax) {
-      return handleImportTax(text)
-    } else if (hasGlogi) {
-      return handleGlogiInvoice(text)
-    } else if (text.includes('관세법인') || text.includes('자금요청서') || (text.includes('GLOBAL TEXTILE') && text.includes('관세'))) {
-      return handleCustomsPDF(text)
-    } else if (text.includes('ROADSUN') || text.includes('로드썬') || (text.includes('INVOICE') && text.includes('AIR EXPRESS'))) {
-      return handleFreightPDF(text)
+    if (contentType.includes('application/json')) {
+      // 대용량 경로: 클라이언트가 Storage에 올린 파일을 서버가 내려받아 파싱
+      const body = await request.json() as { storagePath?: string }
+      if (!body.storagePath || !body.storagePath.startsWith('tmp/')) {
+        return NextResponse.json({ error: 'storagePath 필요' }, { status: 400 })
+      }
+      storagePath = body.storagePath
+      const supabase = createServiceClient()
+      const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(storagePath)
+      if (error || !data) {
+        return NextResponse.json({ error: `스토리지 다운로드 실패: ${error?.message ?? ''}` }, { status: 500 })
+      }
+      buffer = Buffer.from(await data.arrayBuffer())
     } else {
-      return NextResponse.json({
-        error: '알 수 없는 PDF 형식입니다. 지원: 관세 청구서, 로드썬 인보이스, 글로지텍 인보이스, 수입세금계산서',
-      }, { status: 400 })
+      const formData = await request.formData()
+      const file = formData.get('file') as File
+      if (!file) return NextResponse.json({ error: '파일이 없습니다' }, { status: 400 })
+      buffer = Buffer.from(await file.arrayBuffer())
     }
+
+    const res = await processPdfBuffer(buffer)
+
+    // 임시 스토리지 파일 정리 (실패해도 무시)
+    if (storagePath) {
+      try {
+        const supabase = createServiceClient()
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath])
+      } catch { /* noop */ }
+    }
+    return res
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error('Purchase upload error:', msg)
     return NextResponse.json({ error: '파일 처리 중 오류가 발생했습니다.', detail: msg.slice(0, 300) }, { status: 500 })
   }
+}
+
+async function processPdfBuffer(buffer: Buffer): Promise<NextResponse> {
+  const pdfParse = await getPdfParse()
+  const data = await pdfParse(buffer)
+  const text = data.text as string
+
+  // 스캔본(텍스트 레이어 없음) → Claude 비전으로 전체 추출
+  if (text.replace(/\s/g, '').length < 60) {
+    return handleScannedPDF(buffer)
+  }
+
+  // 문서 유형 자동 판별
+  const hasGlogi = text.includes('GLOGITECH') || (text.includes('Ocean Inbound') && text.includes('TOTAL AMOUNT'))
+  const hasImportDecl = text.includes('수입신고필증') || text.includes('수 입 신 고 필 증')
+  const hasImportTax = text.includes('수입세금계산서') || text.includes('수 입 세 금 계 산 서')
+
+  // 배 통관 번들 (글로지텍 INVOICE + 수입신고필증/세금계산서 한 PDF에 묶임)
+  if (hasGlogi && (hasImportDecl || hasImportTax)) {
+    return handleBundlePDF(text)
+  }
+
+  if (hasImportTax) {
+    return handleImportTax(text)
+  } else if (hasGlogi) {
+    return handleGlogiInvoice(text)
+  } else if (text.includes('관세법인') || text.includes('자금요청서') || (text.includes('GLOBAL TEXTILE') && text.includes('관세'))) {
+    return handleCustomsPDF(text)
+  } else if (text.includes('ROADSUN') || text.includes('로드썬') || (text.includes('INVOICE') && text.includes('AIR EXPRESS'))) {
+    return handleFreightPDF(text)
+  } else {
+    return NextResponse.json({
+      error: '알 수 없는 PDF 형식입니다. 지원: 관세 청구서, 로드썬 인보이스, 글로지텍 인보이스, 수입세금계산서',
+    }, { status: 400 })
+  }
+}
+
+// ── 스캔본 PDF (텍스트 레이어 없음) — Claude 비전으로 번들 필드 추출 ──
+async function handleScannedPDF(buffer: Buffer): Promise<NextResponse> {
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 500,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buffer.toString('base64') } },
+        {
+          type: 'text',
+          text: `스캔된 해외운송 서류 묶음입니다. 글로지텍(GLOGITECH) 해운 인보이스와 수입신고필증을 찾아 JSON만 반환:
+{"freight":{"totalAmount":TOTAL AMOUNT KRW 숫자(없으면 0),"date":"청구일 YYYY-MM-DD","invoiceNo":"OIHI로 시작","blNo":"H.B/L YWYTIN으로 시작"},"importDecl":{"taxBase":부가가치세과표 숫자(없으면 0),"taxAmount":총세액합계 숫자(없으면 0),"date":"수리일자 YYYY-MM-DD"}}`,
+        },
+      ],
+    }],
+  })
+  let raw = ''
+  for (const c of msg.content) if (c.type === 'text') raw += c.text
+  const jsonMatch = raw.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) return NextResponse.json({ error: '스캔본에서 금액을 추출하지 못했습니다.' }, { status: 400 })
+  const parsed = JSON.parse(jsonMatch[0]) as {
+    freight?: { totalAmount?: number; date?: string; invoiceNo?: string; blNo?: string }
+    importDecl?: { taxBase?: number; taxAmount?: number; date?: string }
+  }
+  const freightAmount = Number(parsed.freight?.totalAmount) || 0
+  const taxBase = Number(parsed.importDecl?.taxBase) || 0
+  const taxAmount = Number(parsed.importDecl?.taxAmount) || 0
+  if (freightAmount === 0 && taxBase === 0 && taxAmount === 0) {
+    return NextResponse.json({ error: '스캔본에서 어떤 금액도 추출하지 못했습니다.' }, { status: 400 })
+  }
+  return saveGlogiBundle({
+    freightAmount,
+    freightDate: parsed.freight?.date || '',
+    invoiceNo: String(parsed.freight?.invoiceNo ?? '').trim(),
+    blNo: String(parsed.freight?.blNo ?? '').trim(),
+    taxBase,
+    taxAmount,
+    clearanceDate: parsed.importDecl?.date || '',
+  })
 }
 
 // 수입세금계산서/수입신고필증에서 과세표준 + 세액 + 날짜 추출 (Claude AI)
@@ -158,43 +272,52 @@ async function handleImportTax(text: string): Promise<NextResponse> {
   const yearMonth = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`
 
   const transactionIds: string[] = []
+  const skipped: string[] = []
 
   if (taxBase > 0) {
-    await upsertMonthlyCost(taxBase, yearMonth, `수입원자재 (과세표준) | ${dateStr ?? ''}`)
-    const tx = await prisma.transaction.create({
-      data: {
-        date: txDate,
-        type: 'PURCHASE',
-        description: '해외운송비 (수입원자재)',
-        totalAmount: taxBase,
-        taxAmount: 0,
-        paymentMethod: 'TRANSFER',
-        paymentStatus: 'PAID',
-        channel: 'B2B',
-        notes: `수입신고필증 과세표준 (CIF) | ${dateStr ?? ''}`,
-        items: { create: [{ productName: '수입원자재 (CIF)', quantity: 1, unitPrice: taxBase, amount: taxBase }] },
-      },
-    })
-    transactionIds.push(tx.id)
+    if (await isDuplicate(txDate, 'PURCHASE', '해외운송비 (수입원자재)', taxBase)) {
+      skipped.push('수입원자재')
+    } else {
+      await upsertMonthlyCost(taxBase, yearMonth, `수입원자재 (과세표준) | ${dateStr ?? ''}`)
+      const tx = await prisma.transaction.create({
+        data: {
+          date: txDate,
+          type: 'PURCHASE',
+          description: '해외운송비 (수입원자재)',
+          totalAmount: taxBase,
+          taxAmount: 0,
+          paymentMethod: 'TRANSFER',
+          paymentStatus: 'PAID',
+          channel: 'B2B',
+          notes: `수입신고필증 과세표준 (CIF) | ${dateStr ?? ''}`,
+          items: { create: [{ productName: '수입원자재 (CIF)', quantity: 1, unitPrice: taxBase, amount: taxBase }] },
+        },
+      })
+      transactionIds.push(tx.id)
+    }
   }
 
   if (taxAmount > 0) {
-    await upsertMonthlyCost(taxAmount, yearMonth, `수입세금 (세액) | ${dateStr ?? ''}`)
-    const tx = await prisma.transaction.create({
-      data: {
-        date: txDate,
-        type: 'PURCHASE',
-        description: '해외운송비 (수입세금)',
-        totalAmount: taxAmount,
-        taxAmount: 0,
-        paymentMethod: 'TRANSFER',
-        paymentStatus: 'PAID',
-        channel: 'B2B',
-        notes: `수입세금계산서 세액 | ${dateStr ?? ''}`,
-        items: { create: [{ productName: '수입세금', quantity: 1, unitPrice: taxAmount, amount: taxAmount }] },
-      },
-    })
-    transactionIds.push(tx.id)
+    if (await isDuplicate(txDate, 'PURCHASE', '해외운송비 (수입세금)', taxAmount)) {
+      skipped.push('수입세금')
+    } else {
+      await upsertMonthlyCost(taxAmount, yearMonth, `수입세금 (세액) | ${dateStr ?? ''}`)
+      const tx = await prisma.transaction.create({
+        data: {
+          date: txDate,
+          type: 'PURCHASE',
+          description: '해외운송비 (수입세금)',
+          totalAmount: taxAmount,
+          taxAmount: 0,
+          paymentMethod: 'TRANSFER',
+          paymentStatus: 'PAID',
+          channel: 'B2B',
+          notes: `수입세금계산서 세액 | ${dateStr ?? ''}`,
+          items: { create: [{ productName: '수입세금', quantity: 1, unitPrice: taxAmount, amount: taxAmount }] },
+        },
+      })
+      transactionIds.push(tx.id)
+    }
   }
 
   return NextResponse.json({
@@ -204,6 +327,7 @@ async function handleImportTax(text: string): Promise<NextResponse> {
     totalAmount: taxBase + taxAmount,
     breakdown: { taxBase, taxAmount },
     transactionIds,
+    skipped,
   })
 }
 
@@ -223,6 +347,22 @@ async function handleBundlePDF(text: string): Promise<NextResponse> {
     return NextResponse.json({ error: '번들에서 어떤 금액도 추출하지 못했습니다.' }, { status: 400 })
   }
 
+  return saveGlogiBundle({ freightAmount, freightDate, invoiceNo, blNo, taxBase, taxAmount, clearanceDate })
+}
+
+interface GlogiBundleFields {
+  freightAmount: number
+  freightDate: string
+  invoiceNo: string
+  blNo: string
+  taxBase: number
+  taxAmount: number
+  clearanceDate: string
+}
+
+async function saveGlogiBundle(f: GlogiBundleFields): Promise<NextResponse> {
+  const { freightAmount, freightDate, invoiceNo, blNo, taxBase, taxAmount, clearanceDate } = f
+
   // 운임은 freightDate, 수입세금은 clearanceDate 기준 (양쪽 다 있을 때 우선순위는 운임 청구일)
   const dateStr = freightDate || clearanceDate || ''
   const txDate = dateStr ? new Date(dateStr + 'T12:00:00') : new Date()
@@ -230,65 +370,78 @@ async function handleBundlePDF(text: string): Promise<NextResponse> {
 
   const blRef = blNo ? `B/L: ${blNo}` : ''
   const transactionIds: string[] = []
+  const skipped: string[] = []
 
   // 글로지텍 운임
   if (freightAmount > 0) {
-    await upsertMonthlyCost(freightAmount, yearMonth, `글로지텍 운임${invoiceNo ? ` | ${invoiceNo}` : ''}`)
-    const tx = await prisma.transaction.create({
-      data: {
-        date: txDate,
-        type: 'PURCHASE',
-        description: '해외운송비 (글로지텍 운임)',
-        totalAmount: freightAmount,
-        taxAmount: 0,
-        paymentMethod: 'TRANSFER',
-        paymentStatus: 'PAID',
-        channel: 'B2B',
-        notes: [invoiceNo ? `Invoice: ${invoiceNo}` : '', blRef].filter(Boolean).join(' | '),
-        items: { create: [{ productName: '해외운송비 (글로지텍)', quantity: 1, unitPrice: freightAmount, amount: freightAmount }] },
-      },
-    })
-    transactionIds.push(tx.id)
+    if (await isDuplicate(txDate, 'PURCHASE', '해외운송비 (글로지텍 운임)', freightAmount)) {
+      skipped.push('운임')
+    } else {
+      await upsertMonthlyCost(freightAmount, yearMonth, `글로지텍 운임${invoiceNo ? ` | ${invoiceNo}` : ''}`)
+      const tx = await prisma.transaction.create({
+        data: {
+          date: txDate,
+          type: 'PURCHASE',
+          description: '해외운송비 (글로지텍 운임)',
+          totalAmount: freightAmount,
+          taxAmount: 0,
+          paymentMethod: 'TRANSFER',
+          paymentStatus: 'PAID',
+          channel: 'B2B',
+          notes: [invoiceNo ? `Invoice: ${invoiceNo}` : '', blRef].filter(Boolean).join(' | '),
+          items: { create: [{ productName: '해외운송비 (글로지텍)', quantity: 1, unitPrice: freightAmount, amount: freightAmount }] },
+        },
+      })
+      transactionIds.push(tx.id)
+    }
   }
 
   // 수입원자재 (과세표준 CIF)
   if (taxBase > 0) {
-    await upsertMonthlyCost(taxBase, yearMonth, `수입원자재 (과세표준)${blRef ? ` | ${blRef}` : ''}`)
-    const tx = await prisma.transaction.create({
-      data: {
-        date: txDate,
-        type: 'PURCHASE',
-        description: '해외운송비 (수입원자재)',
-        totalAmount: taxBase,
-        taxAmount: 0,
-        paymentMethod: 'TRANSFER',
-        paymentStatus: 'PAID',
-        channel: 'B2B',
-        notes: ['수입신고필증 과세표준 (CIF)', blRef].filter(Boolean).join(' | '),
-        items: { create: [{ productName: '수입원자재 (CIF)', quantity: 1, unitPrice: taxBase, amount: taxBase }] },
-      },
-    })
-    transactionIds.push(tx.id)
+    if (await isDuplicate(txDate, 'PURCHASE', '해외운송비 (수입원자재)', taxBase)) {
+      skipped.push('수입원자재')
+    } else {
+      await upsertMonthlyCost(taxBase, yearMonth, `수입원자재 (과세표준)${blRef ? ` | ${blRef}` : ''}`)
+      const tx = await prisma.transaction.create({
+        data: {
+          date: txDate,
+          type: 'PURCHASE',
+          description: '해외운송비 (수입원자재)',
+          totalAmount: taxBase,
+          taxAmount: 0,
+          paymentMethod: 'TRANSFER',
+          paymentStatus: 'PAID',
+          channel: 'B2B',
+          notes: ['수입신고필증 과세표준 (CIF)', blRef].filter(Boolean).join(' | '),
+          items: { create: [{ productName: '수입원자재 (CIF)', quantity: 1, unitPrice: taxBase, amount: taxBase }] },
+        },
+      })
+      transactionIds.push(tx.id)
+    }
   }
 
   // 수입세금 (부가세)
   if (taxAmount > 0) {
-    await upsertMonthlyCost(taxAmount, yearMonth, `수입세금 (세액)${blRef ? ` | ${blRef}` : ''}`)
-    const tx = await prisma.transaction.create({
-      data: {
-        date: txDate,
-        type: 'PURCHASE',
-        description: '해외운송비 (수입세금)',
-        totalAmount: taxAmount,
-        taxAmount: 0,
-        paymentMethod: 'TRANSFER',
-        paymentStatus: 'PAID',
-        channel: 'B2B',
-        notes: ['수입세금계산서 세액', blRef].filter(Boolean).join(' | '),
-        items: { create: [{ productName: '수입세금', quantity: 1, unitPrice: taxAmount, amount: taxAmount }] },
-      },
-    })
-    transactionIds.push(tx.id)
+    if (await isDuplicate(txDate, 'PURCHASE', '해외운송비 (수입세금)', taxAmount)) {
+      skipped.push('수입세금')
+    } else {
+      await upsertMonthlyCost(taxAmount, yearMonth, `수입세금 (세액)${blRef ? ` | ${blRef}` : ''}`)
+      const tx = await prisma.transaction.create({
+        data: {
+          date: txDate,
+          type: 'PURCHASE',
+          description: '해외운송비 (수입세금)',
+          totalAmount: taxAmount,
+          taxAmount: 0,
+          paymentMethod: 'TRANSFER',
+          paymentStatus: 'PAID',
+          channel: 'B2B',
+          notes: ['수입세금계산서 세액', blRef].filter(Boolean).join(' | '),
+          items: { create: [{ productName: '수입세금', quantity: 1, unitPrice: taxAmount, amount: taxAmount }] },
+        },
+      })
+      transactionIds.push(tx.id)
+    }
   }
 
   return NextResponse.json({
@@ -300,6 +453,7 @@ async function handleBundlePDF(text: string): Promise<NextResponse> {
     totalAmount: freightAmount + taxBase + taxAmount,
     breakdown: { freight: freightAmount, taxBase, taxAmount },
     transactionIds,
+    skipped, // 이미 등록돼 건너뛴 항목 (재업로드 중복 방지)
   })
 }
 
@@ -313,6 +467,10 @@ async function handleGlogiInvoice(text: string): Promise<NextResponse> {
 
   const txDate = dateStr ? new Date(dateStr + 'T12:00:00') : new Date()
   const yearMonth = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`
+
+  if (await isDuplicate(txDate, 'PURCHASE', '해외운송비 (글로지텍 운임)', totalAmount)) {
+    return NextResponse.json({ success: true, type: 'glogi_freight', date: dateStr, invoiceNo, blNo, totalAmount, skipped: ['운임'] })
+  }
 
   await upsertMonthlyCost(totalAmount, yearMonth, `글로지텍 운임${invoiceNo ? ` | ${invoiceNo}` : ''}`)
 
@@ -358,6 +516,10 @@ async function handleCustomsPDF(text: string): Promise<NextResponse> {
 
   const txDate = dateStr ? new Date(dateStr + 'T12:00:00') : new Date()
   const yearMonth = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`
+
+  if (await isDuplicate(txDate, 'EXPENSE', '관세/통관비용', totalBilled)) {
+    return NextResponse.json({ success: true, type: 'customs', date: dateStr, blNo, totalBilled, skipped: ['관세/통관'] })
+  }
 
   await upsertMonthlyCost(
     totalBilled, yearMonth,
@@ -413,6 +575,10 @@ async function handleFreightPDF(text: string): Promise<NextResponse> {
 
   const txDate = dateStr ? new Date(dateStr + 'T12:00:00') : new Date()
   const yearMonth = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`
+
+  if (await isDuplicate(txDate, 'EXPENSE', '국제운송비 (로드썬)', totalAmount)) {
+    return NextResponse.json({ success: true, type: 'freight', date: dateStr, invoiceNo, totalAmount, skipped: ['로드썬 운임'] })
+  }
 
   await upsertMonthlyCost(totalAmount, yearMonth, `로드썬 운임${invoiceNo ? ` | Invoice: ${invoiceNo}` : ''}`)
 

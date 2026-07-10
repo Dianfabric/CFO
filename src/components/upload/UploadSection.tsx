@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 import { detectUploadKind } from '@/lib/upload-kind'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import LedgerSyncDialog from './LedgerSyncDialog'
 
 type FileStatus = 'pending' | 'processing' | 'success' | 'error'
@@ -40,6 +41,8 @@ function docTypeLabel(type: string): string {
 
 function formatPurchaseResult(json: Record<string, unknown>): { message: string; detail?: string } {
   const type = json.type as string
+  const skipped = json.skipped as string[] | undefined
+  const skipMsg = skipped && skipped.length > 0 ? ` | ✋ 이미 등록돼 건너뜀: ${skipped.join('·')}` : ''
   if (type === 'sales_person') {
     const unm = (json.unmatchedMagamCount as number) ?? 0
     return {
@@ -50,25 +53,25 @@ function formatPurchaseResult(json: Record<string, unknown>): { message: string;
   if (type === 'customs') {
     return {
       message: `관세 청구서 등록 완료 (${json.date ?? ''})`,
-      detail: `청구금액 ${formatKRW((json.totalBilled as number) ?? 0)}${json.blNo ? ` | B/L: ${json.blNo}` : ''}`,
+      detail: `청구금액 ${formatKRW((json.totalBilled as number) ?? 0)}${json.blNo ? ` | B/L: ${json.blNo}` : ''}${skipMsg}`,
     }
   }
   if (type === 'freight') {
     return {
       message: `로드썬 운임 등록 완료 (${json.date ?? ''})`,
-      detail: `총 운임 ${formatKRW((json.totalAmount as number) ?? 0)}`,
+      detail: `총 운임 ${formatKRW((json.totalAmount as number) ?? 0)}${skipMsg}`,
     }
   }
   if (type === 'glogi_freight') {
     return {
       message: `글로지텍 운임 등록 완료 (${json.date ?? ''})`,
-      detail: `청구금액 ${formatKRW((json.totalAmount as number) ?? 0)}${json.blNo ? ` | B/L: ${json.blNo}` : ''}`,
+      detail: `청구금액 ${formatKRW((json.totalAmount as number) ?? 0)}${json.blNo ? ` | B/L: ${json.blNo}` : ''}${skipMsg}`,
     }
   }
   if (type === 'import_tax') {
     return {
       message: `수입세금계산서 등록 완료 (${json.date ?? ''})`,
-      detail: `세액 ${formatKRW((json.totalAmount as number) ?? 0)}`,
+      detail: `세액 ${formatKRW((json.totalAmount as number) ?? 0)}${skipMsg}`,
     }
   }
   if (type === 'tax_invoice') {
@@ -121,6 +124,26 @@ function formatPurchaseResult(json: Record<string, unknown>): { message: string;
   return { message: '등록 완료' }
 }
 
+/** 4MB 초과 PDF — Vercel 요청 한도(4.5MB) 우회: Supabase Storage에 올린 뒤 경로만 서버로 전달 */
+async function uploadViaStorage(file: File): Promise<Response> {
+  const sign = await fetch(`/api/upload/purchase?signedUrl=1&name=${encodeURIComponent(file.name)}`)
+  const signJson = await sign.json()
+  if (!sign.ok) throw new Error(signJson.error ?? '업로드 URL 발급 실패')
+
+  const supabase = createSupabaseClient()
+  if (!supabase) throw new Error('Supabase 미설정 — 4MB 초과 파일은 업로드할 수 없습니다')
+  const { error } = await supabase.storage
+    .from('shipping-uploads')
+    .uploadToSignedUrl(signJson.path as string, signJson.token as string, file)
+  if (error) throw new Error(`스토리지 업로드 실패: ${error.message}`)
+
+  return fetch('/api/upload/purchase', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storagePath: signJson.path }),
+  })
+}
+
 async function processFile(item: FileItem): Promise<{ message: string; detail?: string }> {
   const form = new FormData()
   const name = item.file.name
@@ -145,9 +168,14 @@ async function processFile(item: FileItem): Promise<{ message: string; detail?: 
     : isMagam ? '/api/upload/sales-person'
     : isExcel ? '/api/upload/sales'
     : '/api/upload/purchase'
-  form.append('file', item.file)
 
-  const res = await fetch(endpoint, { method: 'POST', body: form })
+  let res: Response
+  if (endpoint === '/api/upload/purchase' && item.file.size > 4 * 1024 * 1024) {
+    res = await uploadViaStorage(item.file)
+  } else {
+    form.append('file', item.file)
+    res = await fetch(endpoint, { method: 'POST', body: form })
+  }
   const json = await res.json()
 
   if (!res.ok) throw new Error(json.error ?? '처리 오류')

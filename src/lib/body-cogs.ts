@@ -84,6 +84,8 @@ const CUSTOMS_RE = /관세|통관|수입세금/
 export function classifyPurchase(description: string | null | undefined, itemNames: string[]): PurchaseClass {
   const d = description ?? ''
   if (d.startsWith('원단 매입원가')) return 'legacy_auto' // 구 자동 항목 — 이중계상 방지 제외
+  // 수입신고필증 과세표준(CIF) = 원단 상품가액 — 판매 기준 원가(TMS 단가×수량)와 겹치므로 재고 취득으로 제외
+  if (d.includes('수입원자재')) return 'inventory'
   const text = `${d} ${itemNames.join(' ')}`
   const isShip = SHIP_RE.test(text)
   const isCustoms = CUSTOMS_RE.test(text)
