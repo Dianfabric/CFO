@@ -93,7 +93,10 @@ export default function ProfitFlow(p: Props) {
   const hasBreakdown = (['cogs', 'variable', 'fixed', 'nonOp'] as const).some((k) =>
     (p.breakdowns?.[k] ?? []).some((it) => it.amount > 0),
   )
-  const vbH = hasBreakdown ? 420 : 352
+  const vbH = hasBreakdown ? 458 : 352
+
+  // 비용 막대 분할 색 — 큰 항목부터 진한 빨강 → 연한 빨강, 마지막은 '기타'
+  const SEG_COLORS = ['#dc2626', '#ef4444', '#f87171', '#fca5a5', '#fecaca']
 
   const amountColor = (m: { v: number; isRevenue?: boolean }) =>
     m.isRevenue ? '#2563eb' : m.v >= 0 ? '#3d7a00' : '#dc2626'
@@ -179,20 +182,44 @@ export default function ProfitFlow(p: Props) {
                 const cx2 = costX + NODE_W / 2
                 const ch = Math.max(4, Math.min(COST_MAX_H, Math.round(c.v * unit)))
                 const splitTop = FLOW_TOP + Math.min(mh[i + 1], mh[i] - 2)
-                // 세부 구성 — 상위 3개(4개 이상이면 2개 + '외 N건')
+                // 세부 구성 — 상위 4개 + 나머지 '기타' (막대 분할 + 색상 칩 범례가 1:1 대응)
                 const items = (p.breakdowns?.[c.key] ?? [])
                   .filter((it) => it.amount > 0)
                   .sort((a, b) => b.amount - a.amount)
-                const shown = items.length > 3 ? items.slice(0, 2) : items.slice(0, 3)
+                const shown = items.slice(0, 4)
                 const restCount = items.length - shown.length
-                const restSum = items.slice(shown.length).reduce((s, it) => s + it.amount, 0)
+                // 구성 합계가 총액에 못 미치면 차액도 '기타'로 (자료 미연동분)
+                const restSum = Math.max(0, c.v - shown.reduce((s, it) => s + it.amount, 0))
+                const segs: { label: string; amount: number; color: string }[] = [
+                  ...shown.map((it, k) => ({ ...it, color: SEG_COLORS[k] })),
+                  ...(restSum > c.v * 0.005
+                    ? [{ label: restCount > 0 ? `기타 ${restCount}건` : '기타', amount: restSum, color: SEG_COLORS[4] }]
+                    : []),
+                ]
+                const segTotal = segs.reduce((s, it) => s + it.amount, 0)
+                // 막대를 구성비례로 분할 — 뚜쥬루식 '어디에 얼마 쓰는지' 시각화
+                let segY = COST_Y
+                const segRects = segs.length > 1
+                  ? segs.map((sg) => {
+                      const h = Math.max(1, (sg.amount / segTotal) * ch)
+                      const r = { ...sg, y: segY, h }
+                      segY += h
+                      return r
+                    })
+                  : []
                 return (
                   <>
                     <path
                       d={band(x + NODE_W, splitTop, FLOW_TOP + mh[i], costX, COST_Y, COST_Y + ch)}
                       fill="rgba(239,68,68,0.18)"
                     />
-                    <rect x={costX} y={COST_Y} width={NODE_W} height={ch} fill="#ef4444" rx="1.5" />
+                    {segRects.length > 1 ? (
+                      segRects.map((sg) => (
+                        <rect key={sg.label} x={costX} y={sg.y} width={NODE_W} height={sg.h} fill={sg.color} />
+                      ))
+                    ) : (
+                      <rect x={costX} y={COST_Y} width={NODE_W} height={ch} fill="#ef4444" rx="1.5" />
+                    )}
                     <text x={cx2} y={COST_Y + ch + 18} textAnchor="middle" fontSize="11" fontWeight="600" fill="#64748b">
                       (−) {c.label}
                     </text>
@@ -202,24 +229,18 @@ export default function ProfitFlow(p: Props) {
                     <text x={cx2} y={COST_Y + ch + 48} textAnchor="middle" fontSize="10" fill="#94a3b8">
                       {c.rateName} {rate(c.v).toFixed(1)}%
                     </text>
-                    {shown.map((it, k) => (
+                    {segs.map((sg, k) => (
                       <text
-                        key={it.label}
+                        key={sg.label}
                         x={cx2} y={COST_Y + ch + 63 + k * 13}
                         textAnchor="middle" fontSize="9.5" fill="#94a3b8"
                         style={{ fontVariantNumeric: 'tabular-nums' }}
                       >
-                        {it.label} <tspan fontWeight="700" fill="#64748b">{compactKRW(it.amount)}</tspan>
+                        <tspan fill={segs.length > 1 ? sg.color : '#94a3b8'} fontWeight="800">▪ </tspan>
+                        {sg.label} <tspan fontWeight="700" fill="#64748b">{compactKRW(sg.amount)}</tspan>
+                        <tspan fill="#cbd5e1"> {segTotal > 0 ? Math.round((sg.amount / segTotal) * 100) : 0}%</tspan>
                       </text>
                     ))}
-                    {restCount > 0 && (
-                      <text
-                        x={cx2} y={COST_Y + ch + 63 + shown.length * 13}
-                        textAnchor="middle" fontSize="9.5" fill="#cbd5e1"
-                      >
-                        외 {restCount}건 {compactKRW(restSum)}
-                      </text>
-                    )}
                   </>
                 )
               })()}
