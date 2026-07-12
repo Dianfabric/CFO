@@ -2,6 +2,12 @@
 
 /**
  * 자료 보관함 클라이언트 — 드래그앤드롭 + 갤러리 + lightbox
+ *
+ * 저장소: Supabase Storage(media-library, 서명 URL 직접 업로드 — 2026-07-10 전환).
+ *   구 Google Drive OAuth 업로드는 GIS 스크립트·토큰 의존으로 자주 깨져 대체.
+ *   기존 Drive 파일(drive_file_id 가 'sb:' 아님)은 그대로 열람 가능.
+ * 카테고리: 기본 5종(사진·영상·룩북·카탈로그·기타) + 사용자 생성 대카테고리(tags 의 'cat:이름')
+ *   + 하위 카테고리(tags 의 'sub:이름') — DB 스키마 변경 없이 태그로 표현.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -18,21 +24,15 @@ import {
   Loader2,
   Play,
   UploadCloud,
+  FolderPlus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { useGoogleDrive } from '@/hooks/useGoogleDrive'
-import {
-  getOrCreateFolder,
-  uploadToDriveWithDetails,
-  deleteFromDrive,
-} from '@/lib/google-drive'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import {
   MEDIA_CATEGORY_LABEL,
-  MEDIA_CATEGORY_FOLDER_NAME,
   MEDIA_CATEGORY_ORDER,
-  MEDIA_STORAGE_ROOT_NAME,
   classifyMedia,
   guessCategory,
   formatFileSize,
@@ -43,34 +43,45 @@ import {
 } from '@/lib/media-storage'
 import { cn } from '@/lib/utils'
 
-const ROOT_FOLDER_ID = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ROOT_FOLDER_ID ?? ''
+// ── 태그 기반 커스텀 카테고리 헬퍼 ──
+const isSb = (f: MediaFile) => f.drive_file_id.startsWith('sb:')
+const catTag = (f: MediaFile) => f.tags?.find((t) => t.startsWith('cat:'))?.slice(4) ?? null
+const subTag = (f: MediaFile) => f.tags?.find((t) => t.startsWith('sub:'))?.slice(4) ?? null
+/** 파일의 표시 카테고리 키 — 커스텀이면 'cat:이름', 아니면 기본 enum */
+const effCat = (f: MediaFile): string => (catTag(f) ? `cat:${catTag(f)}` : f.category)
+const catLabel = (key: string): string =>
+  key.startsWith('cat:') ? key.slice(4) : (MEDIA_CATEGORY_LABEL[key as MediaFileCategory] ?? key)
 
 export default function MediaView() {
-  const { getToken } = useGoogleDrive()
-
   // 상태
   const [files, setFiles] = useState<MediaFile[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState<MediaFileCategory | 'all'>('all')
+  const [category, setCategory] = useState<string>('all') // 'all' | enum | 'cat:이름'
+  const [subFilter, setSubFilter] = useState<string>('all')
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   const [preview, setPreview] = useState<MediaFile | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  // 업로드 대상 선택 — 'auto' 면 파일 종류로 자동 분류
+  const [upCat, setUpCat] = useState<string>('auto')
+  const [upSub, setUpSub] = useState<string>('')
+  // 아직 파일이 없는 새 카테고리도 목록에 보이도록 로컬 보관
+  const [extraCats, setExtraCats] = useState<string[]>([])
+  const [extraSubs, setExtraSubs] = useState<Record<string, string[]>>({})
   const dragCounter = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ─────────────────────────────────────────────
-  // 목록 fetch
+  // 목록 fetch — 카테고리 필터는 클라이언트에서 (커스텀 카테고리 지원)
   // ─────────────────────────────────────────────
   const fetchFiles = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams()
+      const params = new URLSearchParams({ limit: '500' })
       if (search.trim()) params.set('q', search.trim())
-      if (category !== 'all') params.set('category', category)
       const res = await fetch(`/api/documents/media?${params}`)
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
       const json = await res.json()
@@ -80,81 +91,117 @@ export default function MediaView() {
     } finally {
       setLoading(false)
     }
-  }, [search, category])
+  }, [search])
 
   useEffect(() => {
     fetchFiles()
   }, [fetchFiles])
 
-  // 카테고리별 개수
+  // 커스텀 대카테고리 목록 (데이터 + 방금 생성한 것)
+  const customCats = useMemo(() => {
+    const set = new Set(extraCats)
+    for (const f of files) {
+      const c = catTag(f)
+      if (c) set.add(c)
+    }
+    return [...set].sort()
+  }, [files, extraCats])
+
+  // 카테고리별 하위 카테고리 목록
+  const subsFor = useCallback(
+    (catKey: string): string[] => {
+      const set = new Set(extraSubs[catKey] ?? [])
+      for (const f of files) {
+        if (effCat(f) !== catKey) continue
+        const s = subTag(f)
+        if (s) set.add(s)
+      }
+      return [...set].sort()
+    },
+    [files, extraSubs],
+  )
+
+  // 카테고리별 개수 (표시 카테고리 기준)
   const countsByCategory = useMemo(() => {
     const map: Record<string, number> = { all: files.length }
-    for (const f of files) map[f.category] = (map[f.category] ?? 0) + 1
+    for (const f of files) {
+      const k = effCat(f)
+      map[k] = (map[k] ?? 0) + 1
+    }
     return map
   }, [files])
 
+  // 화면에 보여줄 파일 (카테고리·하위 필터)
+  const visibleFiles = useMemo(() => {
+    let list = files
+    if (category !== 'all') list = list.filter((f) => effCat(f) === category)
+    if (subFilter !== 'all') list = list.filter((f) => subTag(f) === subFilter)
+    return list
+  }, [files, category, subFilter])
+
+  const currentSubs = category === 'all' ? [] : subsFor(category)
+
   // ─────────────────────────────────────────────
-  // 업로드 코어
+  // 새 카테고리 / 하위 카테고리 생성
+  // ─────────────────────────────────────────────
+  const createCategory = () => {
+    const name = prompt('새 대카테고리 이름 (예: 중요 문서)')?.trim()
+    if (!name) return null
+    const key = `cat:${name}`
+    setExtraCats((prev) => (prev.includes(name) ? prev : [...prev, name]))
+    return key
+  }
+  const createSub = (catKey: string) => {
+    const name = prompt('새 하위 카테고리 이름 (예: 전시회, 로고파일)')?.trim()
+    if (!name) return null
+    setExtraSubs((prev) => ({
+      ...prev,
+      [catKey]: [...new Set([...(prev[catKey] ?? []), name])],
+    }))
+    return name
+  }
+
+  // ─────────────────────────────────────────────
+  // 업로드 코어 — Supabase Storage 서명 URL 직접 업로드
   // ─────────────────────────────────────────────
   const uploadFiles = useCallback(
     async (fileList: File[]) => {
       if (fileList.length === 0) return
-      if (!ROOT_FOLDER_ID) {
-        setError(
-          '환경변수 NEXT_PUBLIC_GOOGLE_DRIVE_ROOT_FOLDER_ID 가 설정되지 않았습니다.',
-        )
-        return
-      }
-
       setError(null)
       setUploading(true)
 
       try {
-        const token = await getToken()
-
-        // 1. "디안 자료함" 부모 폴더
-        setUploadProgress('디안 자료함 폴더 확인 중...')
-        const storageRootId = await getOrCreateFolder(
-          MEDIA_STORAGE_ROOT_NAME,
-          ROOT_FOLDER_ID,
-          token,
-        )
-
-        // 2. 카테고리별 folder 캐시 (반복 업로드 시 1회만)
-        const folderCache: Record<string, string> = {}
-        const getFolder = async (cat: MediaFileCategory): Promise<string> => {
-          if (folderCache[cat]) return folderCache[cat]
-          const name = MEDIA_CATEGORY_FOLDER_NAME[cat]
-          setUploadProgress(`${name} 폴더 확인 중...`)
-          const id = await getOrCreateFolder(name, storageRootId, token)
-          folderCache[cat] = id
-          return id
-        }
+        const supabase = createSupabaseClient()
+        if (!supabase) throw new Error('Supabase 환경변수 미설정 — 업로드 불가')
 
         for (let i = 0; i < fileList.length; i++) {
           const f = fileList[i]
-          // 현재 필터 카테고리가 있으면 그걸로, 'all' 이면 MIME 추론
-          const targetCategory: MediaFileCategory =
-            category === 'all' ? guessCategory(f.type) : category
+          if (f.size > 50 * 1024 * 1024) {
+            throw new Error(`${f.name}: 파일당 50MB 까지 업로드할 수 있습니다.`)
+          }
+          // 카테고리 결정 — 선택값 우선, '자동'이면 MIME 추론
+          const chosen = upCat === 'auto' ? guessCategory(f.type) : upCat
+          const baseCat: MediaFileCategory = chosen.startsWith('cat:')
+            ? 'other'
+            : (chosen as MediaFileCategory)
+          const tags: string[] = []
+          if (chosen.startsWith('cat:')) tags.push(chosen)
+          if (upSub) tags.push(`sub:${upSub}`)
 
-          const folderId = await getFolder(targetCategory)
-          setUploadProgress(
-            `[${i + 1}/${fileList.length}] ${f.name} Drive 업로드 중...`,
+          setUploadProgress(`[${i + 1}/${fileList.length}] ${f.name} 업로드 중...`)
+          const sign = await fetch(
+            `/api/documents/media/upload-url?name=${encodeURIComponent(f.name)}`,
           )
-          const details = await uploadToDriveWithDetails(
-            f,
-            f.name,
-            f.type || 'application/octet-stream',
-            folderId,
-            token,
-          )
+          const signJson = await sign.json()
+          if (!sign.ok) throw new Error(signJson.error ?? '업로드 URL 발급 실패')
+
+          const { error: upErr } = await supabase.storage
+            .from('media-library')
+            .uploadToSignedUrl(signJson.path as string, signJson.token as string, f)
+          if (upErr) throw new Error(`업로드 실패: ${upErr.message}`)
 
           // 이미지/영상 메타 (가능한 경우 클라이언트에서 추출)
-          let extraMeta: {
-            width_px?: number
-            height_px?: number
-            duration_seconds?: number
-          } = {}
+          let extraMeta: { width_px?: number; height_px?: number; duration_seconds?: number } = {}
           try {
             extraMeta = await extractMediaMeta(f)
           } catch {
@@ -162,28 +209,26 @@ export default function MediaView() {
           }
 
           setUploadProgress(`[${i + 1}/${fileList.length}] 메타데이터 저장 중...`)
+          const isImage = f.type.startsWith('image/')
           const metaRes = await fetch('/api/documents/media', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              drive_file_id: details.id,
-              drive_folder_id: folderId,
-              drive_view_url: details.webViewLink,
-              drive_download_url: details.webContentLink,
-              drive_thumbnail_url: details.thumbnailLink,
-              filename: details.name,
-              mime_type: details.mimeType,
-              size_bytes: details.size,
+              drive_file_id: `sb:${signJson.path}`,
+              drive_view_url: signJson.publicUrl,
+              drive_download_url: signJson.publicUrl,
+              drive_thumbnail_url: isImage ? signJson.publicUrl : null,
+              filename: f.name,
+              mime_type: f.type || 'application/octet-stream',
+              size_bytes: f.size,
               ...extraMeta,
-              category: targetCategory,
-              tags: [],
+              category: baseCat,
+              tags,
             }),
           })
           if (!metaRes.ok) {
             const err = await metaRes.json().catch(() => null)
-            throw new Error(
-              err?.error ?? `메타데이터 저장 실패: ${metaRes.status}`,
-            )
+            throw new Error(err?.error ?? `메타데이터 저장 실패: ${metaRes.status}`)
           }
         }
 
@@ -196,21 +241,10 @@ export default function MediaView() {
         setUploadProgress(null)
       }
     },
-    [category, fetchFiles, getToken],
+    [upCat, upSub, fetchFiles],
   )
 
-  // ─────────────────────────────────────────────
-  // 버튼 업로드
-  // ─────────────────────────────────────────────
-  const handleUploadClick = () => {
-    if (!ROOT_FOLDER_ID) {
-      setError(
-        '환경변수 NEXT_PUBLIC_GOOGLE_DRIVE_ROOT_FOLDER_ID 가 설정되지 않았습니다.',
-      )
-      return
-    }
-    fileInputRef.current?.click()
-  }
+  const handleUploadClick = () => fileInputRef.current?.click()
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files
@@ -263,13 +297,14 @@ export default function MediaView() {
   }, [uploadFiles])
 
   // ─────────────────────────────────────────────
-  // 삭제
+  // 삭제 — Supabase 파일은 스토리지까지 서버가 삭제, 구 Drive 파일은 메타만
   // ─────────────────────────────────────────────
   const handleDelete = async (file: MediaFile) => {
-    if (!confirm(`"${file.filename}" 을 휴지통으로 보낼까요?\n(Drive 휴지통에서 복구 가능)`)) return
+    const msg = isSb(file)
+      ? `"${file.filename}" 을 삭제할까요? (스토리지에서 함께 삭제됩니다)`
+      : `"${file.filename}" 을 목록에서 삭제할까요?\n(Drive 원본은 Drive 휴지통에서 별도 관리)`
+    if (!confirm(msg)) return
     try {
-      const token = await getToken()
-      await deleteFromDrive(file.drive_file_id, token, true)
       await fetch(`/api/documents/media/${file.id}`, { method: 'DELETE' })
       await fetchFiles()
       if (preview?.id === file.id) setPreview(null)
@@ -279,18 +314,19 @@ export default function MediaView() {
   }
 
   // ─────────────────────────────────────────────
-  // 카테고리 변경
+  // 카테고리 이동 (기본 enum ↔ 커스텀 'cat:이름')
   // ─────────────────────────────────────────────
-  const handleCategoryChange = async (
-    file: MediaFile,
-    newCat: MediaFileCategory,
-  ) => {
-    if (newCat === file.category) return
+  const handleCategoryChange = async (file: MediaFile, newKey: string) => {
+    if (newKey === effCat(file)) return
     try {
+      const baseTags = (file.tags ?? []).filter((t) => !t.startsWith('cat:'))
+      const patch = newKey.startsWith('cat:')
+        ? { category: 'other', tags: [newKey, ...baseTags] }
+        : { category: newKey, tags: baseTags }
       const res = await fetch(`/api/documents/media/${file.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: newCat }),
+        body: JSON.stringify(patch),
       })
       if (!res.ok) throw new Error(`${res.status}`)
       await fetchFiles()
@@ -298,6 +334,8 @@ export default function MediaView() {
       setError(e instanceof Error ? e.message : '카테고리 변경 실패')
     }
   }
+
+  const allCatKeys: string[] = [...MEDIA_CATEGORY_ORDER, ...customCats.map((c) => `cat:${c}`)]
 
   return (
     <div className="space-y-5 relative">
@@ -310,7 +348,7 @@ export default function MediaView() {
           <div className="bg-white border-2 border-[var(--nv-primary)] px-8 py-6 text-center" style={{ borderRadius: '2px' }}>
             <UploadCloud className="w-12 h-12 mx-auto text-[var(--nv-primary)] mb-2" strokeWidth={1.5} />
             <p className="text-[18px] font-bold tracking-tight text-[#000]">파일을 여기에 놓으세요</p>
-            <p className="text-[12px] text-[#757575] mt-1">사진·영상·룩북 등 자동 분류됩니다</p>
+            <p className="text-[12px] text-[#757575] mt-1">아래에서 고른 카테고리로 저장됩니다</p>
           </div>
         </div>
       )}
@@ -330,7 +368,6 @@ export default function MediaView() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/*,video/*,application/pdf"
           className="hidden"
           onChange={handleInputChange}
         />
@@ -349,24 +386,110 @@ export default function MediaView() {
         </Button>
       </div>
 
+      {/* 업로드 대상 카테고리 선택 — 새 대/하위 카테고리 생성 가능 */}
+      <div
+        className="flex flex-wrap items-center gap-2 border border-[#e5e5e5] bg-white px-3 py-2"
+        style={{ borderRadius: '2px' }}
+      >
+        <FolderPlus className="w-4 h-4 text-[#76b900]" strokeWidth={2} />
+        <span className="text-[11px] font-bold text-[#757575]">업로드 위치</span>
+        <select
+          value={upCat}
+          onChange={(e) => {
+            const v = e.target.value
+            if (v === '__new__') {
+              const key = createCategory()
+              if (key) {
+                setUpCat(key)
+                setUpSub('')
+              }
+              return
+            }
+            setUpCat(v)
+            setUpSub('')
+          }}
+          className="h-8 text-[12px] font-bold border border-[#cccccc] bg-white px-2 outline-none focus:border-[#76b900]"
+          style={{ borderRadius: '2px' }}
+        >
+          <option value="auto">자동 분류 (파일 종류대로)</option>
+          {MEDIA_CATEGORY_ORDER.map((c) => (
+            <option key={c} value={c}>{MEDIA_CATEGORY_LABEL[c]}</option>
+          ))}
+          {customCats.map((c) => (
+            <option key={c} value={`cat:${c}`}>{c}</option>
+          ))}
+          <option value="__new__">＋ 새 대카테고리 만들기…</option>
+        </select>
+        {upCat !== 'auto' && (
+          <>
+            <span className="text-[11px] text-[#cccccc]">›</span>
+            <select
+              value={upSub}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === '__new__') {
+                  const name = createSub(upCat)
+                  if (name) setUpSub(name)
+                  return
+                }
+                setUpSub(v)
+              }}
+              className="h-8 text-[12px] font-bold border border-[#cccccc] bg-white px-2 outline-none focus:border-[#76b900]"
+              style={{ borderRadius: '2px' }}
+            >
+              <option value="">하위 카테고리 없음</option>
+              {subsFor(upCat).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+              <option value="__new__">＋ 새 하위 카테고리 만들기…</option>
+            </select>
+          </>
+        )}
+        <span className="text-[10px] text-[#999]">
+          예: 사진 › 전시회, 중요 문서 › 로고파일 — 나중에 찾기 쉬워집니다
+        </span>
+      </div>
+
       {/* 카테고리 필터 칩 */}
       <div className="flex flex-wrap gap-2">
         <CategoryChip
           active={category === 'all'}
-          onClick={() => setCategory('all')}
+          onClick={() => { setCategory('all'); setSubFilter('all') }}
           label="전체"
           count={countsByCategory.all}
         />
-        {MEDIA_CATEGORY_ORDER.map((c) => (
+        {allCatKeys.map((c) => (
           <CategoryChip
             key={c}
             active={category === c}
-            onClick={() => setCategory(c)}
-            label={MEDIA_CATEGORY_LABEL[c]}
+            onClick={() => { setCategory(c); setSubFilter('all') }}
+            label={catLabel(c)}
             count={countsByCategory[c] ?? 0}
           />
         ))}
       </div>
+
+      {/* 하위 카테고리 칩 — 대카테고리 선택 시 */}
+      {category !== 'all' && currentSubs.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <span className="text-[10px] font-bold text-[#999] uppercase tracking-wider">하위</span>
+          <CategoryChip
+            active={subFilter === 'all'}
+            onClick={() => setSubFilter('all')}
+            label="전체"
+            count={visibleFiles.length && subFilter === 'all' ? countsByCategory[category] ?? 0 : countsByCategory[category] ?? 0}
+          />
+          {currentSubs.map((s) => (
+            <CategoryChip
+              key={s}
+              active={subFilter === s}
+              onClick={() => setSubFilter(s)}
+              label={s}
+              count={files.filter((f) => effCat(f) === category && subTag(f) === s).length}
+            />
+          ))}
+        </div>
+      )}
 
       {/* 에러·상태 안내 */}
       {error && (
@@ -397,21 +520,23 @@ export default function MediaView() {
       {/* 드롭존 + 결과 */}
       {loading ? (
         <div className="text-center py-10 text-[#757575]">불러오는 중...</div>
-      ) : files.length === 0 ? (
+      ) : visibleFiles.length === 0 ? (
         <Dropzone
           hasFilter={search.trim() !== '' || category !== 'all'}
           onClearFilter={() => {
             setSearch('')
             setCategory('all')
+            setSubFilter('all')
           }}
           onPickFiles={handleUploadClick}
         />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {files.map((f) => (
+          {visibleFiles.map((f) => (
             <MediaCard
               key={f.id}
               file={f}
+              allCatKeys={allCatKeys}
               onPreview={() => setPreview(f)}
               onDelete={() => handleDelete(f)}
               onCategoryChange={(c) => handleCategoryChange(f, c)}
@@ -471,18 +596,21 @@ function CategoryChip({
 // ============================================================
 function MediaCard({
   file,
+  allCatKeys,
   onPreview,
   onDelete,
   onCategoryChange,
 }: {
   file: MediaFile
+  allCatKeys: string[]
   onPreview: () => void
   onDelete: () => void
-  onCategoryChange: (c: MediaFileCategory) => void
+  onCategoryChange: (c: string) => void
 }) {
   const cls = classifyMedia(file.mime_type)
   const FallbackIcon =
     cls === 'image' ? ImageIcon : cls === 'video' ? Film : cls === 'pdf' ? FileText : FileIcon
+  const sub = subTag(file)
 
   return (
     <div
@@ -526,12 +654,13 @@ function MediaCard({
           </span>
         )}
 
-        {/* 카테고리 라벨 (좌상단) */}
+        {/* 카테고리 라벨 (좌상단) — 커스텀·하위 포함 */}
         <span
           className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-white/90 text-[9px] font-bold tracking-tight text-[#000]"
           style={{ borderRadius: '2px' }}
         >
-          {MEDIA_CATEGORY_LABEL[file.category]}
+          {catLabel(effCat(file))}
+          {sub && <span className="text-[#76b900]"> › {sub}</span>}
         </span>
       </button>
 
@@ -553,15 +682,15 @@ function MediaCard({
 
         <div className="flex items-center gap-1">
           <select
-            value={file.category}
-            onChange={(e) => onCategoryChange(e.target.value as MediaFileCategory)}
+            value={effCat(file)}
+            onChange={(e) => onCategoryChange(e.target.value)}
             className="flex-1 text-[10px] font-bold border border-[#cccccc] bg-white px-1 py-0.5 outline-none focus:border-[#76b900]"
             style={{ borderRadius: '2px' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {MEDIA_CATEGORY_ORDER.map((c) => (
+            {allCatKeys.map((c) => (
               <option key={c} value={c}>
-                {MEDIA_CATEGORY_LABEL[c]}
+                {catLabel(c)}
               </option>
             ))}
           </select>
@@ -569,7 +698,7 @@ function MediaCard({
             onClick={onDelete}
             className="h-6 w-6 inline-flex items-center justify-center bg-[#fef2f2] hover:bg-[#fee2e2] text-[#991b1b] transition-colors"
             style={{ borderRadius: '2px' }}
-            title="휴지통으로"
+            title="삭제"
           >
             <Trash2 className="w-3 h-3" strokeWidth={2} />
           </button>
@@ -599,13 +728,19 @@ function Dropzone({
       <UploadCloud className="w-14 h-14 mx-auto text-[#cccccc] mb-4" strokeWidth={1.3} />
       {hasFilter ? (
         <>
-          <p className="text-[14px] font-bold text-[#000] mb-1">검색 결과가 없습니다.</p>
+          <p className="text-[14px] font-bold text-[#000] mb-1">이 카테고리에 자료가 없습니다.</p>
           <p className="text-[12px] text-[#757575] mb-4">
-            다른 검색어를 시도하거나 필터를 해제해보세요.
+            바로 업로드하면 지금 선택된 카테고리로 저장됩니다.
           </p>
-          <Button variant="outline" size="sm" onClick={onClearFilter}>
-            필터 초기화
-          </Button>
+          <div className="flex items-center justify-center gap-2">
+            <Button onClick={onPickFiles} size="sm" className="gap-1.5">
+              <Upload className="w-3.5 h-3.5" />
+              여기에 업로드
+            </Button>
+            <Button variant="outline" size="sm" onClick={onClearFilter}>
+              필터 초기화
+            </Button>
+          </div>
         </>
       ) : (
         <>
@@ -613,7 +748,7 @@ function Dropzone({
             여기로 드래그하거나 클릭해서 업로드
           </p>
           <p className="text-[12px] text-[#757575] mb-5">
-            사진·영상·룩북·PDF — 자동으로 분류되어 Drive 에 저장됩니다
+            사진·영상·룩북·PDF — 파일당 50MB, 위에서 카테고리를 고르면 그대로 분류됩니다
           </p>
           <Button onClick={onPickFiles} className="gap-2">
             <Upload className="w-4 h-4" />
@@ -636,6 +771,9 @@ function PreviewModal({
   onClose: () => void
 }) {
   const cls = classifyMedia(file.mime_type)
+  const sb = isSb(file)
+  const url = file.drive_view_url ?? ''
+  const sub = subTag(file)
   return (
     <div
       className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
@@ -653,7 +791,10 @@ function PreviewModal({
               {file.filename}
             </p>
             <p className="text-[11px] text-[#757575] mt-0.5 flex items-center gap-2 flex-wrap">
-              <Badge variant="secondary">{MEDIA_CATEGORY_LABEL[file.category]}</Badge>
+              <Badge variant="secondary">
+                {catLabel(effCat(file))}
+                {sub ? ` › ${sub}` : ''}
+              </Badge>
               <span>{formatFileSize(file.size_bytes)}</span>
               {file.width_px && file.height_px && (
                 <span>
@@ -668,6 +809,7 @@ function PreviewModal({
             {file.drive_download_url && (
               <a
                 href={file.drive_download_url}
+                download={sb ? file.filename : undefined}
                 className="h-8 px-3 text-[12px] font-bold inline-flex items-center justify-center gap-1 bg-[#f7f7f7] hover:bg-[#eeeeee]"
                 style={{ borderRadius: '2px' }}
                 title="다운로드"
@@ -676,7 +818,7 @@ function PreviewModal({
                 다운로드
               </a>
             )}
-            {file.drive_view_url && (
+            {!sb && file.drive_view_url && (
               <a
                 href={file.drive_view_url}
                 target="_blank"
@@ -698,14 +840,13 @@ function PreviewModal({
           </div>
         </div>
 
-        {/* 본문 */}
+        {/* 본문 — Supabase 파일은 공개 URL 직접 렌더, 구 Drive 파일은 기존 방식 */}
         <div className="flex-1 overflow-auto bg-black flex items-center justify-center min-h-[400px]">
           {cls === 'image' ? (
-            // 이미지: 큰 thumbnail (=s2000) → 없으면 Drive preview iframe
-            file.drive_thumbnail_url ? (
+            sb || file.drive_thumbnail_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={file.drive_thumbnail_url.replace(/=s\d+/, '=s2000')}
+                src={sb ? url : file.drive_thumbnail_url!.replace(/=s\d+/, '=s2000')}
                 alt={file.filename}
                 className="max-w-full max-h-[78vh] object-contain"
                 referrerPolicy="no-referrer"
@@ -718,16 +859,21 @@ function PreviewModal({
               />
             )
           ) : cls === 'video' ? (
-            // 영상: Drive 임베드 player (HTML5 <video> 는 Drive raw url 인증 필요해서 iframe 이 안정)
-            <iframe
-              src={getDrivePreviewUrl(file.drive_file_id)}
-              className="w-full h-[78vh] border-0 bg-black"
-              title={file.filename}
-              allow="autoplay"
-              allowFullScreen
-            />
+            sb ? (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video src={url} controls className="max-w-full max-h-[78vh]" />
+            ) : (
+              <iframe
+                src={getDrivePreviewUrl(file.drive_file_id)}
+                className="w-full h-[78vh] border-0 bg-black"
+                title={file.filename}
+                allow="autoplay"
+                allowFullScreen
+              />
+            )
+          ) : sb ? (
+            <iframe src={url} className="w-full h-[78vh] border-0 bg-white" title={file.filename} />
           ) : (
-            // PDF / 기타: Drive iframe
             <iframe
               src={getDrivePreviewUrl(file.drive_file_id)}
               className="w-full h-[78vh] border-0 bg-white"

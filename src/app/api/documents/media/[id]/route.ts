@@ -3,7 +3,7 @@
  * DELETE /api/documents/media/[id] — 메타데이터 삭제 (Drive 파일은 클라이언트가 별도 삭제)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -48,8 +48,20 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params
   try {
     const supabase = await createClient()
+    // Supabase Storage 파일(drive_file_id = 'sb:경로')이면 스토리지 객체도 함께 삭제
+    const { data: row } = await supabase
+      .from('media_files')
+      .select('drive_file_id')
+      .eq('id', id)
+      .single()
     const { error } = await supabase.from('media_files').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (row?.drive_file_id?.startsWith('sb:')) {
+      try {
+        const svc = createServiceClient()
+        await svc.storage.from('media-library').remove([row.drive_file_id.slice(3)])
+      } catch { /* 메타 삭제가 우선 — 스토리지 잔존은 무해 */ }
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json(
