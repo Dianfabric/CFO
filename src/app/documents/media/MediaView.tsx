@@ -45,6 +45,22 @@ import { cn } from '@/lib/utils'
 
 // ── 태그 기반 커스텀 카테고리 헬퍼 ──
 const isSb = (f: MediaFile) => f.drive_file_id.startsWith('sb:')
+const IMG_EXT_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i
+/** 스캐너 파일 등 MIME 이 비어도 확장자로 이미지 판별 */
+const looksImage = (f: MediaFile) =>
+  classifyMedia(f.mime_type) === 'image' || IMG_EXT_RE.test(f.filename)
+/** 확장자 기반 MIME 추론 — 브라우저가 type 을 못 주는 파일(스캐너 등) 대응 */
+function inferMime(name: string, browserType: string): string {
+  if (browserType) return browserType
+  const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase()
+  const map: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+    webp: 'image/webp', avif: 'image/avif', bmp: 'image/bmp', svg: 'image/svg+xml',
+    mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
+    pdf: 'application/pdf',
+  }
+  return map[ext] ?? 'application/octet-stream'
+}
 const catTag = (f: MediaFile) => f.tags?.find((t) => t.startsWith('cat:'))?.slice(4) ?? null
 const subTag = (f: MediaFile) => f.tags?.find((t) => t.startsWith('sub:'))?.slice(4) ?? null
 /** 파일의 표시 카테고리 키 — 커스텀이면 'cat:이름', 아니면 기본 enum */
@@ -209,7 +225,8 @@ export default function MediaView() {
           }
 
           setUploadProgress(`[${i + 1}/${fileList.length}] 메타데이터 저장 중...`)
-          const isImage = f.type.startsWith('image/')
+          const mime = inferMime(f.name, f.type)
+          const isImage = mime.startsWith('image/')
           const metaRes = await fetch('/api/documents/media', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -219,7 +236,7 @@ export default function MediaView() {
               drive_download_url: signJson.publicUrl,
               drive_thumbnail_url: isImage ? signJson.publicUrl : null,
               filename: f.name,
-              mime_type: f.type || 'application/octet-stream',
+              mime_type: mime,
               size_bytes: f.size,
               ...extraMeta,
               category: baseCat,
@@ -611,6 +628,10 @@ function MediaCard({
   const FallbackIcon =
     cls === 'image' ? ImageIcon : cls === 'video' ? Film : cls === 'pdf' ? FileText : FileIcon
   const sub = subTag(file)
+  // 썸네일: 저장된 URL → 없으면 Supabase 이미지 파일은 공개 URL 로 직접 (MIME 누락 구제)
+  const thumbSrc =
+    file.drive_thumbnail_url ??
+    (isSb(file) && looksImage(file) ? file.drive_view_url : null)
 
   return (
     <div
@@ -622,10 +643,10 @@ function MediaCard({
         onClick={onPreview}
         className="relative aspect-square w-full bg-[#f7f7f7] overflow-hidden flex items-center justify-center"
       >
-        {file.drive_thumbnail_url ? (
+        {thumbSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={file.drive_thumbnail_url}
+            src={thumbSrc}
             alt={file.filename}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             referrerPolicy="no-referrer"
@@ -842,7 +863,7 @@ function PreviewModal({
 
         {/* 본문 — Supabase 파일은 공개 URL 직접 렌더, 구 Drive 파일은 기존 방식 */}
         <div className="flex-1 overflow-auto bg-black flex items-center justify-center min-h-[400px]">
-          {cls === 'image' ? (
+          {cls === 'image' || (sb && looksImage(file)) ? (
             sb || file.drive_thumbnail_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img

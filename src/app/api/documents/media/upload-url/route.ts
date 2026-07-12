@@ -14,7 +14,14 @@ const BUCKET = 'media-library'
 
 export async function GET(request: NextRequest) {
   try {
-    const name = (request.nextUrl.searchParams.get('name') ?? 'file').replace(/[^\w.\-가-힣]/g, '_')
+    // Supabase Storage 키는 한글 등 비ASCII 불가 — 영숫자·점·하이픈만 남김 (원래 파일명은 메타에 보존)
+    const raw = request.nextUrl.searchParams.get('name') ?? 'file'
+    const ext = raw.includes('.') ? raw.slice(raw.lastIndexOf('.')).replace(/[^\w.]/g, '') : ''
+    const base = raw.slice(0, raw.lastIndexOf('.') > 0 ? raw.lastIndexOf('.') : undefined)
+      .replace(/[^A-Za-z0-9._-]/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 60)
+    const name = `${base || 'file'}${ext}`
     const ym = new Date().toISOString().slice(0, 7)
     const path = `${ym}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${name}`
 
