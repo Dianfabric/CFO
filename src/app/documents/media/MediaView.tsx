@@ -352,6 +352,30 @@ export default function MediaView() {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // 하위 카테고리 지정/변경 (기존 파일)
+  // ─────────────────────────────────────────────
+  const handleSubChange = async (file: MediaFile, value: string) => {
+    let sub = value
+    if (value === '__new__') {
+      const name = createSub(effCat(file))
+      if (!name) return
+      sub = name
+    }
+    try {
+      const baseTags = (file.tags ?? []).filter((t) => !t.startsWith('sub:'))
+      const res = await fetch(`/api/documents/media/${file.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: sub ? [...baseTags, `sub:${sub}`] : baseTags }),
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      await fetchFiles()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '하위 카테고리 변경 실패')
+    }
+  }
+
   const allCatKeys: string[] = [...MEDIA_CATEGORY_ORDER, ...customCats.map((c) => `cat:${c}`)]
 
   return (
@@ -554,9 +578,11 @@ export default function MediaView() {
               key={f.id}
               file={f}
               allCatKeys={allCatKeys}
+              subs={subsFor(effCat(f))}
               onPreview={() => setPreview(f)}
               onDelete={() => handleDelete(f)}
               onCategoryChange={(c) => handleCategoryChange(f, c)}
+              onSubChange={(s) => handleSubChange(f, s)}
             />
           ))}
         </div>
@@ -614,15 +640,19 @@ function CategoryChip({
 function MediaCard({
   file,
   allCatKeys,
+  subs,
   onPreview,
   onDelete,
   onCategoryChange,
+  onSubChange,
 }: {
   file: MediaFile
   allCatKeys: string[]
+  subs: string[]
   onPreview: () => void
   onDelete: () => void
   onCategoryChange: (c: string) => void
+  onSubChange: (s: string) => void
 }) {
   const cls = classifyMedia(file.mime_type)
   const FallbackIcon =
@@ -724,6 +754,22 @@ function MediaCard({
             <Trash2 className="w-3 h-3" strokeWidth={2} />
           </button>
         </div>
+
+        {/* 하위 카테고리 — 기존 파일도 여기서 지정·생성 (예: 사진 › 색동 사진) */}
+        <select
+          value={sub ?? ''}
+          onChange={(e) => onSubChange(e.target.value)}
+          className="w-full text-[10px] font-bold border border-[#e5e5e5] bg-[#fafafa] px-1 py-0.5 outline-none focus:border-[#76b900] text-[#555]"
+          style={{ borderRadius: '2px' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <option value="">하위 없음</option>
+          {subs.map((s) => (
+            <option key={s} value={s}>› {s}</option>
+          ))}
+          {sub && !subs.includes(sub) && <option value={sub}>› {sub}</option>}
+          <option value="__new__">＋ 새 하위 만들기…</option>
+        </select>
       </div>
     </div>
   )
