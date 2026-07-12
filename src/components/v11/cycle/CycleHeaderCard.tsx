@@ -232,12 +232,21 @@ export default function CycleHeaderCard({ initial }: Props) {
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setStartDate(v)
+                    // 12주 사이클 — 시작일을 고르면 종료일을 12주 뒤(시작일 + 84일 − 1일)로 자동 세팅
+                    if (v) {
+                      const d = new Date(v + 'T00:00:00')
+                      d.setDate(d.getDate() + 12 * 7 - 1)
+                      setEndDate(d.toLocaleDateString('sv-SE'))
+                    }
+                  }}
                   className="h-9 w-full px-2 text-[13px] border border-[#cccccc] bg-white outline-none focus:border-[#76b900]"
                   style={{ borderRadius: '2px' }}
                 />
                 <p className="text-[9px] text-[#999] mt-0.5">
-                  ℹ 변경 시 모든 직원 KR 의 시작일이 같은 차이만큼 자동 이동
+                  ℹ 시작일을 고르면 종료일이 12주 뒤로 자동 설정 (수동 조정 가능) · 변경 시 모든 직원 KR 의 시작일이 같은 차이만큼 자동 이동
                 </p>
               </div>
               <div>
