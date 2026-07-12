@@ -83,6 +83,14 @@ interface EmployeeSummary {
   this_week_todo_titles: string[]
   big_goal_id: string | null
   big_goal_krs: BigKrDetail[]
+  /** 예정된 1:1 (오늘 이후 — 이번 주 밖 포함) + 상대 확인 여부 */
+  one_on_ones?: Array<{
+    id: number
+    date: string
+    time: string | null
+    with: string
+    confirmed: boolean
+  }>
 }
 
 interface SummaryData {
@@ -234,7 +242,7 @@ export default function CycleDashboardSummary() {
           >
             직원별 진행률
           </h3>
-          <span className="text-[10px]" style={{ color: 'var(--nv-stone)' }}>
+          <span className="text-[11.5px]" style={{ color: 'var(--nv-stone)' }}>
             · KR 평균 + 이번 주 투두 완료율
           </span>
         </div>
@@ -285,7 +293,7 @@ function PinnedKrCard({ kr }: { kr: CompanyPinnedKR }) {
               {kr.kr_title}
             </span>
           </div>
-          <p className="text-[10px] text-[#666] mt-0.5">
+          <p className="text-[11.5px] text-[#666] mt-0.5">
             <span className="font-bold" style={{ color: kr.employee_color }}>
               {kr.employee_name}
             </span>
@@ -301,7 +309,7 @@ function PinnedKrCard({ kr }: { kr: CompanyPinnedKR }) {
         <span className="text-[18px] font-bold tabular-nums" style={{ color }}>
           {formatKrValue(Number(kr.current_value), kr.unit)}
         </span>
-        <span className="text-[10px] text-[#999]">
+        <span className="text-[11.5px] text-[#999]">
           / {formatKrValue(Number(kr.target_value), kr.unit)}
         </span>
       </div>
@@ -316,7 +324,7 @@ function PinnedKrCard({ kr }: { kr: CompanyPinnedKR }) {
           }}
         />
       </div>
-      <p className="text-[10px] text-[#666] mt-1 tabular-nums">
+      <p className="text-[11.5px] text-[#666] mt-1 tabular-nums">
         {Math.round(progress * 100)}%
         {progress >= 0.8 && <span className="ml-1 text-[#76b900] font-bold">✓ 80%+</span>}
       </p>
@@ -422,7 +430,7 @@ function EmployeeProgressCard({
       {/* 헤더 */}
       <div className="p-3 flex items-center gap-2">
         <div
-          className="w-7 h-7 shrink-0 flex items-center justify-center text-[11px] font-bold text-white"
+          className="w-7 h-7 shrink-0 flex items-center justify-center text-[12px] font-bold text-white"
           style={{ backgroundColor: emp.color, borderRadius: '2px' }}
         >
           {emp.name.charAt(0)}
@@ -436,12 +444,12 @@ function EmployeeProgressCard({
               {emp.name}
             </span>
             {emp.role_label && (
-              <span className="text-[10px]" style={{ color: 'var(--nv-stone)' }}>
+              <span className="text-[11.5px]" style={{ color: 'var(--nv-stone)' }}>
                 {emp.role_label}
               </span>
             )}
             <span
-              className="px-1 py-0 text-[9px] font-bold inline-flex items-center gap-1"
+              className="px-1 py-0 text-[10.5px] font-bold inline-flex items-center gap-1"
               style={{
                 backgroundColor: trackBg,
                 color: trackText,
@@ -492,7 +500,7 @@ function EmployeeProgressCard({
               fill="currentColor"
             />
             <p
-              className="text-[11px] font-bold leading-tight line-clamp-2 flex-1"
+              className="text-[12px] font-bold leading-tight line-clamp-2 flex-1"
               style={{ color: 'var(--nv-ink)' }}
             >
               {emp.big_goal_title}
@@ -500,7 +508,7 @@ function EmployeeProgressCard({
           </div>
         ) : (
           <p
-            className="text-[10px] italic"
+            className="text-[11.5px] italic"
             style={{ color: 'var(--nv-stone)' }}
           >
             빅 목표 미설정 — 클릭해서 추가
@@ -513,20 +521,20 @@ function EmployeeProgressCard({
         <div className="flex items-center gap-1 mb-0.5">
           <Calendar className="w-2.5 h-2.5" style={{ color: 'var(--nv-mute)' }} />
           <span
-            className="text-[9px] font-bold uppercase tracking-[0.12em]"
+            className="text-[10.5px] font-bold uppercase tracking-[0.12em]"
             style={{ color: 'var(--nv-mute)' }}
           >
             이번 주 W{weekNumber}
           </span>
           <span
-            className="text-[9px] tabular-nums"
+            className="text-[10.5px] tabular-nums"
             style={{ color: 'var(--nv-stone)' }}
           >
             · {emp.week_done}/{emp.week_total}
           </span>
           {emp.week_total > 0 && (
             <span
-              className="text-[9px] font-bold tabular-nums"
+              className="text-[10.5px] font-bold tabular-nums"
               style={{
                 color:
                   weekRate >= 0.8
@@ -542,21 +550,21 @@ function EmployeeProgressCard({
         </div>
         {emp.this_week_todo_titles.length > 0 ? (
           <p
-            className="text-[10px] leading-tight line-clamp-2"
+            className="text-[11.5px] leading-tight line-clamp-2"
             style={{ color: 'var(--nv-mute)' }}
           >
             {emp.this_week_todo_titles.join(' · ')}
           </p>
         ) : emp.week_total > 0 ? (
           <p
-            className="text-[10px] font-bold"
+            className="text-[11.5px] font-bold"
             style={{ color: 'var(--nv-primary)' }}
           >
             ✓ 이번 주 할 일 모두 완료
           </p>
         ) : (
           <p
-            className="text-[10px] italic"
+            className="text-[11.5px] italic"
             style={{ color: 'var(--nv-stone)' }}
           >
             이번 주 투두 없음
@@ -564,19 +572,36 @@ function EmployeeProgressCard({
         )}
       </div>
 
+      {/* 🤝 예정된 1:1 — 이번 주 밖 일정 포함, 상대 확인 여부 표시 */}
+      {(emp.one_on_ones?.length ?? 0) > 0 && (
+        <div className="mb-2 space-y-0.5">
+          {emp.one_on_ones!.slice(0, 3).map((o) => (
+            <p key={o.id} className="text-[11.5px] leading-tight" style={{ color: 'var(--nv-mute)' }}>
+              🤝 {o.date.slice(5)}{o.time ? ` ${o.time.slice(0, 5)}` : ''} with {o.with}
+              <span
+                className="font-bold"
+                style={{ color: o.confirmed ? '#76b900' : '#df6500' }}
+              >
+                {' '}· {o.confirmed ? '✓ 상대 확인' : '확인 대기'}
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
+
       {/* WAM 12주 미니 막대 */}
       {sortedScores.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-0.5">
             <span
-              className="text-[9px] font-bold uppercase tracking-[0.12em]"
+              className="text-[10.5px] font-bold uppercase tracking-[0.12em]"
               style={{ color: 'var(--nv-mute)' }}
             >
               WAM 12주
             </span>
             {wamAvg > 0 && (
               <span
-                className="text-[10px] font-bold tabular-nums"
+                className="text-[11.5px] font-bold tabular-nums"
                 style={{
                   color:
                     wamAvg >= 80
@@ -648,7 +673,7 @@ function EmployeeProgressCard({
           style={{ borderTop: '1px solid var(--nv-hairline)' }}
         >
           <span
-            className="text-[11px] inline-flex items-center gap-1"
+            className="text-[12px] inline-flex items-center gap-1"
             style={{ color: 'var(--nv-mute)' }}
           >
             빅 목표 / KR 을 추가해주세요 <ArrowRight className="w-3 h-3" />
@@ -714,7 +739,7 @@ function BigKrDetailSection({
     >
       {/* KR 제목 */}
       <p
-        className="text-[11px] font-bold mb-2 line-clamp-1"
+        className="text-[12px] font-bold mb-2 line-clamp-1"
         style={{ color: 'var(--nv-ink)' }}
       >
         <span
@@ -726,7 +751,7 @@ function BigKrDetailSection({
 
       {/* 선행 진행률 — green primary */}
       <div className="space-y-1 mb-2">
-        <div className="flex items-center gap-1.5 text-[10px]">
+        <div className="flex items-center gap-1.5 text-[11.5px]">
           <TrendingUp className="w-2.5 h-2.5" style={{ color: LEAD_HUE }} />
           <span className="flex-1 truncate" style={{ color: 'var(--nv-mute)' }}>
             선행 (활동)
@@ -734,7 +759,7 @@ function BigKrDetailSection({
           <span className="tabular-nums font-bold" style={{ color: leadColor }}>
             {Math.round(kr.lead_progress * 100)}%
           </span>
-          <span className="text-[9px]" style={{ color: 'var(--nv-stone)' }}>
+          <span className="text-[10.5px]" style={{ color: 'var(--nv-stone)' }}>
             {Math.round(kr.lead_current)}/{Math.round(kr.lead_target)}
           </span>
         </div>
@@ -755,7 +780,7 @@ function BigKrDetailSection({
         {/* 후행 (있을 때만) — black ink */}
         {kr.lag_progress != null && lagColor && (
           <>
-            <div className="flex items-center gap-1.5 text-[10px]">
+            <div className="flex items-center gap-1.5 text-[11.5px]">
               <TrendingDown className="w-2.5 h-2.5" style={{ color: LAG_HUE }} />
               <span className="flex-1 truncate" style={{ color: 'var(--nv-mute)' }}>
                 후행 (결과)
@@ -763,7 +788,7 @@ function BigKrDetailSection({
               <span className="tabular-nums font-bold" style={{ color: lagColor }}>
                 {Math.round(kr.lag_progress * 100)}%
               </span>
-              <span className="text-[9px]" style={{ color: 'var(--nv-stone)' }}>
+              <span className="text-[10.5px]" style={{ color: 'var(--nv-stone)' }}>
                 {Math.round(Number(kr.lag_current ?? 0))}/
                 {Math.round(Number(kr.lag_target ?? 0))}
               </span>
@@ -793,13 +818,13 @@ function BigKrDetailSection({
         <div className="flex items-center gap-1.5">
           <Calendar className="w-2.5 h-2.5" style={{ color: 'var(--nv-mute)' }} />
           <span
-            className="text-[9px] font-bold uppercase tracking-[0.12em]"
+            className="text-[10.5px] font-bold uppercase tracking-[0.12em]"
             style={{ color: 'var(--nv-mute)' }}
           >
             이번 주 W{weekNumber}
           </span>
           <span
-            className="text-[9px] tabular-nums"
+            className="text-[10.5px] tabular-nums"
             style={{ color: 'var(--nv-stone)' }}
           >
             · 실적 {Math.round(kr.this_week_actual_value)}/
@@ -821,7 +846,7 @@ function BigKrDetailSection({
         </div>
         {kr.this_week_note ? (
           <p
-            className="text-[11px] px-1.5 py-0.5"
+            className="text-[12px] px-1.5 py-0.5"
             style={{
               color: 'var(--nv-ink)',
               backgroundColor: 'var(--nv-accent-pale)',
@@ -833,7 +858,7 @@ function BigKrDetailSection({
           </p>
         ) : (
           <p
-            className="text-[10px] italic"
+            className="text-[11.5px] italic"
             style={{ color: 'var(--nv-stone)' }}
           >
             주 목표 미입력
@@ -844,7 +869,7 @@ function BigKrDetailSection({
         {kr.this_week_todos.length > 0 ? (
           <div className="space-y-0.5">
             <div
-              className="flex items-center gap-1 text-[9px]"
+              className="flex items-center gap-1 text-[10.5px]"
               style={{ color: 'var(--nv-mute)' }}
             >
               <span>
@@ -875,7 +900,7 @@ function BigKrDetailSection({
                   style={{ borderLeft: '2px solid var(--nv-hairline)' }}
                 >
                   <div
-                    className="text-[9px] mb-0.5"
+                    className="text-[10.5px] mb-0.5"
                     style={{ color: 'var(--nv-mute)' }}
                   >
                     {dayLabel} {date.slice(5)}
@@ -887,7 +912,7 @@ function BigKrDetailSection({
                     return (
                       <div
                         key={t.id}
-                        className="flex items-center gap-1 text-[10px] py-0.5"
+                        className="flex items-center gap-1 text-[11.5px] py-0.5"
                       >
                         <button
                           type="button"
@@ -946,7 +971,7 @@ function BigKrDetailSection({
           </div>
         ) : (
           <p
-            className="text-[10px] italic"
+            className="text-[11.5px] italic"
             style={{ color: 'var(--nv-stone)' }}
           >
             이번 주 투두 없음

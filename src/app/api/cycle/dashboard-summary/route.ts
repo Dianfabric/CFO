@@ -204,6 +204,7 @@ export async function GET() {
       this_week_todo_titles: string[]
       big_goal_id: string | null
       big_goal_krs: BigKrDetail[]
+      one_on_ones: Array<{ id: number; date: string; time: string | null; with: string; confirmed: boolean }>
     }> = []
 
     // 이번 주 todo 의 제목들 (각 직원별) — 위와 같은 방식 (weekly_target_id + free)
@@ -224,6 +225,32 @@ export async function GET() {
       .lte('date', sundayISO)
       .order('order_in_day')
     const weekTodosFull = [...attachedFull, ...(freeTodosFull ?? [])]
+
+    // 🤝 예정된 1:1 (오늘 이후 — 이번 주 밖 포함) + 상대 확인 여부
+    const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
+    const { data: upcoming11 } = await supabase
+      .from('cycle_one_on_ones')
+      .select(
+        'id, requester_id, target_id, meeting_date, meeting_time, target_confirmed_at, requester:employees!requester_id(name), target:employees!target_id(name)',
+      )
+      .gte('meeting_date', todayISO)
+      .neq('status', 'cancelled')
+      .order('meeting_date')
+      .order('meeting_time')
+    const onesFor = (empId: string) =>
+      ((upcoming11 ?? []) as unknown as Array<{
+        id: number; requester_id: string; target_id: string
+        meeting_date: string; meeting_time: string | null; target_confirmed_at: string | null
+        requester: { name: string } | null; target: { name: string } | null
+      }>)
+        .filter((o) => o.requester_id === empId || o.target_id === empId)
+        .map((o) => ({
+          id: o.id,
+          date: o.meeting_date,
+          time: o.meeting_time,
+          with: o.requester_id === empId ? (o.target?.name ?? '직원') : (o.requester?.name ?? '직원'),
+          confirmed: !!o.target_confirmed_at,
+        }))
 
     interface KrShape {
       id: string
@@ -403,6 +430,7 @@ export async function GET() {
           this_week_todo_titles: myWeekTodoTitles,
           big_goal_id: bigGoal?.id ?? null,
           big_goal_krs: bigKrs,
+          one_on_ones: onesFor(e.id),
         }
       }),
     )
