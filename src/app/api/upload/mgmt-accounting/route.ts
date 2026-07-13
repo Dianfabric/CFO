@@ -185,15 +185,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── '세금계산서 분류' 시트 — 비용성격='매출원가' 흡수 (대표 지시 2026-07-13) ──
+    // ── 계산서 매출원가 흡수 (대표 지시 2026-07-13) ──
     // 대상: 가공비(방염·염색·임가공·의장 등) + TMS 단가표에 없는 원단의 원가.
     // 제외: 세관·매입(해외) 행 — 관세·수입세금 인보이스로 이미 반영 (이중계상 방지).
-    // 손익 반영은 pnl/trend 에서 2026-07-01 발행분부터 (1~6월 확정 손익 동결).
-    const taxSheet = sheet('세금계산서 분류')
     const invoiceMonths = new Set<string>()
     let invoiceCogs = 0
     let invoiceCount = 0
     let invoiceSkipped = 0
+
+    // ① '매출원가...' 전용 시트 (예: '매출원가(1~6월)') — 대표가 월별 파일에서 추려 모은 정본.
+    //    이 시트가 커버하는 월은 세금계산서 분류 시트보다 우선 (같은 월 중복 흡수 방지)
+    const dedicatedMonths = new Set<string>()
+    {
+      const name = wb.SheetNames.find((n) => n.startsWith('매출원가'))
+      const cogsSheet = name ? sheet(name) : []
+      const hi = cogsSheet.findIndex(
+        (r) => r.some((c) => str(c) === '작성일자') && r.some((c) => str(c) === '공급가액'),
+      )
+      if (hi >= 0) {
+        const header = cogsSheet[hi].map((c) => str(c))
+        const cDate = header.indexOf('작성일자')
+        const cVendor = header.indexOf('공급자 상호')
+        const cItem = header.indexOf('대표 품목')
+        const cSupply = header.indexOf('공급가액')
+        const cCat = header.indexOf('카테고리')
+        for (let i = hi + 1; i < cogsSheet.length; i++) {
+          const r = cogsSheet[i]
+          const date = parseDate(r[cDate])
+          const vendor = str(r[cVendor])
+          const amount = parseAmount(r[cSupply])
+          if (!date || !vendor || amount <= 0) continue
+          const category = str(r[cCat]) || null
+          if (/세관/.test(vendor) || (category ?? '').includes('매입(해외)')) { invoiceSkipped++; continue }
+          push({
+            source: 'invoice', entry_date: date, vendor, amount, flow: 'out',
+            category, major: null, cost_type: '변동',
+            discretionary: null, nature: '매출원가', card_name: null, memo: str(r[cItem]) || null,
+          })
+          dedicatedMonths.add(date.slice(0, 7))
+          invoiceMonths.add(date.slice(0, 7))
+          invoiceCogs += amount
+          invoiceCount++
+        }
+      }
+    }
+
+    // ② '세금계산서 분류' 시트 — 비용성격='매출원가' 행 (전용 시트가 커버하는 월은 건너뜀)
+    const taxSheet = sheet('세금계산서 분류')
     {
       const hi = taxSheet.findIndex(
         (r) => r.some((c) => str(c) === '비용성격') && r.some((c) => str(c) === '작성일자'),
@@ -215,6 +253,7 @@ export async function POST(request: NextRequest) {
           const vendor = str(r[cVendor])
           const amount = parseAmount(r[cSupply])
           if (!date || !vendor || amount <= 0) continue
+          if (dedicatedMonths.has(date.slice(0, 7))) continue // 전용 시트가 정본인 월
           const category = str(r[cCat]) || null
           if (/세관/.test(vendor) || (category ?? '').includes('매입(해외)')) { invoiceSkipped++; continue }
           push({

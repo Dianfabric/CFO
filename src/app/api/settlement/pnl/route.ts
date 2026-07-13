@@ -104,16 +104,16 @@ export async function GET(req: NextRequest) {
         .from('naid_invoices')
         .select('month_key, direction, supply_amount')
         .in('month_key', months.map((m) => m.ym)),
-      // 관리회계 '세금계산서 분류' 시트의 매출원가 — 가공비(방염·염색·임가공)와
-      // TMS 단가표에 없는 원단의 원가 (대표 지시 2026-07-13). 세관·매입(해외)은
-      // 업로드 파서가 제외(관세·수입세금 인보이스와 중복). 7/1 발행분부터 반영.
+      // 관리회계 계산서 매출원가 — 가공비(방염·염색·임가공)와 TMS 단가표에 없는
+      // 원단의 원가 (대표 지시 2026-07-13, 1~6월 포함 월별 반영). 세관·매입(해외)은
+      // 업로드 파서가 제외(관세·수입세금 인보이스와 중복).
       supabase
         .from('mgmt_ledger')
         .select('entry_date, amount')
         .eq('flow', 'out')
         .eq('source', 'invoice')
         .eq('nature', '매출원가')
-        .gte('entry_date', startStr > '2026-07-01' ? startStr : '2026-07-01')
+        .gte('entry_date', startStr)
         .lte('entry_date', endStr),
     ])
 
