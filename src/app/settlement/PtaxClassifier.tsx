@@ -21,19 +21,28 @@ type PtaxRow = {
   supply_amount: number
   item_name: string | null
   nature: string | null
+  cost_major: string | null
   cost_category: string | null
   classified_by: string | null
 }
-type Cats = { fixed: string[]; variable: string[] }
+type CatGroup = { major: string; items: string[] }
+type Cats = { fixed: CatGroup[]; variable: CatGroup[] }
 type Rule = {
   supplier_key: string
   supplier_name: string
   nature: 'cogs' | 'variable' | 'fixed' | 'other'
+  cost_major: string | null
   cost_category: string | null
   mode: 'auto' | 'manual'
   hit_count: number
 }
-type Applied = { supplier_name: string; nature: string; cost_category: string | null; count: number }
+type Applied = { supplier_name: string; nature: string; cost_major: string | null; cost_category: string | null; count: number }
+
+// 대분류·항목 표시 문자열 (예: 운영유지비 · SW구독료)
+function catLabel(major: string | null, category: string | null): string {
+  if (major && category) return `${major} · ${category}`
+  return major ?? category ?? ''
+}
 
 const NATURE_META: { key: 'cogs' | 'variable' | 'fixed' | 'other'; label: string }[] = [
   { key: 'cogs', label: '원가' },
@@ -93,7 +102,7 @@ export default function PtaxClassifier() {
 
   useEffect(() => { load(month, view) }, [load, month, view])
 
-  const save = async (approval: string, nature: string, category?: string | null) => {
+  const save = async (approval: string, nature: string, major?: string | null, category?: string | null) => {
     setBusy(approval)
     setError(null)
     setNotice(null)
@@ -101,7 +110,7 @@ export default function PtaxClassifier() {
       const r = await fetch('/api/ptax/classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approval_number: approval, nature, cost_category: category }),
+        body: JSON.stringify({ approval_number: approval, nature, cost_major: major, cost_category: category }),
       })
       const j = await r.json()
       if (!j.ok) {
@@ -114,7 +123,7 @@ export default function PtaxClassifier() {
           setRows((prev) =>
             prev.map((x) =>
               x.approval_number === approval
-                ? { ...x, nature, cost_category: category ?? null, classified_by: 'user' }
+                ? { ...x, nature, cost_major: major ?? null, cost_category: category ?? null, classified_by: 'user' }
                 : x,
             ),
           )
@@ -205,7 +214,7 @@ export default function PtaxClassifier() {
           style={{ backgroundColor: 'rgba(118,185,0,0.08)', color: 'var(--nv-success-deep, #4a7c00)', borderRadius: '2px' }}
         >
           규칙 자동 분류 {autoApplied.reduce((s, a) => s + a.count, 0)}건 —{' '}
-          {autoApplied.slice(0, 4).map((a) => `${a.supplier_name} ${a.count}건(${NATURE_LABEL[a.nature] ?? a.nature})`).join(', ')}
+          {autoApplied.slice(0, 4).map((a) => `${a.supplier_name} ${a.count}건(${NATURE_LABEL[a.nature] ?? a.nature}${a.cost_major ? ` ${catLabel(a.cost_major, a.cost_category)}` : ''})`).join(', ')}
           {autoApplied.length > 4 ? ` 외 ${autoApplied.length - 4}곳` : ''}
           <span className="text-slate-400"> · 분류 내역에서 검수 가능</span>
         </div>
@@ -261,7 +270,7 @@ export default function PtaxClassifier() {
                       }}
                     >
                       {NATURE_LABEL[row.nature] ?? row.nature}
-                      {row.cost_category ? ` · ${row.cost_category}` : ''}
+                      {row.cost_major || row.cost_category ? ` · ${catLabel(row.cost_major, row.cost_category)}` : ''}
                       {row.classified_by === 'rule' ? ' · 자동' : ''}
                     </span>
                   )}
@@ -302,15 +311,25 @@ export default function PtaxClassifier() {
                       disabled={isBusy}
                       defaultValue=""
                       onChange={(e) => {
-                        if (e.target.value) save(row.approval_number, pending, e.target.value)
+                        if (!e.target.value) return
+                        const [major, item] = JSON.parse(e.target.value) as [string, string | null]
+                        save(row.approval_number, pending, major, item)
                       }}
                       className="h-6 px-1 text-[10px] bg-white"
-                      style={{ border: '1px solid var(--nv-primary, #76b900)', borderRadius: '2px', color: '#334155', maxWidth: 130 }}
+                      style={{ border: '1px solid var(--nv-primary, #76b900)', borderRadius: '2px', color: '#334155', maxWidth: 160 }}
                     >
                       <option value="">카테고리 선택 → 저장</option>
-                      {(pending === 'fixed' ? cats.fixed : cats.variable).map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
+                      {(pending === 'fixed' ? cats.fixed : cats.variable).map((g) =>
+                        g.items.length ? (
+                          <optgroup key={g.major} label={g.major}>
+                            {g.items.map((it) => (
+                              <option key={it} value={JSON.stringify([g.major, it])}>{it}</option>
+                            ))}
+                          </optgroup>
+                        ) : (
+                          <option key={g.major} value={JSON.stringify([g.major, null])}>{g.major}</option>
+                        ),
+                      )}
                     </select>
                   )}
                 </div>
@@ -344,7 +363,7 @@ export default function PtaxClassifier() {
                   <span className="font-bold text-slate-700 truncate" title={r.supplier_name}>{r.supplier_name}</span>
                   <span className="shrink-0 text-slate-500">
                     {NATURE_LABEL[r.nature] ?? r.nature}
-                    {r.cost_category ? ` · ${r.cost_category}` : ''}
+                    {r.cost_major || r.cost_category ? ` · ${catLabel(r.cost_major, r.cost_category)}` : ''}
                     {r.hit_count > 0 ? ` · 자동 ${r.hit_count}건` : ''}
                   </span>
                   <button

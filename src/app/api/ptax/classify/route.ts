@@ -20,10 +20,25 @@ export const dynamic = 'force-dynamic'
 
 const NATURES = ['cogs', 'variable', 'fixed', 'other'] as const
 
-// 관리회계 대분류 폴백 (mgmt_ledger 비어있을 때)
-const FALLBACK_CATS = {
-  fixed: ['임대료/관리비', '인건비', '차량·운송비', '통신·전기', '운영유지비', '외주용역', '기타 고정비'],
-  variable: ['마케팅·광고', '교통·유류', '교육·복리', '운영유지비', '접대·회식', '기타 변동비'],
+// 관리회계 대분류 → 항목 그룹 (mgmt_ledger 비어있을 때 폴백)
+type CatGroup = { major: string; items: string[] }
+const FALLBACK_CATS: { fixed: CatGroup[]; variable: CatGroup[] } = {
+  fixed: [
+    { major: '임대료/관리비', items: ['임대료', '관리비'] },
+    { major: '인건비', items: ['급여', '4대보험'] },
+    { major: '차량·운송비', items: ['차량렌트'] },
+    { major: '통신·전기', items: ['통신비'] },
+    { major: '운영유지비', items: ['보안', '렌탈료', 'SW구독료'] },
+    { major: '외주용역', items: ['세무수수료', '노무수수료'] },
+  ],
+  variable: [
+    { major: '마케팅·광고', items: ['마케팅', '광고'] },
+    { major: '교통·원재료', items: ['교통', '유류'] },
+    { major: '교육·복리', items: ['도서·교육', '복리후생'] },
+    { major: '운영유지비', items: ['소모품'] },
+    { major: '접대·회의', items: ['식대', '접대비'] },
+    { major: '기타', items: ['수수료', '기타'] },
+  ],
 }
 
 export async function GET(req: NextRequest) {
@@ -43,7 +58,7 @@ export async function GET(req: NextRequest) {
     let q = supabase
       .from('purchase_tax_invoices')
       .select(
-        'approval_number, issue_date, supplier_name_raw, supply_amount, item_name, status, nature, cost_category, classified_by',
+        'approval_number, issue_date, supplier_name_raw, supply_amount, item_name, status, nature, cost_major, cost_category, classified_by',
         { count: 'exact' },
       )
       .order('issue_date', { ascending: false })
@@ -62,23 +77,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // 카테고리 목록 — 관리회계 명세 대분류 (없으면 폴백)
+    // 카테고리 목록 — 관리회계 명세 그대로 (대분류 major → 항목 category, 없으면 폴백)
     const cats = { fixed: [...FALLBACK_CATS.fixed], variable: [...FALLBACK_CATS.variable] }
     try {
       const { data: majors } = await supabase
         .from('mgmt_ledger')
-        .select('major, cost_type')
+        .select('major, category, cost_type')
         .eq('source', 'summary')
         .eq('nature', '판관비')
         .not('major', 'is', null)
         .limit(2000)
-      const fx = new Set<string>(), vr = new Set<string>()
-      for (const r of (majors ?? []) as { major: string; cost_type: string }[]) {
-        if (r.cost_type === '고정') fx.add(r.major)
-        else if (r.cost_type === '변동') vr.add(r.major)
+      const build = (ct: string): CatGroup[] => {
+        const byMajor = new Map<string, Set<string>>()
+        for (const r of (majors ?? []) as { major: string; category: string | null; cost_type: string }[]) {
+          if (r.cost_type !== ct) continue
+          const set = byMajor.get(r.major) ?? new Set<string>()
+          if (r.category) set.add(r.category)
+          byMajor.set(r.major, set)
+        }
+        return [...byMajor.entries()]
+          .sort((a, b) => a[0].localeCompare(b[0], 'ko'))
+          .map(([major, items]) => ({ major, items: [...items].sort((a, b) => a.localeCompare(b, 'ko')) }))
       }
-      if (fx.size) cats.fixed = [...fx].sort()
-      if (vr.size) cats.variable = [...vr].sort()
+      const fx = build('고정')
+      const vr = build('변동')
+      if (fx.length) cats.fixed = fx
+      if (vr.length) cats.variable = vr
     } catch { /* 폴백 사용 */ }
 
     // 규칙 목록 (관리 UI 용)
@@ -86,7 +110,7 @@ export async function GET(req: NextRequest) {
     try {
       const { data: ruleRows } = await supabase
         .from('ptax_supplier_rules')
-        .select('supplier_key, supplier_name, nature, cost_category, mode, hit_count')
+        .select('supplier_key, supplier_name, nature, cost_major, cost_category, mode, hit_count')
         .order('updated_at', { ascending: false })
         .limit(300)
       rules = ruleRows ?? []
@@ -111,11 +135,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'approval_number, nature(cogs|variable|fixed|other) 필요' }, { status: 400 })
     }
     const supabase = createServiceClient()
-    const costCategory =
-      b.nature === 'variable' || b.nature === 'fixed' ? (b.cost_category?.trim() || null) : null
+    const isExpense = b.nature === 'variable' || b.nature === 'fixed'
+    const costMajor = isExpense ? (b.cost_major?.trim() || null) : null
+    const costCategory = isExpense ? (b.cost_category?.trim() || null) : null
     const { data: updated, error } = await supabase
       .from('purchase_tax_invoices')
-      .update({ nature: b.nature, cost_category: costCategory, classified_by: 'user' })
+      .update({ nature: b.nature, cost_major: costMajor, cost_category: costCategory, classified_by: 'user' })
       .eq('approval_number', b.approval_number)
       .select('supplier_name_raw')
     if (error) {
@@ -133,7 +158,7 @@ export async function POST(req: NextRequest) {
     const supplierName = updated?.[0]?.supplier_name_raw
     if (supplierName) {
       try {
-        const r = await upsertPtaxRule(supabase, supplierName, b.nature, costCategory)
+        const r = await upsertPtaxRule(supabase, supplierName, b.nature, costMajor, costCategory)
         conflict = r.conflict
       } catch { /* 규칙 테이블 미생성 — 분류 자체는 저장됨 */ }
     }

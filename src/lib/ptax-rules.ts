@@ -12,6 +12,7 @@ export type PtaxRule = {
   supplier_key: string
   supplier_name: string
   nature: 'cogs' | 'variable' | 'fixed' | 'other'
+  cost_major: string | null
   cost_category: string | null
   mode: 'auto' | 'manual'
   hit_count: number
@@ -20,6 +21,7 @@ export type PtaxRule = {
 export type PtaxRuleApplied = {
   supplier_name: string
   nature: string
+  cost_major: string | null
   cost_category: string | null
   count: number
 }
@@ -28,7 +30,7 @@ export type PtaxRuleApplied = {
 export async function applyPtaxRules(supabase: SupabaseClient): Promise<PtaxRuleApplied[]> {
   const { data: rules, error: rulesErr } = await supabase
     .from('ptax_supplier_rules')
-    .select('supplier_key, supplier_name, nature, cost_category, mode, hit_count')
+    .select('supplier_key, supplier_name, nature, cost_major, cost_category, mode, hit_count')
     .eq('mode', 'auto')
   if (rulesErr || !rules?.length) return []
 
@@ -57,7 +59,12 @@ export async function applyPtaxRules(supabase: SupabaseClient): Promise<PtaxRule
     const rule = ruleMap.get(key)!
     const { error: upErr } = await supabase
       .from('purchase_tax_invoices')
-      .update({ nature: rule.nature, cost_category: rule.cost_category, classified_by: 'rule' })
+      .update({
+        nature: rule.nature,
+        cost_major: rule.cost_major,
+        cost_category: rule.cost_category,
+        classified_by: 'rule',
+      })
       .in('approval_number', approvals)
     if (upErr) continue
     await supabase
@@ -67,6 +74,7 @@ export async function applyPtaxRules(supabase: SupabaseClient): Promise<PtaxRule
     applied.push({
       supplier_name: rule.supplier_name,
       nature: rule.nature,
+      cost_major: rule.cost_major,
       cost_category: rule.cost_category,
       count: approvals.length,
     })
@@ -85,6 +93,7 @@ export async function upsertPtaxRule(
   supabase: SupabaseClient,
   supplierName: string,
   nature: string,
+  costMajor: string | null,
   costCategory: string | null,
 ): Promise<{ conflict?: { supplier_name: string; prevNature: string } }> {
   const key = normBizName(supplierName)
@@ -92,7 +101,7 @@ export async function upsertPtaxRule(
 
   const { data: existing, error } = await supabase
     .from('ptax_supplier_rules')
-    .select('supplier_key, supplier_name, nature, cost_category, mode, hit_count')
+    .select('supplier_key, supplier_name, nature, cost_major, cost_category, mode, hit_count')
     .eq('supplier_key', key)
     .maybeSingle()
   if (error) return {} // 테이블 미생성 등 — 규칙 없이 진행
@@ -102,6 +111,7 @@ export async function upsertPtaxRule(
       supplier_key: key,
       supplier_name: supplierName,
       nature,
+      cost_major: costMajor,
       cost_category: costCategory,
       mode: 'auto',
     })
@@ -113,7 +123,12 @@ export async function upsertPtaxRule(
   if (rule.nature === nature) {
     await supabase
       .from('ptax_supplier_rules')
-      .update({ supplier_name: supplierName, cost_category: costCategory, updated_at: new Date().toISOString() })
+      .update({
+        supplier_name: supplierName,
+        cost_major: costMajor,
+        cost_category: costCategory,
+        updated_at: new Date().toISOString(),
+      })
       .eq('supplier_key', key)
     return {}
   }

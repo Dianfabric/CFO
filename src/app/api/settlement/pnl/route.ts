@@ -146,18 +146,19 @@ export async function GET(req: NextRequest) {
     try {
       const { data: ptaxRows, error: ptaxErr } = await supabase
         .from('purchase_tax_invoices')
-        .select('issue_date, supply_amount, nature, cost_category')
+        .select('issue_date, supply_amount, nature, cost_major, cost_category')
         .in('nature', ['cogs', 'variable', 'fixed'])
         .gte('issue_date', startStr)
         .lte('issue_date', endStr)
       if (!ptaxErr) {
-        for (const r of (ptaxRows ?? []) as { supply_amount: number; nature: string; cost_category: string | null }[]) {
+        // 분해 병합 키 = 관리회계 대분류(cost_major) — 생키 갈라짐과 같은 축
+        for (const r of (ptaxRows ?? []) as { supply_amount: number; nature: string; cost_major: string | null; cost_category: string | null }[]) {
           if (r.nature === 'cogs') ptaxCogs += r.supply_amount
           else if (r.nature === 'variable') {
-            const k = r.cost_category || '매입계산서 변동'
+            const k = r.cost_major || r.cost_category || '매입계산서 변동'
             ptaxVarByCat.set(k, (ptaxVarByCat.get(k) ?? 0) + r.supply_amount)
           } else if (r.nature === 'fixed') {
-            const k = r.cost_category || '매입계산서 고정'
+            const k = r.cost_major || r.cost_category || '매입계산서 고정'
             ptaxFixedByCat.set(k, (ptaxFixedByCat.get(k) ?? 0) + r.supply_amount)
           }
         }
