@@ -128,9 +128,16 @@ export default function CycleDashboardSummary() {
       const r = await fetch('/api/cycle/dashboard-summary')
       if (!r.ok) throw new Error(`${r.status}`)
       const j = (await r.json()) as SummaryData
-      setData(j)
+      const raw = JSON.stringify(j)
+      // 내용이 같으면 상태 교체 생략 — 캐시→실데이터 전환 시 화면 출렁임 방지
+      setData((prev) => {
+        try {
+          if (prev && JSON.stringify(prev) === raw) return prev
+        } catch { /* 비교 실패 시 그냥 교체 */ }
+        return j
+      })
       try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify(j))
+        sessionStorage.setItem(CACHE_KEY, raw)
       } catch {
         /* quota / disabled — 무시 */
       }
@@ -141,6 +148,53 @@ export default function CycleDashboardSummary() {
       setLoading(false)
     }
   }, [])
+
+  // 투두 체크 낙관적 업데이트 — 화면 즉시 반영, 저장은 백그라운드 (실패 시 되돌림)
+  const toggleTodoOptimistic = useCallback(
+    (todoId: string, newStatus: 'todo' | 'done') => {
+      let snapshot: SummaryData | null = null
+      setData((prev) => {
+        if (!prev) return prev
+        snapshot = prev
+        let deltaDone = 0
+        const employees_summary = prev.employees_summary.map((emp) => {
+          let empDelta = 0
+          const big_goal_krs = emp.big_goal_krs.map((kr) => {
+            const this_week_todos = kr.this_week_todos.map((t) => {
+              if (t.id !== todoId || t.status === newStatus) return t
+              empDelta += newStatus === 'done' ? 1 : -1
+              return { ...t, status: newStatus }
+            })
+            return { ...kr, this_week_todos }
+          })
+          if (empDelta === 0) return emp
+          deltaDone += empDelta
+          return { ...emp, big_goal_krs, week_done: emp.week_done + empDelta }
+        })
+        if (deltaDone === 0) return prev
+        const week_done_todos = prev.week_done_todos + deltaDone
+        return {
+          ...prev,
+          employees_summary,
+          week_done_todos,
+          week_exec_rate: prev.week_total_todos > 0 ? week_done_todos / prev.week_total_todos : 0,
+        }
+      })
+      fetch(`/api/cycle/todos/${todoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`${r.status}`)
+        })
+        .catch(() => {
+          // 저장 실패 — 이전 상태로 되돌림
+          if (snapshot) setData(snapshot)
+        })
+    },
+    [],
+  )
 
   useEffect(() => {
     // 1) 캐시 hydrate — mount 직후 (hydration 끝난 뒤) 라 SSR mismatch 없음
@@ -254,7 +308,7 @@ export default function CycleDashboardSummary() {
               cycleStart={data.cycle?.start_date ?? ''}
               cycleEnd={data.cycle?.end_date ?? ''}
               weekNumber={data.week_number}
-              onRefresh={fetchData}
+              onToggleTodo={toggleTodoOptimistic}
             />
           ))}
         </div>
@@ -340,16 +394,15 @@ function EmployeeProgressCard({
   cycleStart,
   cycleEnd,
   weekNumber,
-  onRefresh,
+  onToggleTodo,
 }: {
   emp: EmployeeSummary
   cycleStart: string
   cycleEnd: string
   weekNumber: number
-  onRefresh: () => Promise<void>
+  onToggleTodo: (todoId: string, newStatus: 'todo' | 'done') => void
 }) {
   const [wamScores, setWamScores] = useState<WamWeeklyScore[]>([])
-  const [togglingTodoId, setTogglingTodoId] = useState<string | null>(null)
   const router = useRouter()
 
   const fetchWam = useCallback(async () => {
@@ -389,23 +442,9 @@ function EmployeeProgressCard({
 
   const sortedScores = [...wamScores].sort((a, b) => a.week_number - b.week_number)
 
-  // 투두 체크 토글 (인라인 체크박스)
-  const toggleTodo = async (todoId: string, currentStatus: string) => {
-    setTogglingTodoId(todoId)
-    try {
-      await fetch(`/api/cycle/todos/${todoId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: currentStatus === 'done' ? 'todo' : 'done',
-        }),
-      })
-      await onRefresh()
-    } catch {
-      // ignore
-    } finally {
-      setTogglingTodoId(null)
-    }
+  // 투두 체크 토글 — 낙관적 업데이트 (즉시 반영, 저장은 백그라운드)
+  const toggleTodo = (todoId: string, currentStatus: string) => {
+    onToggleTodo(todoId, currentStatus === 'done' ? 'todo' : 'done')
   }
 
   return (
@@ -662,7 +701,6 @@ function EmployeeProgressCard({
               key={kr.kr_id}
               kr={kr}
               weekNumber={weekNumber}
-              togglingTodoId={togglingTodoId}
               onToggleTodo={toggleTodo}
             />
           ))}
@@ -691,13 +729,11 @@ function EmployeeProgressCard({
 function BigKrDetailSection({
   kr,
   weekNumber,
-  togglingTodoId,
   onToggleTodo,
 }: {
   kr: BigKrDetail
   weekNumber: number
-  togglingTodoId: string | null
-  onToggleTodo: (id: string, status: string) => Promise<void>
+  onToggleTodo: (id: string, status: string) => void
 }) {
   const leadColor = progressColor(kr.lead_progress)
   const lagColor = kr.lag_progress != null ? progressColor(kr.lag_progress) : null
@@ -920,7 +956,6 @@ function BigKrDetailSection({
                             e.stopPropagation()
                             onToggleTodo(t.id, t.status)
                           }}
-                          disabled={togglingTodoId === t.id}
                           className="w-3 h-3 shrink-0 flex items-center justify-center transition-colors"
                           style={{
                             backgroundColor: isDone ? 'var(--nv-primary)' : '#ffffff',
