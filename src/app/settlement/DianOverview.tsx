@@ -156,6 +156,7 @@ export default function DianOverview() {
   const [fcMain, setFcMain] = useState(false)
   const [fcBody, setFcBody] = useState(false)
   const [fcNaid, setFcNaid] = useState(false)
+  const [fcSaek, setFcSaek] = useState(false)
   const fcCtx = useMemo(() => makeFcCtx(kstToday()), [])
   const avg6 = useMemo(() => prev6Range(kstToday()), [])
   const avgKey = `avg6_${avg6.start}`
@@ -494,6 +495,34 @@ export default function DianOverview() {
     return { month: { ...month, breakdowns }, today, d, D }
   }, [fcNaid, fcAvg, bodyPnl, naidSel, fcCtx])
 
+  // 색동 예상 — 매출·원가는 일 실측 페이스, 변동·고정·영업외는 지난 6개월 평균
+  const saekFc = useMemo(() => {
+    if (!fcSaek || !isCurMonth(saekSel)) return null
+    const a = saekBlockChain
+    const { pace, ratio, d, D } = fcCtx
+    const month = deriveChain({
+      revenue: Math.round(a.revenue * pace),
+      cogs: Math.round(a.cogs * pace),
+      variable: estOr(a.variable, saekAvg.variable),
+      fixed: estOr(a.fixed, saekAvg.fixed),
+      nonOp: estOr(a.nonOp, saekAvg.nonOp),
+    })
+    const today = deriveChain({
+      revenue: a.revenue,
+      cogs: a.cogs,
+      variable: estOr(a.variable, saekAvg.variable * ratio),
+      fixed: estOr(a.fixed, saekAvg.fixed * ratio),
+      nonOp: estOr(a.nonOp, saekAvg.nonOp * ratio),
+    })
+    const breakdowns = {
+      cogs: [{ label: '색동 매입·원가(페이스 투영)', amount: month.cogs }],
+      variable: [{ label: '색동 변동비(6개월 평균)', amount: month.variable }],
+      fixed: [{ label: '색동 고정비(6개월 평균)', amount: month.fixed }],
+      nonOp: [{ label: '색동 영업외(6개월 평균)', amount: month.nonOp }],
+    }
+    return { month: { ...month, breakdowns }, today, d, D }
+  }, [fcSaek, saekSel, saekBlockChain, saekAvg, fcCtx])
+
   // 통합 예상 — 본체·색동 페이스 + 월말 입력분·법인 평균
   const mainFc = useMemo(() => {
     if (!fcMain || !fcAvg || !isCurMonth(main)) return null
@@ -743,7 +772,8 @@ export default function DianOverview() {
           <span className="text-[11px] text-slate-400">
             · {saekSel.range.label} · 온라인(공급가) + 오프라인 · 비용 = 색동 계기판 등록분
           </span>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <ForecastButton on={fcSaek} setOn={setFcSaek} visible={isCurMonth(saekSel)} />
             <PeriodButtons sel={saekSel} />
           </div>
         </div>
@@ -756,22 +786,25 @@ export default function DianOverview() {
             색동 손익 계산 중...
           </p>
         ) : (
-          <ProfitFlow
-            revenue={saekBlockChain.revenue}
-            cogs={saekBlockChain.cogs}
-            gross={saekBlockChain.gross}
-            variable={saekBlockChain.variable}
-            contribution={saekBlockChain.contribution}
-            fixed={saekBlockChain.fixed}
-            operating={saekBlockChain.operating}
-            nonOp={saekBlockChain.nonOp}
-            net={saekBlockChain.net}
-            bep={saekBlockChain.bep}
-            bepRate={saekBlockChain.bepRate}
-            breakdowns={saekBlockChain.breakdowns}
-            nonOpLabel="영업외"
-            periodKey={`saek-${saekSel.rangeKey}`}
-          />
+          <>
+            <ProfitFlow
+              revenue={(saekFc?.month ?? saekBlockChain).revenue}
+              cogs={(saekFc?.month ?? saekBlockChain).cogs}
+              gross={(saekFc?.month ?? saekBlockChain).gross}
+              variable={(saekFc?.month ?? saekBlockChain).variable}
+              contribution={(saekFc?.month ?? saekBlockChain).contribution}
+              fixed={(saekFc?.month ?? saekBlockChain).fixed}
+              operating={(saekFc?.month ?? saekBlockChain).operating}
+              nonOp={(saekFc?.month ?? saekBlockChain).nonOp}
+              net={(saekFc?.month ?? saekBlockChain).net}
+              bep={(saekFc?.month ?? saekBlockChain).bep}
+              bepRate={(saekFc?.month ?? saekBlockChain).bepRate}
+              breakdowns={(saekFc?.month ?? saekBlockChain).breakdowns}
+              nonOpLabel="영업외"
+              periodKey={saekFc ? `saek-${saekSel.rangeKey}-fc` : `saek-${saekSel.rangeKey}`}
+            />
+            {fcSaek && isCurMonth(saekSel) && <ForecastStrip fc={saekFc} actualNet={saekBlockChain.net} />}
+          </>
         )}
       </div>
 
