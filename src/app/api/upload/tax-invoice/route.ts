@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { applyPtaxRules } from '@/lib/ptax-rules'
 
 export const runtime = 'nodejs'
 
@@ -211,10 +212,16 @@ export async function POST(request: NextRequest) {
         pSum += totalAmount
         if (matchedTxId) pMatched++; else pUnmatched++
       }
+      // 거래처 자동 분류 규칙 적용 — 새 계산서에 성격(원가/변동/고정/기타) 즉시 부여
+      let autoClassified = 0
+      try {
+        const applied = await applyPtaxRules(supabase)
+        autoClassified = applied.reduce((s, a) => s + a.count, 0)
+      } catch { /* 규칙 테이블 미생성 — 무시 */ }
       return NextResponse.json({
         success: true, type: 'purchase_tax_invoice',
         created: pCreated, duplicate: pDup, matched: pMatched, unmatched: pUnmatched,
-        totalAmount: pSum,
+        totalAmount: pSum, autoClassified,
       })
     }
 
