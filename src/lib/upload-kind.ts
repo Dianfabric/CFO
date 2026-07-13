@@ -4,8 +4,8 @@ export type UploadKind =
   | '운임관세' | '관리회계' | '간이영수증' | '대출이자' | '기타'
 
 export function detectUploadKind(name: string): UploadKind {
-  // '2월.xls' 같은 ERP 거래처별 잔액 명세서 월별 export도 미수금현황으로 (2026-07-10 양식 추가)
-  if (/미수\s*(금)?\s*현황|잔액\s*명세서/.test(name) || /^\s*\d{1,2}월\.xlsx?$/i.test(name.trim())) return '미수금현황'
+  // '2월.xls'·'거래처별잔액명세_..xls' 등 ERP 거래처별 잔액 명세서 월별 export도 미수금현황으로
+  if (/미수\s*(금)?\s*현황|잔액\s*명세|거래처별.*명세/.test(name) || /^\s*\d{1,2}월\.xlsx?$/i.test(name.trim())) return '미수금현황'
   if (/대출.*(상환|이자)|이자상환/.test(name)) return '대출이자'
   if (/관리\s*회계/.test(name)) return '관리회계'
   if (/세금계산서/.test(name)) return '세금계산서'
