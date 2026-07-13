@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient()
-    const [salesAgg, purchases, expenseRows, mgmtRes, loanRes, sold, naidInvRes] = await Promise.all([
+    const [salesAgg, purchases, expenseRows, mgmtRes, loanRes, sold, naidInvRes, invCogsRes] = await Promise.all([
       prisma.transaction.aggregate({
         where: { type: 'SALE', date: { gte: rangeStart, lte: rangeEnd }, ...EXCLUDE_BALANCE_CORRECTION },
         _sum: { totalAmount: true },
@@ -104,6 +104,17 @@ export async function GET(req: NextRequest) {
         .from('naid_invoices')
         .select('month_key, direction, supply_amount')
         .in('month_key', months.map((m) => m.ym)),
+      // 관리회계 '세금계산서 분류' 시트의 매출원가 — 가공비(방염·염색·임가공)와
+      // TMS 단가표에 없는 원단의 원가 (대표 지시 2026-07-13). 세관·매입(해외)은
+      // 업로드 파서가 제외(관세·수입세금 인보이스와 중복). 7/1 발행분부터 반영.
+      supabase
+        .from('mgmt_ledger')
+        .select('entry_date, amount')
+        .eq('flow', 'out')
+        .eq('source', 'invoice')
+        .eq('nature', '매출원가')
+        .gte('entry_date', startStr > '2026-07-01' ? startStr : '2026-07-01')
+        .lte('entry_date', endStr),
     ])
 
     // 매입 분류: 해외운임·관세 → 매출원가 / 국내 배송 → 변동비 / 원단 인보이스 → 재고 취득(제외)
@@ -137,7 +148,11 @@ export async function GET(req: NextRequest) {
       const cls = classifyPurchase(ex.description, ex.items.map((i) => i.productName ?? ''))
       if (cls === 'cogs_freight') addFreight(ex.description, ex.totalAmount)
     }
-    const fabricCogs = sold.soldCogs + freightCogs
+    // 관리회계 계산서 원가 (가공·미등록 원단) — 발행일 기준 합산
+    let invoiceCogs = 0
+    for (const r of (invCogsRes.data ?? []) as { amount: number }[]) invoiceCogs += r.amount
+    if (invoiceCogs > 0) freightByKind.set('가공·원단 계산서(관리회계)', invoiceCogs)
+    const fabricCogs = sold.soldCogs + freightCogs + invoiceCogs
     const freightBreakdown = [...freightByKind.entries()]
       .map(([label, amount]) => ({ label, amount }))
       .filter((x) => x.amount > 0)
@@ -247,7 +262,7 @@ export async function GET(req: NextRequest) {
       start: startStr,
       end: endStr,
       sales: salesAgg._sum.totalAmount ?? 0,
-      fabricCogs, // = 판매 기준 원가(soldCogs) + 해외운임·관세(freightCogs)
+      fabricCogs, // = 판매 기준 원가(soldCogs) + 해외운임·관세(freightCogs) + 관리회계 계산서 원가(invoiceCogs, 7/1~)
       soldCogs: sold.soldCogs,
       freightCogs,
       freightBreakdown, // 해외운임 세부 — 항공/배/관세·수입세금

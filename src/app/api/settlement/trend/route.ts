@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
 
     const rangeStart = new Date(buckets[0].start + 'T00:00:00')
     const supabase = await createClient()
-    const [txs, mgmtRes, loanRes, sold, naidInvRes] = await Promise.all([
+    const [txs, mgmtRes, loanRes, sold, naidInvRes, invCogsRes] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           date: { gte: rangeStart, lte: now },
@@ -185,8 +185,17 @@ export async function GET(req: NextRequest) {
       computeSoldCogsByDate(rangeStart, now),
       // 법인 매출·매입 = 세금계산서 (대표 결정 2026-07-10)
       supabase.from('naid_invoices').select('month_key, direction, supply_amount'),
+      // 관리회계 '세금계산서 분류' 매출원가 — 가공비·TMS 미등록 원단 (대표 지시 2026-07-13, 7/1~)
+      supabase
+        .from('mgmt_ledger')
+        .select('entry_date, amount')
+        .eq('flow', 'out')
+        .eq('source', 'invoice')
+        .eq('nature', '매출원가')
+        .gte('entry_date', buckets[0].start > '2026-07-01' ? buckets[0].start : '2026-07-01'),
     ])
     const soldDates = [...sold.byDate.entries()] // [YYYY-MM-DD, {cogs,...}]
+    const invCogsRows = (invCogsRes.data ?? []) as { entry_date: string; amount: number }[]
 
     // 관리회계 명세(source='summary') → 월별 고정/변동 판관비 + 이자 (대표 결정 2026-07-10)
     const fixedByMonth = new Map<string, number>()
@@ -249,6 +258,10 @@ export async function GET(req: NextRequest) {
       // 판매 기준 원가 합산 (버킷 내 날짜)
       for (const [d, v] of soldDates) {
         if (d >= b.start && d <= b.end) fabricCogs += v.cogs
+      }
+      // 관리회계 계산서 원가 (가공·미등록 원단) — 발행일 기준
+      for (const r of invCogsRows) {
+        if (r.entry_date >= b.start && r.entry_date <= b.end) fabricCogs += r.amount
       }
       let fixed = 0
       let interest = 0

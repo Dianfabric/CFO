@@ -12,7 +12,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 export const runtime = 'nodejs'
 
 interface LedgerRow {
-  source: 'card' | 'bank' | 'personal' | 'summary'
+  source: 'card' | 'bank' | 'personal' | 'summary' | 'invoice'
   entry_date: string
   month_key: string
   vendor: string
@@ -185,6 +185,50 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── '세금계산서 분류' 시트 — 비용성격='매출원가' 흡수 (대표 지시 2026-07-13) ──
+    // 대상: 가공비(방염·염색·임가공·의장 등) + TMS 단가표에 없는 원단의 원가.
+    // 제외: 세관·매입(해외) 행 — 관세·수입세금 인보이스로 이미 반영 (이중계상 방지).
+    // 손익 반영은 pnl/trend 에서 2026-07-01 발행분부터 (1~6월 확정 손익 동결).
+    const taxSheet = sheet('세금계산서 분류')
+    const invoiceMonths = new Set<string>()
+    let invoiceCogs = 0
+    let invoiceCount = 0
+    let invoiceSkipped = 0
+    {
+      const hi = taxSheet.findIndex(
+        (r) => r.some((c) => str(c) === '비용성격') && r.some((c) => str(c) === '작성일자'),
+      )
+      if (hi >= 0) {
+        const header = taxSheet[hi].map((c) => str(c))
+        const cDate = header.indexOf('작성일자')
+        const cVendor = header.indexOf('공급자 상호')
+        const cItem = header.indexOf('대표 품목')
+        const cSupply = header.indexOf('공급가액')
+        const cCat = header.indexOf('카테고리')
+        const cType = header.indexOf('변동/고정')
+        const cMajor = header.indexOf('대분류')
+        const cNat = header.indexOf('비용성격')
+        for (let i = hi + 1; i < taxSheet.length; i++) {
+          const r = taxSheet[i]
+          if (str(r[cNat]) !== '매출원가') continue
+          const date = parseDate(r[cDate])
+          const vendor = str(r[cVendor])
+          const amount = parseAmount(r[cSupply])
+          if (!date || !vendor || amount <= 0) continue
+          const category = str(r[cCat]) || null
+          if (/세관/.test(vendor) || (category ?? '').includes('매입(해외)')) { invoiceSkipped++; continue }
+          push({
+            source: 'invoice', entry_date: date, vendor, amount, flow: 'out',
+            category, major: str(r[cMajor]) || null, cost_type: str(r[cType]) || null,
+            discretionary: null, nature: '매출원가', card_name: null, memo: str(r[cItem]) || null,
+          })
+          invoiceMonths.add(date.slice(0, 7))
+          invoiceCogs += amount
+          invoiceCount++
+        }
+      }
+    }
+
     if (out.length === 0) {
       return NextResponse.json({ error: '관리회계 시트에서 데이터를 찾지 못했습니다' }, { status: 400 })
     }
@@ -194,6 +238,10 @@ export async function POST(request: NextRequest) {
     // 명세(summary)는 금액이 매달 바뀌므로 해당 월을 교체(delete→insert)
     if (summaryMonths.size > 0) {
       await sb.from('mgmt_ledger').delete().eq('source', 'summary').in('month_key', [...summaryMonths])
+    }
+    // 계산서 원가(invoice)도 같은 방식으로 월 교체 — 재업로드 안전
+    if (invoiceMonths.size > 0) {
+      await sb.from('mgmt_ledger').delete().eq('source', 'invoice').in('month_key', [...invoiceMonths])
     }
     let created = 0
     for (let i = 0; i < out.length; i += 300) {
@@ -209,7 +257,7 @@ export async function POST(request: NextRequest) {
             error: missing
               ? '관리회계 원장 테이블이 없습니다 — supabase/migrations/2026-07-03_mgmt_ledger.sql 을 실행해 주세요.'
               : checkFail
-                ? "source 'summary' 미허용 — supabase/migrations/2026-07-10_mgmt_summary_source.sql 을 실행해 주세요."
+                ? "source 제약 미갱신 — supabase/migrations/2026-07-13_mgmt_invoice_source.sql 을 실행해 주세요."
                 : error.message,
             parsed: counts,
           },
@@ -229,6 +277,8 @@ export async function POST(request: NextRequest) {
       bank: counts.bank,
       personal: counts.personal,
       summary: { months: [...summaryMonths].sort(), fixed: summaryFixed, variable: summaryVar },
+      // 세금계산서 분류 시트의 매출원가 — 가공·미등록 원단 (세관·해외매입 제외)
+      invoiceCogs: { months: [...invoiceMonths].sort(), count: invoiceCount, sum: invoiceCogs, skippedCustoms: invoiceSkipped },
       months,
     })
   } catch (error) {
