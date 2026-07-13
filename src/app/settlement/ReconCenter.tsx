@@ -13,7 +13,6 @@ import { GitCompareArrows, Check, X, Loader2, ArrowRight, FileCheck2, Banknote }
 import { formatKRW } from '@/lib/formatters'
 import type { TaxSuggestion, PurchaseTaxSuggestion, DepositSuggestion } from '@/lib/recon'
 import BankInbox from './BankInbox'
-import PtaxClassifier from './PtaxClassifier'
 
 const box: React.CSSProperties = { border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }
 
@@ -163,8 +162,6 @@ export default function ReconCenter() {
               </div>
             </div>
           )}
-          {/* 매입 계산서 성격 분류 — 원가/변동/고정/기타 (1~6월 백로그 포함) */}
-          <PtaxClassifier />
         </div>
 
         {/* ② 통장 입금 ↔ 미수 거래처 */}

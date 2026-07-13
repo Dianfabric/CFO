@@ -137,38 +137,7 @@ export async function GET(req: NextRequest) {
       const cls = classifyPurchase(ex.description, ex.items.map((i) => i.productName ?? ''))
       if (cls === 'cogs_freight') addFreight(ex.description, ex.totalAmount)
     }
-    // ── 분류된 매입 세금계산서 (대표 지시 2026-07-13) ──
-    // nature: cogs → 매출원가 / variable·fixed → 관리회계 카테고리로 합산 / other → 미반영.
-    // 발행일 기준 기간 필터 (컬럼 없으면 0 — 마이그레이션 전에도 손익 안 깨짐)
-    let ptaxCogs = 0
-    const ptaxVarByCat = new Map<string, number>()
-    const ptaxFixedByCat = new Map<string, number>()
-    try {
-      const { data: ptaxRows, error: ptaxErr } = await supabase
-        .from('purchase_tax_invoices')
-        .select('issue_date, supply_amount, nature, cost_major, cost_category')
-        .in('nature', ['cogs', 'variable', 'fixed'])
-        .gte('issue_date', startStr)
-        .lte('issue_date', endStr)
-      if (!ptaxErr) {
-        // 분해 병합 키 = 관리회계 대분류(cost_major) — 생키 갈라짐과 같은 축
-        for (const r of (ptaxRows ?? []) as { supply_amount: number; nature: string; cost_major: string | null; cost_category: string | null }[]) {
-          if (r.nature === 'cogs') ptaxCogs += r.supply_amount
-          else if (r.nature === 'variable') {
-            const k = r.cost_major || r.cost_category || '매입계산서 변동'
-            ptaxVarByCat.set(k, (ptaxVarByCat.get(k) ?? 0) + r.supply_amount)
-          } else if (r.nature === 'fixed') {
-            const k = r.cost_major || r.cost_category || '매입계산서 고정'
-            ptaxFixedByCat.set(k, (ptaxFixedByCat.get(k) ?? 0) + r.supply_amount)
-          }
-        }
-      }
-    } catch { /* 컬럼 미생성 — 무시 */ }
-    const ptaxVar = [...ptaxVarByCat.values()].reduce((s, v) => s + v, 0)
-    const ptaxFixed = [...ptaxFixedByCat.values()].reduce((s, v) => s + v, 0)
-    if (ptaxCogs > 0) freightByKind.set('매입계산서 원가', (freightByKind.get('매입계산서 원가') ?? 0) + ptaxCogs)
-
-    const fabricCogs = sold.soldCogs + freightCogs + ptaxCogs
+    const fabricCogs = sold.soldCogs + freightCogs
     const freightBreakdown = [...freightByKind.entries()]
       .map(([label, amount]) => ({ label, amount }))
       .filter((x) => x.amount > 0)
@@ -232,9 +201,6 @@ export async function GET(req: NextRequest) {
       naidSales += Math.round((naidSalesByMonth.get(m.ym) ?? 0) * m.ratio)
       naidCogs += Math.round((naidCogsByMonth.get(m.ym) ?? 0) * m.ratio)
     }
-    // 분류된 매입 세금계산서 합산 (발행일 기준 — 기간 필터 완료)
-    expensesSum += ptaxVar
-    fixed += ptaxFixed
     // 고정비·변동비 분해 — 관리회계 대분류(major) 기준 (생키 갈라짐용)
     const monthSet = new Set(months.filter((m) => m.ratio > 0).map((m) => m.ym))
     const varByCat = new Map<string, number>()
@@ -250,9 +216,6 @@ export async function GET(req: NextRequest) {
         varByCat.set(label, (varByCat.get(label) ?? 0) + Math.round(r.amount * ratio))
       }
     }
-    // 분류된 매입 계산서를 같은 카테고리에 합산 (갈라짐에 함께 표시)
-    for (const [k, v] of ptaxVarByCat) varByCat.set(k, (varByCat.get(k) ?? 0) + v)
-    for (const [k, v] of ptaxFixedByCat) fixedByCat.set(k, (fixedByCat.get(k) ?? 0) + v)
     const toBreakdown = (m: Map<string, number>) =>
       [...m.entries()]
         .map(([label, amount]) => ({ label, amount }))
