@@ -18,6 +18,7 @@ import { listSaekdongCosts } from '@/app/saekdong/actions'
 import type { SaekdongPurchase, SaekdongExpense, SaekdongItemCost } from '@/app/saekdong/actions'
 import ProfitFlow from './ProfitFlow'
 import { rangeFor, seriesRevenue, kstToday, type Period, type PeriodRange } from '@/lib/period-range'
+import { makeFcCtx, prev6Range, estOr, deriveChain, type FcChain } from './forecast'
 
 interface MonthlyPoint { month: string; revenue: number }
 interface SeriesData {
@@ -151,6 +152,13 @@ export default function DianOverview() {
   } | null>(null)
   const [bodyPnl, setBodyPnl] = useState<Record<string, BodyPnl>>({})
   const [loading, setLoading] = useState(true)
+  // 월중 예상 토글 — 블록별 독립 (이번 달 조회 시에만 노출, 대표 지시 2026-07-13)
+  const [fcMain, setFcMain] = useState(false)
+  const [fcBody, setFcBody] = useState(false)
+  const [fcNaid, setFcNaid] = useState(false)
+  const fcCtx = useMemo(() => makeFcCtx(kstToday()), [])
+  const avg6 = useMemo(() => prev6Range(kstToday()), [])
+  const avgKey = `avg6_${avg6.start}`
 
   // 기간(과거 포함) 변경 시 본체 손익 재료 조회 (범위별 1회 캐시 — 통합·본체 선택기 공유)
   const pnlInflight = useRef(new Set<string>())
@@ -180,6 +188,10 @@ export default function DianOverview() {
   useEffect(() => {
     fetchPnlFor(shareSel.rangeKey, shareSel.range.start, shareSel.range.end)
   }, [shareSel.rangeKey, shareSel.range.start, shareSel.range.end, fetchPnlFor])
+  // 예상 켜면 지난 6개월 평균 재료 1회 로드
+  useEffect(() => {
+    if (fcMain || fcBody || fcNaid) fetchPnlFor(avgKey, avg6.start, avg6.end)
+  }, [fcMain, fcBody, fcNaid, avgKey, avg6.start, avg6.end, fetchPnlFor])
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -368,6 +380,194 @@ export default function DianOverview() {
     }
   }, [bodyPnl, naidSel.rangeKey])
 
+  // ── 월중 예상 (대표 지시 2026-07-13) — 지난 6개월 평균 재료 ──
+  // 매출·판매원가·배송 = 현재 영업일 페이스 투영, 월말 입력분(월말원가·변동·고정·이자·법인) = 6개월 평균
+  const avgB = bodyPnl[avgKey]
+  const fcAvg = useMemo(() => {
+    if (!avgB) return null
+    const n = 6
+    const soldTot = avgB.soldCogs ?? avgB.fabricCogs
+    return {
+      fixed: avgB.fixed / n,
+      variable: avgB.expenses / n,
+      interest: (avgB.interest ?? 0) / n,
+      late: Math.max(0, avgB.fabricCogs - soldTot) / n, // 월말 원가 — 운임·관세·가공계산서
+      naidSales: (avgB.naid?.sales ?? 0) / n,
+      naidCogs: (avgB.naid?.cogs ?? 0) / n,
+      naidFixed: (avgB.naid?.fixed ?? 0) / n,
+      naidInterest: (avgB.naid?.interest ?? 0) / n,
+    }
+  }, [avgB])
+  const avg6Range: PeriodRange = useMemo(() => {
+    const months: { ym: string; w: number }[] = []
+    const [sy, sm] = avg6.start.split('-').map(Number)
+    for (let i = 0; i < 6; i++) {
+      const dt = new Date(sy, sm - 1 + i, 1)
+      months.push({ ym: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`, w: 1 })
+    }
+    return {
+      start: avg6.start, end: avg6.end, label: '지난 6개월',
+      months, weekMode: false, isCurrentWeek: false, weekOverlaps: [],
+    }
+  }, [avg6])
+  const saekAvg = useMemo(() => {
+    const p = computeSaekPnl(saekCosts, saekOn, avg6Range)
+    const n = 6
+    return { cogs: p.cogs / n, variable: p.variable / n, fixed: p.fixed / n, nonOp: p.nonOp / n }
+  }, [saekCosts, saekOn, avg6Range])
+
+  const isCurMonth = (sel: PeriodSel) => sel.period === 'month' && sel.selMonth === sel.nowM
+
+  // 본체 예상 — 오늘까지 + 말일
+  const bodyFc = useMemo(() => {
+    if (!fcBody || !fcAvg || !isCurMonth(bodySel)) return null
+    const a = bodyPnl[bodySel.rangeKey]
+    if (!a) return null
+    const { pace, ratio, d, D } = fcCtx
+    const saekOffline = seriesRevenue(saekOff, bodySel.range)
+    const shop = Math.round(seriesRevenue(dianShop, bodySel.range) / 1.1)
+    const revenueA = a.sales - saekOffline + shop
+    const soldA = a.soldCogs ?? a.fabricCogs
+    const lateA = Math.max(0, a.fabricCogs - soldA)
+    const soldP = Math.round(soldA * pace)
+    const lateP = estOr(lateA, fcAvg.late)
+    const varP = estOr(a.expenses, fcAvg.variable)
+    const shipP = Math.round(a.shipping * pace)
+    const month = deriveChain({
+      revenue: Math.round(revenueA * pace),
+      cogs: soldP + lateP,
+      variable: varP + shipP,
+      fixed: estOr(a.fixed, fcAvg.fixed),
+      nonOp: estOr(a.interest ?? 0, fcAvg.interest),
+    })
+    const today = deriveChain({
+      revenue: revenueA,
+      cogs: soldA + estOr(lateA, fcAvg.late * ratio),
+      variable: estOr(a.expenses, fcAvg.variable * ratio) + a.shipping,
+      fixed: estOr(a.fixed, fcAvg.fixed * ratio),
+      nonOp: estOr(a.interest ?? 0, fcAvg.interest * ratio),
+    })
+    const breakdowns = {
+      cogs: [
+        { label: '판매원가(페이스 투영)', amount: soldP },
+        { label: '월말 원가 예상 — 운임·관세·가공', amount: lateP },
+      ],
+      variable: [
+        { label: '변동 판관비(6개월 평균)', amount: varP },
+        { label: '국내 배송(페이스 투영)', amount: shipP },
+      ],
+      fixed: [{ label: '고정비(6개월 평균)', amount: month.fixed }],
+      nonOp: [{ label: '대출 이자(6개월 평균)', amount: month.nonOp }],
+    }
+    return { month: { ...month, breakdowns }, today, d, D }
+  }, [fcBody, fcAvg, bodyPnl, bodySel, saekOff, dianShop, fcCtx])
+
+  // 법인 예상 — 계산서가 띄엄띄엄이라 페이스 대신 실측·평균 중 큰 값
+  const naidFc = useMemo(() => {
+    if (!fcNaid || !fcAvg || !isCurMonth(naidSel)) return null
+    const a = bodyPnl[naidSel.rangeKey]
+    if (!a) return null
+    const { ratio, d, D } = fcCtx
+    const nsA = a.naid?.sales ?? 0
+    const ncA = a.naid?.cogs ?? 0
+    const nfA = a.naid?.fixed ?? 0
+    const niA = a.naid?.interest ?? 0
+    const month = deriveChain({
+      revenue: estOr(nsA, fcAvg.naidSales),
+      cogs: estOr(ncA, fcAvg.naidCogs),
+      variable: 0,
+      fixed: estOr(nfA, fcAvg.naidFixed),
+      nonOp: estOr(niA, fcAvg.naidInterest),
+    })
+    const today = deriveChain({
+      revenue: nsA,
+      cogs: estOr(ncA, fcAvg.naidCogs * ratio),
+      variable: 0,
+      fixed: estOr(nfA, fcAvg.naidFixed * ratio),
+      nonOp: estOr(niA, fcAvg.naidInterest * ratio),
+    })
+    const breakdowns = {
+      cogs: [{ label: '법인 매입 예상(6개월 평균)', amount: month.cogs }],
+      fixed: [{ label: '법인 운영비(6개월 평균)', amount: month.fixed }],
+      nonOp: [{ label: '법인 이자(6개월 평균)', amount: month.nonOp }],
+    }
+    return { month: { ...month, breakdowns }, today, d, D }
+  }, [fcNaid, fcAvg, bodyPnl, naidSel, fcCtx])
+
+  // 통합 예상 — 본체·색동 페이스 + 월말 입력분·법인 평균
+  const mainFc = useMemo(() => {
+    if (!fcMain || !fcAvg || !isCurMonth(main)) return null
+    const a = bodyPnl[rangeKey]
+    if (!a) return null
+    const { pace, ratio, d, D } = fcCtx
+    const shop = Math.round(seriesRevenue(dianShop, range) / 1.1)
+    const soldA = a.soldCogs ?? a.fabricCogs
+    const lateA = Math.max(0, a.fabricCogs - soldA)
+    const nsA = a.naid?.sales ?? 0
+    const ncA = a.naid?.cogs ?? 0
+    const nfA = a.naid?.fixed ?? 0
+    const niA = a.naid?.interest ?? 0
+    const bodySoldP = Math.round(soldA * pace)
+    const lateP = estOr(lateA, fcAvg.late)
+    const saekCogsP = Math.round(saekChain.cogs * pace)
+    const naidCogsP = estOr(ncA, fcAvg.naidCogs)
+    const bodyVarP = estOr(a.expenses, fcAvg.variable)
+    const shipP = Math.round(a.shipping * pace)
+    const saekVarP = estOr(saekChain.variable, saekAvg.variable)
+    const bodyFixedP = estOr(a.fixed, fcAvg.fixed)
+    const saekFixedP = estOr(saekChain.fixed, saekAvg.fixed)
+    const naidFixedP = estOr(nfA, fcAvg.naidFixed)
+    const bodyIntP = estOr(a.interest ?? 0, fcAvg.interest)
+    const saekNonOpP = estOr(saekChain.nonOp, saekAvg.nonOp)
+    const naidIntP = estOr(niA, fcAvg.naidInterest)
+    const month = deriveChain({
+      revenue:
+        Math.round(a.sales * pace) + Math.round(saekChain.onlineSupply * pace) +
+        Math.round(shop * pace) + estOr(nsA, fcAvg.naidSales),
+      cogs: bodySoldP + lateP + saekCogsP + naidCogsP,
+      variable: bodyVarP + shipP + saekVarP,
+      fixed: bodyFixedP + saekFixedP + naidFixedP,
+      nonOp: bodyIntP + saekNonOpP + naidIntP,
+    })
+    const today = deriveChain({
+      revenue: a.sales + saekChain.onlineSupply + shop + nsA,
+      cogs: soldA + estOr(lateA, fcAvg.late * ratio) + saekChain.cogs + estOr(ncA, fcAvg.naidCogs * ratio),
+      variable:
+        estOr(a.expenses, fcAvg.variable * ratio) + a.shipping +
+        estOr(saekChain.variable, saekAvg.variable * ratio),
+      fixed:
+        estOr(a.fixed, fcAvg.fixed * ratio) + estOr(saekChain.fixed, saekAvg.fixed * ratio) +
+        estOr(nfA, fcAvg.naidFixed * ratio),
+      nonOp:
+        estOr(a.interest ?? 0, fcAvg.interest * ratio) +
+        estOr(saekChain.nonOp, saekAvg.nonOp * ratio) + estOr(niA, fcAvg.naidInterest * ratio),
+    })
+    const breakdowns = {
+      cogs: [
+        { label: '본체 판매원가(페이스 투영)', amount: bodySoldP },
+        { label: '월말 원가 예상 — 운임·관세·가공', amount: lateP },
+        { label: '법인 매입 예상', amount: naidCogsP },
+        { label: '색동 매입·원가(페이스)', amount: saekCogsP },
+      ],
+      variable: [
+        { label: '본체 변동 판관비(6개월 평균)', amount: bodyVarP },
+        { label: '본체 국내 배송(페이스)', amount: shipP },
+        { label: '색동 변동비(예상)', amount: saekVarP },
+      ],
+      fixed: [
+        { label: '본체 고정비(6개월 평균)', amount: bodyFixedP },
+        { label: '엔에이아이디(법인) 예상', amount: naidFixedP },
+        { label: '색동 고정비(예상)', amount: saekFixedP },
+      ],
+      nonOp: [
+        { label: '대출 이자(6개월 평균)', amount: bodyIntP },
+        { label: '법인 이자(예상)', amount: naidIntP },
+        { label: '색동 영업외(예상)', amount: saekNonOpP },
+      ],
+    }
+    return { month: { ...month, breakdowns }, today, d, D }
+  }, [fcMain, fcAvg, bodyPnl, rangeKey, main, range, dianShop, saekChain, saekAvg, fcCtx])
+
   return (
     <div className="space-y-3">
       <style>{`
@@ -386,7 +586,8 @@ export default function DianOverview() {
         <span className="text-xs text-slate-400">
           · {range.label} · 공급가 기준 · 디안 본체 + 색동 (엔에이아이디 연동 예정)
         </span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1.5">
+          <ForecastButton on={fcMain} setOn={setFcMain} visible={isCurMonth(main)} />
           <PeriodButtons sel={main} />
         </div>
       </div>
@@ -415,20 +616,21 @@ export default function DianOverview() {
         ) : (
           <>
             <ProfitFlow
-              revenue={chain.revenue}
-              cogs={chain.cogs}
-              gross={chain.gross}
-              variable={chain.variable}
-              contribution={chain.contribution}
-              fixed={chain.fixed}
-              operating={chain.operating}
-              nonOp={chain.nonOp}
-              net={chain.net}
-              bep={chain.bep}
-              bepRate={chain.bepRate}
-              breakdowns={chain.breakdowns}
-              periodKey={rangeKey}
+              revenue={(mainFc?.month ?? chain).revenue}
+              cogs={(mainFc?.month ?? chain).cogs}
+              gross={(mainFc?.month ?? chain).gross}
+              variable={(mainFc?.month ?? chain).variable}
+              contribution={(mainFc?.month ?? chain).contribution}
+              fixed={(mainFc?.month ?? chain).fixed}
+              operating={(mainFc?.month ?? chain).operating}
+              nonOp={(mainFc?.month ?? chain).nonOp}
+              net={(mainFc?.month ?? chain).net}
+              bep={(mainFc?.month ?? chain).bep}
+              bepRate={(mainFc?.month ?? chain).bepRate}
+              breakdowns={(mainFc?.month ?? chain).breakdowns}
+              periodKey={mainFc ? `${rangeKey}-fc` : rangeKey}
             />
+            {fcMain && isCurMonth(main) && <ForecastStrip fc={mainFc} actualNet={chain.net} />}
           </>
         )}
       </div>
@@ -445,7 +647,8 @@ export default function DianOverview() {
           <span className="text-[11px] text-slate-400">
             · {bodySel.range.label} · 일계표 + 디안 쇼핑몰 (색동 오프라인 매출 제외)
           </span>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <ForecastButton on={fcBody} setOn={setFcBody} visible={isCurMonth(bodySel)} />
             <PeriodButtons sel={bodySel} />
           </div>
         </div>
@@ -460,21 +663,22 @@ export default function DianOverview() {
         ) : (
           <>
             <ProfitFlow
-              revenue={bodyChain.revenue}
-              cogs={bodyChain.cogs}
-              gross={bodyChain.gross}
-              variable={bodyChain.variable}
-              contribution={bodyChain.contribution}
-              fixed={bodyChain.fixed}
-              operating={bodyChain.operating}
-              nonOp={bodyChain.nonOp}
-              net={bodyChain.net}
-              bep={bodyChain.bep}
-              bepRate={bodyChain.bepRate}
-              breakdowns={bodyChain.breakdowns}
+              revenue={(bodyFc?.month ?? bodyChain).revenue}
+              cogs={(bodyFc?.month ?? bodyChain).cogs}
+              gross={(bodyFc?.month ?? bodyChain).gross}
+              variable={(bodyFc?.month ?? bodyChain).variable}
+              contribution={(bodyFc?.month ?? bodyChain).contribution}
+              fixed={(bodyFc?.month ?? bodyChain).fixed}
+              operating={(bodyFc?.month ?? bodyChain).operating}
+              nonOp={(bodyFc?.month ?? bodyChain).nonOp}
+              net={(bodyFc?.month ?? bodyChain).net}
+              bep={(bodyFc?.month ?? bodyChain).bep}
+              bepRate={(bodyFc?.month ?? bodyChain).bepRate}
+              breakdowns={(bodyFc?.month ?? bodyChain).breakdowns}
               nonOpLabel="대출 이자"
-              periodKey={`body-${bodySel.rangeKey}`}
+              periodKey={bodyFc ? `body-${bodySel.rangeKey}-fc` : `body-${bodySel.rangeKey}`}
             />
+            {fcBody && isCurMonth(bodySel) && <ForecastStrip fc={bodyFc} actualNet={bodyChain.net} />}
           </>
         )}
       </div>
@@ -491,7 +695,8 @@ export default function DianOverview() {
           <span className="text-[11px] text-slate-400">
             · {naidSel.range.label} · 매출·매입 = 세금계산서 · 운영비·이자 = 관리회계 명세
           </span>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <ForecastButton on={fcNaid} setOn={setFcNaid} visible={isCurMonth(naidSel)} />
             <PeriodButtons sel={naidSel} />
           </div>
         </div>
@@ -506,21 +711,22 @@ export default function DianOverview() {
         ) : (
           <>
             <ProfitFlow
-              revenue={naidChain.revenue}
-              cogs={naidChain.cogs}
-              gross={naidChain.gross}
-              variable={naidChain.variable}
-              contribution={naidChain.contribution}
-              fixed={naidChain.fixed}
-              operating={naidChain.operating}
-              nonOp={naidChain.nonOp}
-              net={naidChain.net}
-              bep={naidChain.bep}
-              bepRate={naidChain.bepRate}
-              breakdowns={naidChain.breakdowns}
+              revenue={(naidFc?.month ?? naidChain).revenue}
+              cogs={(naidFc?.month ?? naidChain).cogs}
+              gross={(naidFc?.month ?? naidChain).gross}
+              variable={(naidFc?.month ?? naidChain).variable}
+              contribution={(naidFc?.month ?? naidChain).contribution}
+              fixed={(naidFc?.month ?? naidChain).fixed}
+              operating={(naidFc?.month ?? naidChain).operating}
+              nonOp={(naidFc?.month ?? naidChain).nonOp}
+              net={(naidFc?.month ?? naidChain).net}
+              bep={(naidFc?.month ?? naidChain).bep}
+              bepRate={(naidFc?.month ?? naidChain).bepRate}
+              breakdowns={(naidFc?.month ?? naidChain).breakdowns}
               nonOpLabel="법인 이자"
-              periodKey={`naid-${naidSel.rangeKey}`}
+              periodKey={naidFc ? `naid-${naidSel.rangeKey}-fc` : `naid-${naidSel.rangeKey}`}
             />
+            {fcNaid && isCurMonth(naidSel) && <ForecastStrip fc={naidFc} actualNet={naidChain.net} naid />}
           </>
         )}
       </div>
@@ -600,6 +806,66 @@ export default function DianOverview() {
 }
 
 /** 주/월/분기/반기/년 버튼 — 블록별 독립 선택기 (exclude 로 일부 기간 숨김) */
+/** 월중 예상 토글 — 이번 달 조회 시에만 노출 (대표 지시 2026-07-13) */
+function ForecastButton({ on, setOn, visible }: { on: boolean; setOn: (v: boolean) => void; visible: boolean }) {
+  if (!visible) return null
+  return (
+    <button
+      type="button"
+      onClick={() => setOn(!on)}
+      className="h-6 px-2 text-[10px] font-bold"
+      style={{
+        borderRadius: '2px',
+        border: '1px solid',
+        borderColor: on ? '#f59e0b' : '#e2e8f0',
+        backgroundColor: on ? '#fffbeb' : '#fff',
+        color: on ? '#b45309' : '#64748b',
+      }}
+      title="월말 입력분(월말 원가·변동·고정·이자·법인)을 지난 6개월 평균으로 채워 오늘까지·말일 예상 순이익을 계산"
+    >
+      {on ? '📈 예상 ON' : '예상'}
+    </button>
+  )
+}
+
+/** 예상 근거 스트립 — 오늘까지·말일 순이익 + 계산 근거 */
+function ForecastStrip({
+  fc, actualNet, naid,
+}: {
+  fc: { month: FcChain; today: FcChain; d: number; D: number } | null
+  actualNet: number
+  naid?: boolean
+}) {
+  if (!fc) {
+    return (
+      <p className="mt-2 text-[11px] text-slate-400">
+        <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
+        지난 6개월 평균 계산 중...
+      </p>
+    )
+  }
+  const net = (v: number) => (
+    <b style={{ color: v >= 0 ? 'var(--nv-success-deep, #4a7c00)' : '#dc2626' }}>{formatKRW(v)}</b>
+  )
+  return (
+    <div
+      className="mt-2 px-3 py-2 text-[11px] leading-relaxed"
+      style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: '2px' }}
+    >
+      <span className="font-bold">📈 예상 모드</span> — 위 흐름은 <b>말일 예상</b>입니다.
+      오늘까지({fc.d}/{fc.D} 영업일) 예상 순이익 {net(fc.today.net)} · <b>말일 예상 순이익 {net(fc.month.net)}</b>
+      <span className="text-slate-400"> (실측만으로는 {formatKRW(actualNet)})</span>
+      <br />
+      <span style={{ color: '#b45309' }}>
+        {naid
+          ? '법인 매출·매입·운영비·이자는 실측과 지난 6개월 평균 중 큰 값.'
+          : '매출·판매원가·배송 = 현재 영업일 페이스로 투영 · 월말 원가(운임·관세·가공)·변동비·고정비·이자 = 실측과 지난 6개월 평균 중 큰 값.'}
+        {' '}자료가 업로드될수록 실측으로 대체됩니다.
+      </span>
+    </div>
+  )
+}
+
 function PeriodButtons({ sel, exclude }: { sel: PeriodSel; exclude?: Period[] }) {
   return (
     <div className="inline-flex overflow-hidden rounded-sm border border-slate-200">
