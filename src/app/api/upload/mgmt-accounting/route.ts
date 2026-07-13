@@ -78,8 +78,12 @@ export async function POST(request: NextRequest) {
       out.push({ ...r, month_key: r.entry_date.slice(0, 7), dedup_key: `${base}|#${n}` })
     }
 
+    // 전용 '매출원가...' 시트가 있는 파일(예: 디안 관리 회계 2026-01-06.xlsx)은
+    // 그 시트만 흡수 — 나머지 시트는 월별 파일이 정본 (대표 지시 2026-07-13)
+    const cogsOnly = wb.SheetNames.some((n) => n.startsWith('매출원가'))
+
     // ── 카드내역 분류 ──
-    const card = sheet('카드내역 분류')
+    const card = cogsOnly ? [] : sheet('카드내역 분류')
     let counts = { card: 0, bank: 0, personal: 0 }
     {
       const hi = card.findIndex((r) => str(r[0]) === '이용일' && str(r[2]) === '가맹점명')
@@ -100,7 +104,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 통장 입출금 분류 ──
-    const bank = sheet('통장 입출금 분류')
+    const bank = cogsOnly ? [] : sheet('통장 입출금 분류')
     {
       const hi = bank.findIndex((r) => str(r[0]) === '순번')
       for (let i = hi + 1; hi >= 0 && i < bank.length; i++) {
@@ -123,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 개인사용 분류 (회사 비용에서 제외 대상 표시용) ──
-    const personal = sheet('개인사용 분류')
+    const personal = cogsOnly ? [] : sheet('개인사용 분류')
     {
       const hi = personal.findIndex((r) => str(r[0]) === '이용일')
       for (let i = hi + 1; hi >= 0 && i < personal.length; i++) {
@@ -146,7 +150,7 @@ export async function POST(request: NextRequest) {
     // 고정비 명세(임대료·급여·이자...) + 변동비 입력칸을 source='summary' 로 흡수.
     // nature: 법인 몫 → '법인'(엔에이아이디 대기) / 대출이자 → '영업외비용' /
     //         원금상환 → '원금상환'(손익 제외) / 변동 운임 → '운임'(인보이스 중복 제외) / 나머지 '판관비'
-    const summarySheet = sheet('관리회계')
+    const summarySheet = cogsOnly ? [] : sheet('관리회계')
     const summaryMonths = new Set<string>()
     let summaryFixed = 0
     let summaryVar = 0
@@ -231,7 +235,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ② '세금계산서 분류' 시트 — 비용성격='매출원가' 행 (전용 시트가 커버하는 월은 건너뜀)
-    const taxSheet = sheet('세금계산서 분류')
+    const taxSheet = cogsOnly ? [] : sheet('세금계산서 분류')
     {
       const hi = taxSheet.findIndex(
         (r) => r.some((c) => str(c) === '비용성격') && r.some((c) => str(c) === '작성일자'),
