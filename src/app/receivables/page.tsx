@@ -181,6 +181,7 @@ interface BankInEntry {
 
 interface ClientAR {
   clientId: string; clientName: string; phone: string | null; clientNotes: string | null
+  riskGrade: 'normal' | 'blacklist' | 'bankrupt'; dueDate: string | null
   totalAmount: number; count: number; oldestDays: number
   salesPersons: { name: string; count: number; amount: number }[]
   unassignedCount: number; unassignedAmount: number
@@ -195,6 +196,24 @@ interface ClientAR {
 
 const DEFAULT_PERSONS = ['한태원', '한태종', '최현진', '유대현', '전새로미']
 
+const RISK_META = {
+  normal: { label: '정상', chip: '' },
+  blacklist: { label: '악질', chip: '🔴' },
+  bankrupt: { label: '파산', chip: '⚫' },
+} as const
+
+/** 결제 예정일 → 잔여/연체 D-day + 상태색 */
+function dDay(dueDate: string | null): { text: string; color: string; overdue: boolean } | null {
+  if (!dueDate) return null
+  const today = new Date(new Date().toLocaleDateString('sv-SE') + 'T00:00:00')
+  const due = new Date(dueDate + 'T00:00:00')
+  const days = Math.round((due.getTime() - today.getTime()) / 86400000)
+  if (days < 0) return { text: `연체 D+${-days}`, color: '#dc2626', overdue: true }
+  if (days === 0) return { text: '오늘 예정', color: '#df6500', overdue: false }
+  if (days <= 7) return { text: `임박 D-${days}`, color: '#df6500', overdue: false }
+  return { text: `D-${days}`, color: '#16a34a', overdue: false }
+}
+
 export default function ReceivablesPage() {
   const [data, setData] = useState<{ summary: ClientAR[]; totalAR: number; overdueTotal: number; totalCount: number; allPersons: string[] } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -202,6 +221,8 @@ export default function ReceivablesPage() {
   const [payAmount, setPayAmount] = useState(0)
   const [expandedClient, setExpandedClient] = useState<string | null>(null)
   const [filterPerson, setFilterPerson] = useState<string>('')   // '' = 전체, 'UNASSIGNED' = 미지정만
+  const [filterRisk, setFilterRisk] = useState<'all' | 'normal' | 'blacklist' | 'bankrupt'>('all')
+  const [savingDue, setSavingDue] = useState<string | null>(null)
   const [bulkDialog, setBulkDialog] = useState<{ clientId: string; clientName: string; unassignedIds: string[] } | null>(null)
   const [bulkPerson, setBulkPerson] = useState('')
   const [bulkCustom, setBulkCustom] = useState('')
@@ -301,16 +322,35 @@ export default function ReceivablesPage() {
   const agingBadge = (days: number) =>
     days <= 30 ? 'secondary' as const : days <= 60 ? 'outline' as const : 'destructive' as const
 
-  // 필터 적용 — 담당자 + 거래처명 검색
+  // 필터 적용 — 등급 + 담당자 + 거래처명 검색
   const filteredSummary = useMemo(() => {
     if (!data) return []
     const q = searchQuery.trim().toLowerCase()
     let list = data.summary
+    if (filterRisk !== 'all') list = list.filter(c => c.riskGrade === filterRisk)
     if (filterPerson === 'UNASSIGNED') list = list.filter(c => c.unassignedCount > 0)
     else if (filterPerson) list = list.filter(c => c.salesPersons.some(p => p.name === filterPerson))
     if (q) list = list.filter(c => c.clientName.toLowerCase().includes(q))
     return list
-  }, [data, filterPerson, searchQuery])
+  }, [data, filterRisk, filterPerson, searchQuery])
+
+  const riskCounts = useMemo(() => {
+    const c = { all: data?.summary.length ?? 0, normal: 0, blacklist: 0, bankrupt: 0 }
+    for (const s of data?.summary ?? []) c[s.riskGrade]++
+    return c
+  }, [data])
+
+  // 결제 예정일 저장 (거래처 미결제 건 일괄)
+  const saveDueDate = async (clientId: string, dueDate: string | null) => {
+    setSavingDue(clientId)
+    try {
+      await fetch('/api/receivables/due-date', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, dueDate }),
+      })
+      await fetchData(true)
+    } finally { setSavingDue(null) }
+  }
 
   const filteredTotal = filteredSummary.reduce((s, c) => s + c.totalAmount, 0)
   const personList = useMemo(() => {
@@ -632,6 +672,29 @@ export default function ReceivablesPage() {
         </Card>
       )}
 
+      {/* 등급 탭 — 정상 / 악질 / 파산 (잔액명세서 구분 자동 분리) */}
+      <Card>
+        <CardContent className="p-3 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-500 mr-1">등급:</span>
+          {([
+            ['all', `전체 (${riskCounts.all})`],
+            ['normal', `정상 (${riskCounts.normal})`],
+            ['blacklist', `🔴 악질 (${riskCounts.blacklist})`],
+            ['bankrupt', `⚫ 파산 (${riskCounts.bankrupt})`],
+          ] as const).map(([k, label]) => (
+            <Button
+              key={k}
+              size="sm"
+              variant={filterRisk === k ? 'default' : 'outline'}
+              onClick={() => setFilterRisk(k)}
+              className={k === 'blacklist' && filterRisk !== k ? 'border-red-200 text-red-700' : k === 'bankrupt' && filterRisk !== k ? 'border-slate-300 text-slate-600' : ''}
+            >
+              {label}
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+
       {/* 담당자 필터 */}
       <Card>
         <CardContent className="p-3 flex items-center gap-2 flex-wrap">
@@ -723,8 +786,19 @@ export default function ReceivablesPage() {
                           }`}
                         >
                           <CardContent className="p-4 flex flex-col items-center text-center gap-2 min-h-[140px] justify-between">
-                            <h3 className="font-semibold text-slate-900 text-sm truncate w-full" title={client.clientName}>
-                              {client.clientName}
+                            <h3 className="font-semibold text-slate-900 text-sm truncate w-full flex items-center justify-center gap-1" title={client.clientName}>
+                              {client.riskGrade !== 'normal' && (
+                                <span
+                                  className="shrink-0 px-1 rounded text-[10px] font-bold"
+                                  style={{
+                                    backgroundColor: client.riskGrade === 'blacklist' ? '#fef2f2' : '#f1f5f9',
+                                    color: client.riskGrade === 'blacklist' ? '#dc2626' : '#475569',
+                                  }}
+                                >
+                                  {RISK_META[client.riskGrade].chip}{RISK_META[client.riskGrade].label}
+                                </span>
+                              )}
+                              <span className="truncate">{client.clientName}</span>
                             </h3>
                             <div className="flex flex-col items-center">
                               <p className={`text-xl font-bold ${client.totalAmount < 0 ? 'text-blue-600' : agingColor(client.oldestDays)}`}>
@@ -748,6 +822,31 @@ export default function ReceivablesPage() {
                                 📝 {client.clientNotes}
                               </div>
                             )}
+                            {/* 결제 예정일 + D-day + 경과일 */}
+                            {client.totalAmount > 0 && (() => {
+                              const dd = dDay(client.dueDate)
+                              return (
+                                <div className="w-full flex items-center justify-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                                  <span className="text-[10px] text-slate-400">경과 +{client.oldestDays}일</span>
+                                  <input
+                                    type="date"
+                                    value={client.dueDate ?? ''}
+                                    disabled={savingDue === client.clientId}
+                                    onChange={(e) => saveDueDate(client.clientId, e.target.value || null)}
+                                    className="text-[10px] border rounded px-1 py-0.5 w-[104px]"
+                                    title="결제 예정일 (미결제 건 일괄)"
+                                  />
+                                  {dd && (
+                                    <span
+                                      className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                      style={{ backgroundColor: dd.overdue ? '#fef2f2' : 'transparent', color: dd.color }}
+                                    >
+                                      {dd.text}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </CardContent>
                         </Card>
                       )

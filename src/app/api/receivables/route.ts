@@ -1,10 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { differenceInDays } from 'date-fns'
+import { createClient } from '@/lib/supabase/server'
+import { normBizName } from '@/lib/recon'
+
+/** ar_snapshots 최신 월 구분 → 거래처 리스크 등급 (악질/파산 자동 분리) */
+async function loadRiskGrades(): Promise<Map<string, 'blacklist' | 'bankrupt'>> {
+  const out = new Map<string, 'blacklist' | 'bankrupt'>()
+  try {
+    const sb = await createClient()
+    const { data: months } = await sb
+      .from('ar_snapshots')
+      .select('month_key')
+      .order('month_key', { ascending: false })
+      .limit(1)
+    const latest = months?.[0]?.month_key
+    if (!latest) return out
+    const { data } = await sb
+      .from('ar_snapshots')
+      .select('client_name, category')
+      .eq('month_key', latest)
+    for (const r of (data ?? []) as { client_name: string; category: string | null }[]) {
+      const cat = r.category ?? ''
+      const grade = /악질/.test(cat) ? 'blacklist' : /파산/.test(cat) ? 'bankrupt' : null
+      if (grade) out.set(normBizName(r.client_name), grade)
+    }
+  } catch {
+    /* ar_snapshots 없거나 오류 — 등급 없이 (전부 normal) */
+  }
+  return out
+}
 
 export async function GET(request: NextRequest) {
   try {
     const includeFullyPaid = new URL(request.url).searchParams.get('includeFullyPaid') === 'true'
+    const riskGrades = await loadRiskGrades()
     // 항상 모든 AR 가져옴 — 거래처 잔액은 sum(orig) - sum(all payments) 로 계산
     const receivables = await prisma.accountsReceivable.findMany({
       where: undefined,
@@ -68,6 +98,7 @@ export async function GET(request: NextRequest) {
     // 거래처별 집계
     const byClient: Record<string, {
       clientId: string; clientName: string; phone: string | null; clientNotes: string | null;
+      riskGrade: 'normal' | 'blacklist' | 'bankrupt'; dueDate: string | null;
       totalAmount: number; count: number; oldestDays: number;
       salesPersons: { name: string; count: number; amount: number }[];
       unassignedCount: number; unassignedAmount: number;
@@ -95,6 +126,8 @@ export async function GET(request: NextRequest) {
         }))
         byClient[cid] = {
           clientId: cid, clientName: ar.client.name, phone: ar.client.phone, clientNotes: ar.client.notes,
+          riskGrade: riskGrades.get(normBizName(ar.client.name)) ?? 'normal',
+          dueDate: null,
           totalAmount: 0, count: 0, oldestDays: 0,
           salesPersons: [], unassignedCount: 0, unassignedAmount: 0,
           items: [],
@@ -115,6 +148,11 @@ export async function GET(request: NextRequest) {
       const days = differenceInDays(now, ar.createdAt)
       if (days > c.oldestDays) c.oldestDays = days
       c.items.push(ar)
+      // 결제 예정일 — 거래처 대표값(가장 이른 미래 예정일, 없으면 아무 값). 미결제 건 기준.
+      if (ar.dueDate) {
+        const d = ar.dueDate.toLocaleDateString('sv-SE')
+        if (!c.dueDate || d < c.dueDate) c.dueDate = d
+      }
 
       // 담당자별 집계는 매출 단위 (전체 매출 ar.originalAmount 기준)
       const person = ar.transaction.salesPerson
