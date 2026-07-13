@@ -179,11 +179,15 @@ export default function CogsMatchPanel() {
                 <div key={o.id} className="flex items-center gap-2 text-[11px] bg-slate-50 rounded px-2 py-1">
                   <span className="font-bold text-slate-700">{o.product_name}</span>
                   <span className="text-slate-400">
-                    {o.scope === 'line' ? '건별' : o.match_mode === 'contains' ? '포함규칙' : '품목규칙'}
+                    {o.unit_cost === 0 ? '패스' : o.scope === 'line' ? '건별' : o.match_mode === 'contains' ? '포함규칙' : '품목규칙'}
                   </span>
-                  <span className="tabular-nums text-slate-600">
-                    {formatKRW(o.unit_cost)} {o.cost_mode === 'per_line' ? '/건' : '/수량'}
-                  </span>
+                  {o.unit_cost === 0 ? (
+                    <span className="text-slate-400">원가 없음 — 점검 제외</span>
+                  ) : (
+                    <span className="tabular-nums text-slate-600">
+                      {formatKRW(o.unit_cost)} {o.cost_mode === 'per_line' ? '/건' : '/수량'}
+                    </span>
+                  )}
                   <span className="text-slate-400">· {o.effective_from}~</span>
                   {o.note && <span className="text-slate-400 truncate">· {o.note}</span>}
                   <button onClick={() => removeOverride(o.id)} className="ml-auto text-slate-300 hover:text-red-500">
@@ -224,6 +228,18 @@ function UnmatchedRow({
     if (ok) setCost('')
   }
 
+  // 패스 — 원가 카운트가 필요 없는 품목(할인·단수정리 등). 원가 0 규칙으로 저장 →
+  // 매칭 처리되어 앞으로 이 품목은 점검 목록에 나오지 않음.
+  const passItem = async () => {
+    if (!confirm(`"${item.name}" 은(는) 원가 없이 패스할까요?\n앞으로 이 품목은 점검 목록에 나오지 않습니다. (등록된 수기 원가에서 삭제하면 복귀)`)) return
+    setSaving(true)
+    await onSave({
+      scope: 'name', product_name: item.name, match_mode: 'exact',
+      cost_mode: 'per_unit', unit_cost: 0, note: '원가 없음 — 점검 제외',
+    })
+    setSaving(false)
+  }
+
   return (
     <div className="border border-slate-200 rounded" style={{ borderRadius: '2px' }}>
       <button
@@ -261,6 +277,13 @@ function UnmatchedRow({
               <Button size="sm" className="h-8 gap-1" disabled={disabled || saving} onClick={saveRule}>
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                 규칙 저장
+              </Button>
+              <Button
+                size="sm" variant="outline" className="h-8 gap-1 text-slate-500"
+                disabled={disabled || saving} onClick={passItem}
+                title="원가 카운트 불필요 — 앞으로 이 품목은 점검에 나오지 않음"
+              >
+                패스 (원가 없음)
               </Button>
             </div>
           </div>
