@@ -190,7 +190,18 @@ export async function GET(request: NextRequest) {
       receivables.map(ar => ar.transaction.salesPerson).filter(Boolean) as string[],
     )).sort()
 
-    return NextResponse.json({ summary, totalAR, overdueTotal, totalCount: receivables.length, allPersons })
+    // 미수 건 부가정보 (프로젝트명·거래처 담당자·연락처) — ar_meta 오버레이 (테이블 없으면 빈 맵)
+    let arMeta: Record<string, { project_name: string | null; contact_name: string | null; contact_phone: string | null }> = {}
+    try {
+      const sb = await createClient()
+      const { data: metas } = await sb.from('ar_meta').select('ar_id, project_name, contact_name, contact_phone').limit(5000)
+      arMeta = Object.fromEntries(
+        ((metas ?? []) as { ar_id: string; project_name: string | null; contact_name: string | null; contact_phone: string | null }[])
+          .map((m) => [m.ar_id, { project_name: m.project_name, contact_name: m.contact_name, contact_phone: m.contact_phone }]),
+      )
+    } catch { /* 없으면 빈 맵 */ }
+
+    return NextResponse.json({ summary, totalAR, overdueTotal, totalCount: receivables.length, allPersons, arMeta })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error('[receivables GET]', msg)

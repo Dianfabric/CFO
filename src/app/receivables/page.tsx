@@ -202,6 +202,84 @@ const RISK_META = {
   bankrupt: { label: '파산', chip: '⚫' },
 } as const
 
+/** 미수 건 부가정보 편집 (프로젝트명·거래처 담당자·연락처) + 할인 입력 */
+function ArMetaEditor({
+  arId, initial, remaining, onDiscount, onSaved,
+}: {
+  arId: string
+  initial?: { project_name: string | null; contact_name: string | null; contact_phone: string | null }
+  remaining: number
+  onDiscount: (amount: number) => void
+  onSaved: () => void
+}) {
+  const [project, setProject] = useState(initial?.project_name ?? '')
+  const [cname, setCname] = useState(initial?.contact_name ?? '')
+  const [cphone, setCphone] = useState(initial?.contact_phone ?? '')
+  const [disc, setDisc] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const r = await fetch('/api/receivables/meta', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ arId, project_name: project, contact_name: cname, contact_phone: cphone }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => null)
+        alert(j?.error ?? '저장 실패')
+        return
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1500)
+      onSaved()
+    } finally { setSaving(false) }
+  }
+
+  const applyDiscount = () => {
+    const v = Math.round(Number(disc.replace(/,/g, '')))
+    if (!v || v <= 0) { alert('할인 금액을 입력하세요'); return }
+    if (v > remaining) { alert(`할인이 잔액(${formatKRW(remaining)})보다 큽니다`); return }
+    if (!confirm(`이 매출 건에서 ${formatKRW(v)} 을(를) 할인 처리할까요?\n(잔액이 그만큼 줄고, 입금 이력에 [할인]으로 남습니다)`)) return
+    onDiscount(v)
+    setDisc('')
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-slate-200 flex flex-wrap items-end gap-2 text-xs">
+      <div>
+        <p className="text-[10px] text-slate-400 mb-0.5">프로젝트명</p>
+        <input value={project} onChange={e => setProject(e.target.value)} placeholder="예: ○○호텔 커튼"
+          className="border rounded px-1.5 py-1 w-36 text-xs" />
+      </div>
+      <div>
+        <p className="text-[10px] text-slate-400 mb-0.5">거래처 담당자</p>
+        <input value={cname} onChange={e => setCname(e.target.value)} placeholder="이름"
+          className="border rounded px-1.5 py-1 w-24 text-xs" />
+      </div>
+      <div>
+        <p className="text-[10px] text-slate-400 mb-0.5">연락처</p>
+        <input value={cphone} onChange={e => setCphone(e.target.value)} placeholder="010-..."
+          className="border rounded px-1.5 py-1 w-32 text-xs" />
+      </div>
+      <Button size="sm" variant="outline" className="h-7 text-xs" disabled={saving} onClick={save}>
+        {saved ? '✓ 저장됨' : saving ? '저장 중' : '저장'}
+      </Button>
+      <div className="ml-auto flex items-end gap-1.5">
+        <div>
+          <p className="text-[10px] text-slate-400 mb-0.5">할인 (잔액 {formatKRW(remaining)})</p>
+          <input value={disc} onChange={e => setDisc(e.target.value)} placeholder="금액(원)" inputMode="numeric"
+            className="border rounded px-1.5 py-1 w-28 text-xs" />
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs border-amber-300 text-amber-700" onClick={applyDiscount}>
+          할인 적용
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /** 결제 예정일 → 잔여/연체 D-day + 상태색 */
 function dDay(dueDate: string | null): { text: string; color: string; overdue: boolean } | null {
   if (!dueDate) return null
@@ -215,7 +293,10 @@ function dDay(dueDate: string | null): { text: string; color: string; overdue: b
 }
 
 export default function ReceivablesPage() {
-  const [data, setData] = useState<{ summary: ClientAR[]; totalAR: number; overdueTotal: number; totalCount: number; allPersons: string[] } | null>(null)
+  const [data, setData] = useState<{
+    summary: ClientAR[]; totalAR: number; overdueTotal: number; totalCount: number; allPersons: string[]
+    arMeta?: Record<string, { project_name: string | null; contact_name: string | null; contact_phone: string | null }>
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [payDialog, setPayDialog] = useState<{ arId: string; clientName: string; remaining: number } | null>(null)
   const [payAmount, setPayAmount] = useState(0)
@@ -339,6 +420,15 @@ export default function ReceivablesPage() {
     for (const s of data?.summary ?? []) c[s.riskGrade]++
     return c
   }, [data])
+
+  // 할인 처리 — [할인] 입금 항목으로 기록 (잔액 자동 재계산, 타임라인에 남음)
+  const applyDiscount = async (receivableId: string, amount: number) => {
+    await fetch('/api/receivables', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receivableId, amount, paymentMethod: 'DISCOUNT', notes: '[할인] 수동 입력' }),
+    })
+    await fetchData(true)
+  }
 
   // 결제 예정일 저장 (거래처 미결제 건 일괄)
   const saveDueDate = async (clientId: string, dueDate: string | null) => {
@@ -1104,7 +1194,15 @@ export default function ReceivablesPage() {
                                 {expandedAr === row.ar.id && (
                                   <tr key={`s-d-${row.ar.id}`} className="bg-slate-50/60">
                                     <td colSpan={8} className="px-3 py-2">
-                                      <p className="text-[11px] text-slate-500 font-medium mb-1">품목</p>
+                                      <ArMetaEditor
+                                        key={`meta-${row.ar.id}`}
+                                        arId={row.ar.id}
+                                        initial={data?.arMeta?.[row.ar.id]}
+                                        remaining={row.ar.remainingAmount}
+                                        onDiscount={(amt) => applyDiscount(row.ar.id, amt)}
+                                        onSaved={() => fetchData(true)}
+                                      />
+                                      <p className="text-[11px] text-slate-500 font-medium mb-1 mt-2">품목</p>
                                       {row.ar.transaction.items.length === 0 ? (
                                         <p className="text-xs text-slate-400 py-1">품목 정보 없음</p>
                                       ) : (
