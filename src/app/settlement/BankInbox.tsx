@@ -152,7 +152,7 @@ export default function BankInbox() {
   }
 
   return (
-    <div className="bg-white p-4 mt-3" style={box}>
+    <div className="bg-white p-4" style={box}>
       <div className="flex items-center gap-2 mb-1 flex-wrap">
         <Landmark className="w-4 h-4 text-slate-400" />
         <p className="text-[12px] font-bold text-slate-800">통장 미처리 인박스</p>

@@ -148,7 +148,7 @@ export default function TaxPrep() {
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <MissList
               title="미발행 의심 (매출)"
-              hint="분기 매출 중 계산서 확인 안 된 거래 — 대사 센터 제안도 함께 확인"
+              hint="분기 매출 중 계산서 확인 안 된 거래 — 공문/자료 페이지의 대사 센터에서 연결"
               data={data.unissued}
             />
             <MissList

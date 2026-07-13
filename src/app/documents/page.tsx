@@ -14,6 +14,7 @@ import UploadSection from '@/components/upload/UploadSection'
 import UploadDutyBoard from '@/components/upload/UploadDutyBoard'
 import CogsMatchPanel from '@/components/upload/CogsMatchPanel'
 import DailyChecklist from '@/components/documents/DailyChecklist'
+import ReconCenter from '@/app/settlement/ReconCenter'
 import SimpleReceipts from '@/components/documents/SimpleReceipts'
 
 interface DocRow {
@@ -163,14 +164,15 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      {/* 일일 마감 업로드 + 1일 체크리스트 — 매일 여기서 한 번에 */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
+      {/* 일일 마감 업로드 · 원가 매칭 점검 · 1일 체크리스트 — 한 줄 3칸 */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
         <UploadSection />
+        <CogsMatchPanel />
         <DailyChecklist />
       </div>
 
-      {/* 원가 매칭 점검 — 단가표로 안 잡히는 품목에 수기 원가 (7월부터 정밀화) */}
-      <CogsMatchPanel />
+      {/* 대사 센터 — 매출·매입↔세금계산서 · 통장입금↔미수 · 미처리 인박스 (3칸 1줄) */}
+      <ReconCenter />
 
       {/* 업로드 당번판 — 매일(전새로미)/매주(한태원)/매월(한태종), 누락 빨간 표시 */}
       <UploadDutyBoard />

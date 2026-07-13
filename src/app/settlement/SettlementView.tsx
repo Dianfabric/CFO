@@ -18,8 +18,6 @@ import IntegratedSections from './IntegratedSections'
 import DianShopSales from './DianShopSales'
 import CostIntel from './CostIntel'
 import LoanSection from './LoanSection'
-import ReconCenter from './ReconCenter'
-import BankInbox from './BankInbox'
 import TaxPrep from './TaxPrep'
 import MagamInsights from './MagamInsights'
 import UpcomingSections from './UpcomingSections'
@@ -69,11 +67,7 @@ export default function SettlementView() {
       {/* 대출·이자 — 원금/이자 상환 + 통장 크로스체크 (디안/법인) */}
       <LoanSection />
 
-      {/* ④ 대사 센터 — 퍼지 매칭 제안 (매출↔세금계산서 · 통장입금↔미수) */}
-      <ReconCenter />
-
-      {/* 통장 미처리 인박스 — 남은 입출금 수동 처리 (거래처 연결 / 사유 분류) */}
-      <BankInbox />
+      {/* 대사 센터·통장 인박스는 공문/자료 페이지로 이동 (일일 마감 워크플로우와 함께) */}
 
       {/* 세금 준비 — 분기 부가세 예상 + 미발행/미수취 파악 */}
       <TaxPrep />

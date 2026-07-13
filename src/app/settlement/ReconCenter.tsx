@@ -11,12 +11,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { GitCompareArrows, Check, X, Loader2, ArrowRight, FileCheck2, Banknote } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
-import type { TaxSuggestion, DepositSuggestion } from '@/lib/recon'
+import type { TaxSuggestion, PurchaseTaxSuggestion, DepositSuggestion } from '@/lib/recon'
+import BankInbox from './BankInbox'
 
 const box: React.CSSProperties = { border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }
 
 export default function ReconCenter() {
   const [tax, setTax] = useState<TaxSuggestion[]>([])
+  const [ptax, setPtax] = useState<PurchaseTaxSuggestion[]>([])
   const [deposits, setDeposits] = useState<DepositSuggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [busyKey, setBusyKey] = useState<string | null>(null)
@@ -28,6 +30,7 @@ export default function ReconCenter() {
       const r = await fetch('/api/recon/suggestions')
       const j = await r.json()
       setTax(Array.isArray(j.tax) ? j.tax : [])
+      setPtax(Array.isArray(j.ptax) ? j.ptax : [])
       setDeposits(Array.isArray(j.deposits) ? j.deposits : [])
       if (j.error) setError(j.error)
     } catch {
@@ -41,7 +44,7 @@ export default function ReconCenter() {
 
   const act = async (
     action: 'confirm' | 'reject',
-    kind: 'tax' | 'deposit',
+    kind: 'tax' | 'ptax' | 'deposit',
     key: string,
     leftId?: string,
     rightId?: string,
@@ -60,6 +63,7 @@ export default function ReconCenter() {
       } else {
         // 처리된 제안 제거
         if (kind === 'tax') setTax((prev) => prev.filter((s) => s.key !== key))
+        else if (kind === 'ptax') setPtax((prev) => prev.filter((s) => s.key !== key))
         else setDeposits((prev) => prev.filter((s) => s.key !== key))
       }
     } catch {
@@ -69,7 +73,7 @@ export default function ReconCenter() {
     }
   }
 
-  const total = tax.length + deposits.length
+  const total = tax.length + ptax.length + deposits.length
 
   return (
     <div>
@@ -91,7 +95,7 @@ export default function ReconCenter() {
       </div>
       <p className="mb-3 text-xs text-slate-400">
         거래처명·금액이 자료마다 조금 달라도 유사하면(~80%) 후보로 제안합니다. ✓ 승인하면 실제로
-        연결(발행 확인·입금 처리)되고, ✕ 아님 처리한 조합은 다시 제안하지 않습니다.
+        연결(발행 확인·수취 확인·입금 처리)되고, ✕ 아님 처리한 조합은 다시 제안하지 않습니다.
       </p>
 
       {error && (
@@ -100,80 +104,98 @@ export default function ReconCenter() {
         </p>
       )}
 
-      {loading ? (
-        <div className="bg-white p-5 text-center text-[12px] text-slate-400" style={box}>
-          <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
-          대사 제안 계산 중...
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 items-start">
-          {/* ① 매출 ↔ 세금계산서 */}
-          <div className="bg-white p-4" style={box}>
-            <p className="mb-2 text-[12px] font-bold text-slate-800">
-              <FileCheck2 className="w-3.5 h-3.5 inline mr-1 text-slate-400" />
-              매출 ↔ 세금계산서{' '}
-              <span className="font-normal text-[11px] text-slate-400">· {tax.length}건 제안</span>
-            </p>
-            {tax.length === 0 ? (
-              <p className="text-[12px]" style={{ color: 'var(--nv-success-deep, #4a7c00)' }}>
-                확인 필요한 제안이 없습니다.
-              </p>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {tax.map((s) => (
-                  <SuggestionRow
-                    key={s.key}
-                    busy={busyKey === s.key}
-                    score={s.score}
-                    left={{ title: s.tx.client, sub: `${s.tx.date} · 매출 ${formatKRW(s.tx.amount)}` }}
-                    right={{
-                      title: s.invoice.clientNameRaw,
-                      sub: `${s.invoice.issueDate} · 공급가 ${formatKRW(s.invoice.supplyAmount)}`,
-                    }}
-                    onConfirm={() => act('confirm', 'tax', s.key, s.tx.id, s.invoice.id)}
-                    onReject={() => act('reject', 'tax', s.key)}
-                  />
-                ))}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 items-start">
+        {/* ① 매출·매입 ↔ 세금계산서 */}
+        <div className="bg-white p-4" style={box}>
+          <p className="mb-2 text-[12px] font-bold text-slate-800">
+            <FileCheck2 className="w-3.5 h-3.5 inline mr-1 text-slate-400" />
+            매출·매입 ↔ 세금계산서{' '}
+            <span className="font-normal text-[11px] text-slate-400">· {tax.length + ptax.length}건 제안</span>
+          </p>
+          {loading ? (
+            <p className="text-[12px] text-slate-400 py-2"><Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" />계산 중...</p>
+          ) : tax.length + ptax.length === 0 ? (
+            <p className="text-[12px]" style={{ color: 'var(--nv-success-deep, #4a7c00)' }}>확인 필요한 제안이 없습니다.</p>
+          ) : (
+            <div className="space-y-3 max-h-[460px] overflow-y-auto">
+              {/* 매출 */}
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">매출 · {tax.length}건</p>
+                {tax.length === 0 ? (
+                  <p className="text-[11px] text-slate-300">없음</p>
+                ) : (
+                  <div className="space-y-2">
+                    {tax.map((s) => (
+                      <SuggestionRow
+                        key={s.key}
+                        busy={busyKey === s.key}
+                        score={s.score}
+                        left={{ title: s.tx.client, sub: `${s.tx.date} · 매출 ${formatKRW(s.tx.amount)}` }}
+                        right={{ title: s.invoice.clientNameRaw, sub: `${s.invoice.issueDate} · 공급가 ${formatKRW(s.invoice.supplyAmount)}` }}
+                        onConfirm={() => act('confirm', 'tax', s.key, s.tx.id, s.invoice.id)}
+                        onReject={() => act('reject', 'tax', s.key)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* ② 통장 입금 ↔ 미수 거래처 */}
-          <div className="bg-white p-4" style={box}>
-            <p className="mb-2 text-[12px] font-bold text-slate-800">
-              <Banknote className="w-3.5 h-3.5 inline mr-1 text-slate-400" />
-              통장 입금 ↔ 미수 거래처{' '}
-              <span className="font-normal text-[11px] text-slate-400">· {deposits.length}건 제안</span>
-            </p>
-            {deposits.length === 0 ? (
-              <p className="text-[12px]" style={{ color: 'var(--nv-success-deep, #4a7c00)' }}>
-                확인 필요한 제안이 없습니다.
-              </p>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {deposits.map((s) => (
-                  <SuggestionRow
-                    key={s.key}
-                    busy={busyKey === s.key}
-                    score={s.score}
-                    left={{ title: s.bank.counterparty, sub: `${s.bank.date} · 입금 ${formatKRW(s.bank.amount)}` }}
-                    right={{ title: s.client.name, sub: `남은 미수 ${formatKRW(s.client.remaining)}` }}
-                    onConfirm={() => act('confirm', 'deposit', s.key, s.bank.id, s.client.id)}
-                    onReject={() => act('reject', 'deposit', s.key)}
-                  />
-                ))}
+              {/* 매입 */}
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">매입 (수취) · {ptax.length}건</p>
+                {ptax.length === 0 ? (
+                  <p className="text-[11px] text-slate-300">없음</p>
+                ) : (
+                  <div className="space-y-2">
+                    {ptax.map((s) => (
+                      <SuggestionRow
+                        key={s.key}
+                        busy={busyKey === s.key}
+                        score={s.score}
+                        left={{ title: s.tx.client, sub: `${s.tx.date} · 매입 ${formatKRW(s.tx.amount)}` }}
+                        right={{ title: s.invoice.supplierNameRaw, sub: `${s.invoice.issueDate} · 공급가 ${formatKRW(s.invoice.supplyAmount)}` }}
+                        onConfirm={() => act('confirm', 'ptax', s.key, s.tx.id, s.invoice.approvalNumber)}
+                        onReject={() => act('reject', 'ptax', s.key)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-            <p className="mt-2 text-[10px] text-slate-400">
-              승인 시 입금이 미수금에서 차감됩니다 (오래된 미수부터).
-            </p>
-          </div>
+            </div>
+          )}
         </div>
-      )}
 
-      <p className="mt-2 text-[10px] text-slate-400">
-        발주·입출고(마감) 대사, 매입 세금계산서 수취 확인은 다음 단계에서 추가됩니다.
-      </p>
+        {/* ② 통장 입금 ↔ 미수 거래처 */}
+        <div className="bg-white p-4" style={box}>
+          <p className="mb-2 text-[12px] font-bold text-slate-800">
+            <Banknote className="w-3.5 h-3.5 inline mr-1 text-slate-400" />
+            통장 입금 ↔ 미수 거래처{' '}
+            <span className="font-normal text-[11px] text-slate-400">· {deposits.length}건 제안</span>
+          </p>
+          {loading ? (
+            <p className="text-[12px] text-slate-400 py-2"><Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" />계산 중...</p>
+          ) : deposits.length === 0 ? (
+            <p className="text-[12px]" style={{ color: 'var(--nv-success-deep, #4a7c00)' }}>확인 필요한 제안이 없습니다.</p>
+          ) : (
+            <div className="space-y-2 max-h-[460px] overflow-y-auto">
+              {deposits.map((s) => (
+                <SuggestionRow
+                  key={s.key}
+                  busy={busyKey === s.key}
+                  score={s.score}
+                  left={{ title: s.bank.counterparty, sub: `${s.bank.date} · 입금 ${formatKRW(s.bank.amount)}` }}
+                  right={{ title: s.client.name, sub: `남은 미수 ${formatKRW(s.client.remaining)}` }}
+                  onConfirm={() => act('confirm', 'deposit', s.key, s.bank.id, s.client.id)}
+                  onReject={() => act('reject', 'deposit', s.key)}
+                />
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-[10px] text-slate-400">승인 시 입금이 미수금에서 차감됩니다 (오래된 미수부터).</p>
+        </div>
+
+        {/* ③ 통장 미처리 인박스 */}
+        <BankInbox />
+      </div>
     </div>
   )
 }

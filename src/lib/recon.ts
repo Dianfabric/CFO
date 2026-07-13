@@ -57,6 +57,19 @@ export interface TaxSuggestion {
   }
 }
 
+export interface PurchaseTaxSuggestion {
+  key: string // ptax:txId:approvalNumber
+  score: number
+  nameSim: number
+  tx: { id: string; date: string; client: string; amount: number }
+  invoice: {
+    approvalNumber: string
+    issueDate: string
+    supplierNameRaw: string
+    supplyAmount: number
+  }
+}
+
 export interface DepositSuggestion {
   key: string // deposit:bankId:clientId
   score: number
@@ -84,6 +97,7 @@ function kstYmd(d: Date): string {
 
 export async function getReconSuggestions(): Promise<{
   tax: TaxSuggestion[]
+  ptax: PurchaseTaxSuggestion[]
   deposits: DepositSuggestion[]
   rejectionTableMissing?: boolean
 }> {
@@ -171,6 +185,75 @@ export async function getReconSuggestions(): Promise<{
   }
   tax.sort((a, b) => b.score - a.score)
 
+  // ── ①-2 매입 ↔ 매입 세금계산서 (수취 확인) ──
+  // 매입 계산서는 Supabase(purchase_tax_invoices). 미매칭 계산서 ↔ 미대사 PURCHASE 거래 퍼지 매칭.
+  const ptax: PurchaseTaxSuggestion[] = []
+  try {
+    const sb = await createClient()
+    const [{ data: pInvs }, { data: matchedRows }] = await Promise.all([
+      sb.from('purchase_tax_invoices')
+        .select('approval_number, issue_date, supplier_name_raw, supply_amount, status')
+        .eq('status', 'UNMATCHED')
+        .gte('issue_date', kstYmd(d120))
+        .limit(300),
+      sb.from('purchase_tax_invoices').select('matched_tx_id').not('matched_tx_id', 'is', null),
+    ])
+    const invs = (pInvs ?? []) as {
+      approval_number: string; issue_date: string; supplier_name_raw: string; supply_amount: number
+    }[]
+    const matchedTxIds = new Set((matchedRows ?? []).map((r) => (r as { matched_tx_id: string }).matched_tx_id))
+    if (invs.length > 0) {
+      const purchTx = await prisma.transaction.findMany({
+        where: { type: 'PURCHASE', date: { gte: d90 }, totalAmount: { gt: 0 }, clientId: { not: null } },
+        include: { client: { select: { name: true } } },
+        orderBy: { date: 'desc' },
+        take: 400,
+      })
+      const usedInv = new Set<string>()
+      for (const t of purchTx) {
+        if (matchedTxIds.has(t.id)) continue
+        const clientName = t.client?.name ?? ''
+        if (!clientName) continue
+        let best: { inv: (typeof invs)[number]; score: number; nameSim: number } | null = null
+        for (const inv of invs) {
+          if (usedInv.has(inv.approval_number)) continue
+          const key = `ptax:${t.id}:${inv.approval_number}`
+          if (rejected.has(key)) continue
+          const nSim = nameSimilarity(clientName, inv.supplier_name_raw)
+          if (nSim < 0.45) continue
+          const a = t.totalAmount
+          const b = inv.supply_amount
+          const amtRatio = Math.min(a, b) / Math.max(a, b || 1)
+          if (amtRatio < 0.85) continue
+          const dayDiff = Math.abs(t.date.getTime() - new Date(inv.issue_date + 'T00:00:00').getTime()) / 86400000
+          if (dayDiff > 30) continue
+          const dateScore = 1 - dayDiff / 30
+          const score = 0.55 * nSim + 0.3 * amtRatio + 0.15 * dateScore
+          if (score < 0.75) continue
+          if (!best || score > best.score) best = { inv, score, nameSim: nSim }
+        }
+        if (best) {
+          usedInv.add(best.inv.approval_number)
+          ptax.push({
+            key: `ptax:${t.id}:${best.inv.approval_number}`,
+            score: best.score,
+            nameSim: best.nameSim,
+            tx: { id: t.id, date: kstYmd(t.date), client: clientName, amount: t.totalAmount },
+            invoice: {
+              approvalNumber: best.inv.approval_number,
+              issueDate: best.inv.issue_date,
+              supplierNameRaw: best.inv.supplier_name_raw,
+              supplyAmount: best.inv.supply_amount,
+            },
+          })
+        }
+      }
+      ptax.sort((a, b) => b.score - a.score)
+    }
+  } catch {
+    // purchase_tax_invoices 테이블 없거나 조회 실패 — 매입 대사 생략 (매출·입금은 정상)
+  }
+
   // ── ② 통장 입금 ↔ 미수 거래처 ──
   const [bankIns, openArs] = await Promise.all([
     prisma.bankTransaction.findMany({
@@ -230,7 +313,17 @@ export async function getReconSuggestions(): Promise<{
   }
   deposits.sort((a, b) => b.score - a.score)
 
-  return { tax: tax.slice(0, 20), deposits: deposits.slice(0, 20) }
+  return { tax: tax.slice(0, 20), ptax: ptax.slice(0, 20), deposits: deposits.slice(0, 20) }
+}
+
+/** 매입 세금계산서 연결 승인 — 계산서 MATCHED + 매입 거래 연결 (Supabase) */
+export async function confirmPurchaseTaxLink(txId: string, approvalNumber: string): Promise<void> {
+  const sb = await createClient()
+  const { error } = await sb
+    .from('purchase_tax_invoices')
+    .update({ matched_tx_id: txId, status: 'MATCHED' })
+    .eq('approval_number', approvalNumber)
+  if (error) throw new Error(error.message)
 }
 
 // ── 승인 적용 ──

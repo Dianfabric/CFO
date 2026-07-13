@@ -7,17 +7,17 @@
  * - reject: 조합 기억 → 재제안 방지
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { confirmTaxLink, confirmDepositLink, rejectPair } from '@/lib/recon'
+import { confirmTaxLink, confirmPurchaseTaxLink, confirmDepositLink, rejectPair } from '@/lib/recon'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 interface Body {
   action: 'confirm' | 'reject'
-  kind: 'tax' | 'deposit'
+  kind: 'tax' | 'ptax' | 'deposit'
   key: string
   leftId?: string // txId | bankId
-  rightId?: string // invoiceId | clientId
+  rightId?: string // invoiceId | clientId | approvalNumber
 }
 
 export async function POST(req: NextRequest) {
@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
     }
     if (body.kind === 'tax') {
       await confirmTaxLink(body.leftId, body.rightId)
+    } else if (body.kind === 'ptax') {
+      await confirmPurchaseTaxLink(body.leftId, body.rightId)
     } else {
       await confirmDepositLink(body.leftId, body.rightId)
     }
