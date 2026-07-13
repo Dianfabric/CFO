@@ -12,6 +12,7 @@ import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/
 import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
 import UploadSection from '@/components/upload/UploadSection'
 import UploadDutyBoard from '@/components/upload/UploadDutyBoard'
+import CogsMatchPanel from '@/components/upload/CogsMatchPanel'
 import DailyChecklist from '@/components/documents/DailyChecklist'
 import SimpleReceipts from '@/components/documents/SimpleReceipts'
 
@@ -167,6 +168,9 @@ export default function DocumentsPage() {
         <UploadSection />
         <DailyChecklist />
       </div>
+
+      {/* 원가 매칭 점검 — 단가표로 안 잡히는 품목에 수기 원가 (7월부터 정밀화) */}
+      <CogsMatchPanel />
 
       {/* 업로드 당번판 — 매일(전새로미)/매주(한태원)/매월(한태종), 누락 빨간 표시 */}
       <UploadDutyBoard />
