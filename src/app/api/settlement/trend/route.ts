@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
 
     const rangeStart = new Date(buckets[0].start + 'T00:00:00')
     const supabase = await createClient()
-    const [txs, mgmtRes, loanRes, sold, naidInvRes] = await Promise.all([
+    const [txs, mgmtRes, loanRes, sold, naidInvRes, ptaxRes] = await Promise.all([
       prisma.transaction.findMany({
         where: {
           date: { gte: rangeStart, lte: now },
@@ -185,8 +185,16 @@ export async function GET(req: NextRequest) {
       computeSoldCogsByDate(rangeStart, now),
       // 법인 매출·매입 = 세금계산서 (대표 결정 2026-07-10)
       supabase.from('naid_invoices').select('month_key, direction, supply_amount'),
+      // 분류된 매입 세금계산서 (대표 지시 2026-07-13) — cogs/variable/fixed 반영, other 제외
+      supabase
+        .from('purchase_tax_invoices')
+        .select('issue_date, supply_amount, nature')
+        .in('nature', ['cogs', 'variable', 'fixed'])
+        .gte('issue_date', buckets[0].start),
     ])
     const soldDates = [...sold.byDate.entries()] // [YYYY-MM-DD, {cogs,...}]
+    // 분류된 매입 계산서 — 발행일 기준 (컬럼 미생성 시 error → 빈 배열)
+    const ptaxRows = (ptaxRes.data ?? []) as { issue_date: string; supply_amount: number; nature: string }[]
 
     // 관리회계 명세(source='summary') → 월별 고정/변동 판관비 + 이자 (대표 결정 2026-07-10)
     const fixedByMonth = new Map<string, number>()
@@ -251,6 +259,13 @@ export async function GET(req: NextRequest) {
         if (d >= b.start && d <= b.end) fabricCogs += v.cogs
       }
       let fixed = 0
+      // 분류된 매입 계산서 — cogs→원가, variable→변동비, fixed→고정비 (other 미반영)
+      for (const p of ptaxRows) {
+        if (p.issue_date < b.start || p.issue_date > b.end) continue
+        if (p.nature === 'cogs') fabricCogs += p.supply_amount
+        else if (p.nature === 'variable') expenses += p.supply_amount
+        else if (p.nature === 'fixed') fixed += p.supply_amount
+      }
       let interest = 0
       let naidCost = 0
       let naidSales = 0
