@@ -125,7 +125,7 @@ function missingCostExpr(cols: Set<string>): string | null {
 
 /** 검색어가 걸리는 컬럼들 (존재하는 것만) */
 function searchColumns(cols: Set<string>): string[] {
-  return ['product_name', 'search_alias', 'product_name_ko'].filter((c) => cols.has(c))
+  return ['product_name', 'search_alias', 'product_name_ko', 'brand', 'brand_code'].filter((c) => cols.has(c))
 }
 
 /**
