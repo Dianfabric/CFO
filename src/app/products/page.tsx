@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Plus, Pencil, Search, Package } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Plus, Pencil, Search, Package, Coins } from 'lucide-react'
 import { formatKRW, formatPercent, calcMarginRate, getCategoryName, getUnitName } from '@/lib/formatters'
+import FabricPriceManager from '@/components/products/FabricPriceManager'
 
 interface Product {
   id: string
@@ -50,6 +52,7 @@ export default function ProductsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const [tab, setTab] = useState<'products' | 'fabric'>('products')
 
   const fetchProducts = async () => {
     setLoading(true)
@@ -114,11 +117,25 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">제품 관리</h1>
-          <p className="text-sm text-slate-500">원단·완제품의 원가, 판매가, 마진율을 관리합니다</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">제품 관리</h1>
+        <p className="text-sm text-slate-500">원단·완제품의 원가·판매가·마진율 관리 + 원단 단가 마스터 조회</p>
+      </div>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as 'products' | 'fabric')}>
+        <TabsList>
+          <TabsTrigger value="products">
+            <Package className="h-4 w-4" />
+            제품 목록
+          </TabsTrigger>
+          <TabsTrigger value="fabric">
+            <Coins className="h-4 w-4" />
+            원단 단가 관리
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="products" className="mt-4 space-y-6">
+          <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNew} className="gap-1"><Plus className="w-4 h-4" />제품 등록</Button>
@@ -248,6 +265,12 @@ export default function ProductsPage() {
           </CardContent>
         </Card>
       )}
+        </TabsContent>
+
+        <TabsContent value="fabric" className="mt-4">
+          <FabricPriceManager />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
