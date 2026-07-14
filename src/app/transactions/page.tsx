@@ -215,8 +215,8 @@ export default function TransactionsPage() {
         subtitle="매출·비용·매입 거래를 기록하고 조회합니다."
       />
 
-      {/* 주문 진행 상황판 — 접수→출고→고객입고 + 담당자 메시지 + 입금·계산서·미수 상태 */}
-      <OrderFlowBoard />
+      {/* 주문 진행 상황판(OrderFlowBoard)은 칸반 중심 개편으로 숨김 (대표 지시 2026-07-13)
+          — 컴포넌트는 보존, 필요 시 복원 */}
 
       <div className="flex items-center justify-end">
         <div className="flex gap-2">
