@@ -15,6 +15,7 @@ import {
 import NvHeroStrip from '@/components/v11/nvidia/NvHeroStrip'
 import OrderFlowBoard from './OrderFlowBoard'
 import TransactionsKanban from './TransactionsKanban'
+import ReceivablesPanel from './ReceivablesPanel'
 
 interface Product { id: string; name: string; unit: string; sellingPrice: number; purchasePrice: number }
 interface Client { id: string; name: string; type: string }
@@ -315,6 +316,9 @@ export default function TransactionsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* 미수금 관리 (신판) — 사이드 미수금 페이지를 대체 (대표 지시 2026-07-13) */}
+      <ReceivablesPanel />
 
       {/* 거래 입력 다이얼로그 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
