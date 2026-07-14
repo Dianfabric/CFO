@@ -12,7 +12,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
-import { Search, Package, AlertTriangle, ImageOff, Layers } from 'lucide-react'
+import { Search, Package, AlertTriangle, Layers } from 'lucide-react'
 
 // ── 타입 ──────────────────────────────────────────────────────
 type FabricRow = Record<string, unknown> & {
@@ -70,14 +70,6 @@ function imageUrlOf(row: FabricRow): string | null {
 
 function arrayCount(v: unknown): number {
   return Array.isArray(v) ? v.length : 0
-}
-
-function specOf(row: FabricRow): string {
-  const parts: string[] = []
-  if (str(row.material)) parts.push(str(row.material))
-  if (num(row.width_mm) !== null) parts.push(`${num(row.width_mm)}mm`)
-  if (num(row.weight_gsm) !== null) parts.push(`${num(row.weight_gsm)}gsm`)
-  return parts.join(' · ') || '—'
 }
 
 function isRickyNew(row: FabricRow): boolean {
@@ -375,21 +367,19 @@ export default function FabricPriceManager() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-left text-slate-500">
-                          <th className="pb-2 font-medium">브랜드</th>
-                          <th className="pb-2 font-medium">코드</th>
-                          <th className="pb-2 font-medium">원단명</th>
-                          <th className="pb-2 font-medium">Alias</th>
-                          <th className="pb-2 text-right font-medium">원가 USD</th>
-                          <th className="pb-2 text-right font-medium">판매단가</th>
-                          <th className="pb-2 text-right font-medium">대리점단가</th>
-                          <th className="pb-2 font-medium">스펙</th>
-                          <th className="pb-2 font-medium">상태</th>
-                          <th className="pb-2 font-medium">이미지</th>
+                          <th className="min-w-[110px] px-3 pb-2 font-medium">브랜드</th>
+                          <th className="min-w-[140px] px-3 pb-2 font-medium">원단명</th>
+                          <th className="min-w-[180px] px-3 pb-2 font-medium">성분</th>
+                          <th className="min-w-[90px] px-3 pb-2 text-right font-medium">폭</th>
+                          <th className="min-w-[90px] px-3 pb-2 text-right font-medium">무게</th>
+                          <th className="min-w-[110px] px-3 pb-2 text-right font-medium">원가 USD</th>
+                          <th className="min-w-[120px] px-3 pb-2 text-right font-medium">판매단가</th>
+                          <th className="min-w-[130px] px-3 pb-2 text-right font-medium">대리점단가</th>
+                          <th className="min-w-[160px] px-3 pb-2 font-medium">상태</th>
                         </tr>
                       </thead>
                       <tbody>
                         {rows.map((row, i) => {
-                          const img = imageUrlOf(row)
                           const missingCost = num(row.cost_usd) === null && num(row.cost_usd_override) === null
                           const missingSell = num(row.sell_price) === null
                           return (
@@ -398,37 +388,36 @@ export default function FabricPriceManager() {
                               className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
                               onClick={() => openRow(row)}
                             >
-                              <td className="py-2.5">
+                              <td className="px-3 py-2.5">
                                 {str(row.brand) ? <Badge variant="secondary">{str(row.brand)}</Badge> : '—'}
                               </td>
-                              <td className="text-slate-600">{dash(row.brand_code)}</td>
-                              <td className="font-medium text-slate-900">
+                              <td className="px-3 font-medium text-slate-900">
                                 {dash(row.product_name)}
+                                {str(row.search_alias) && (
+                                  <span className="ml-2 text-xs font-normal text-slate-400">{str(row.search_alias)}</span>
+                                )}
                                 {isRickyNew(row) && (
                                   <Badge variant="outline" className="ml-1.5">
                                     신규
                                   </Badge>
                                 )}
                               </td>
-                              <td className="text-slate-600">{dash(row.search_alias)}</td>
-                              <td className="text-right tabular-nums">{fmtUsd(row.cost_usd ?? row.cost_usd_override)}</td>
-                              <td className="text-right font-medium tabular-nums">{fmtKrw(row.sell_price)}</td>
-                              <td className="text-right tabular-nums text-slate-600">{fmtKrw(row.dealer_price)}</td>
-                              <td className="text-slate-600">{specOf(row)}</td>
-                              <td>
+                              <td className="px-3 text-slate-600">{dash(row.material)}</td>
+                              <td className="px-3 text-right tabular-nums text-slate-600">
+                                {num(row.width_mm) !== null ? `${num(row.width_mm)}mm` : '—'}
+                              </td>
+                              <td className="px-3 text-right tabular-nums text-slate-600">
+                                {num(row.weight_gsm) !== null ? `${num(row.weight_gsm)}gsm` : '—'}
+                              </td>
+                              <td className="px-3 text-right tabular-nums">{fmtUsd(row.cost_usd ?? row.cost_usd_override)}</td>
+                              <td className="px-3 text-right font-medium tabular-nums">{fmtKrw(row.sell_price)}</td>
+                              <td className="px-3 text-right tabular-nums text-slate-600">{fmtKrw(row.dealer_price)}</td>
+                              <td className="px-3">
                                 <div className="flex flex-wrap gap-1">
                                   {missingCost && <Badge variant="destructive">원가없음</Badge>}
                                   {missingSell && <Badge variant="destructive">판매가없음</Badge>}
                                   {str(row.match_status) && <Badge variant="outline">{str(row.match_status)}</Badge>}
                                 </div>
-                              </td>
-                              <td>
-                                {img ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={img} alt="" className="h-9 w-9 rounded object-cover" />
-                                ) : (
-                                  <ImageOff className="h-4 w-4 text-slate-300" />
-                                )}
                               </td>
                             </tr>
                           )
