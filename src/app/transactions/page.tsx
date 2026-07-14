@@ -16,6 +16,7 @@ import NvHeroStrip from '@/components/v11/nvidia/NvHeroStrip'
 import OrderFlowBoard from './OrderFlowBoard'
 import TransactionsKanban from './TransactionsKanban'
 import ReceivablesPanel from './ReceivablesPanel'
+import ReconLinkStrip from './ReconLinkStrip'
 
 interface Product { id: string; name: string; unit: string; sellingPrice: number; purchasePrice: number }
 interface Client { id: string; name: string; type: string }
@@ -267,7 +268,10 @@ export default function TransactionsPage() {
 
       {/* 처리 칸반 보드 — 매출 거래 생애주기 (계산서·입금 자동 이동) */}
       {view === 'board' ? (
-        <TransactionsKanban />
+        <div className="space-y-3">
+          <ReconLinkStrip />
+          <TransactionsKanban />
+        </div>
       ) : loading ? (
         <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
       ) : transactions.length === 0 ? (
