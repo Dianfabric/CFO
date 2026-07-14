@@ -103,8 +103,11 @@ export default function TransactionsPage() {
       const txData = await txRes.json()
       setTransactions(txData.transactions || [])
       setTotal(txData.total || 0)
-      setProducts(await pRes.json())
-      setClients(await cRes.json())
+      // 원단 단가 개편 후 응답 형태 변화 방어 — 배열/객체 모두 수용
+      const pData = await pRes.json()
+      setProducts(Array.isArray(pData) ? pData : (pData.products ?? []))
+      const cData = await cRes.json()
+      setClients(Array.isArray(cData) ? cData : (cData.clients ?? []))
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }, [filterType, filterDate])
