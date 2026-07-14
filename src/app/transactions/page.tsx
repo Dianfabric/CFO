@@ -17,6 +17,7 @@ import OrderFlowBoard from './OrderFlowBoard'
 import TransactionsKanban from './TransactionsKanban'
 import ReceivablesPanel from './ReceivablesPanel'
 import ReconLinkStrip from './ReconLinkStrip'
+import PendingRow from './PendingRow'
 
 interface Product { id: string; name: string; unit: string; sellingPrice: number; purchasePrice: number }
 interface Client { id: string; name: string; type: string }
@@ -323,6 +324,9 @@ export default function TransactionsPage() {
 
       {/* 미수금 관리 (신판) — 사이드 미수금 페이지를 대체 (대표 지시 2026-07-13) */}
       <ReceivablesPanel />
+
+      {/* ③④ 대사 대기 한 줄 — 통장 미처리 + 계산서 미발행 업체 (대표 지시 2026-07-13) */}
+      <PendingRow />
 
       {/* 거래 입력 다이얼로그 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
