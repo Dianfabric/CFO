@@ -14,6 +14,7 @@ import {
 } from '@/lib/formatters'
 import NvHeroStrip from '@/components/v11/nvidia/NvHeroStrip'
 import OrderFlowBoard from './OrderFlowBoard'
+import TransactionsKanban from './TransactionsKanban'
 
 interface Product { id: string; name: string; unit: string; sellingPrice: number; purchasePrice: number }
 interface Client { id: string; name: string; type: string }
@@ -66,6 +67,7 @@ export default function TransactionsPage() {
   const [filterType, setFilterType] = useState('')
   const [filterDate, setFilterDate] = useState('')
   const [searchClient, setSearchClient] = useState('')
+  const [view, setView] = useState<'list' | 'board'>('list') // 거래 목록 뷰 — 목록/칸반 보드
 
   // 해외운송비 PDF 자동 등록
   const [shippingOpen, setShippingOpen] = useState(false)
@@ -235,19 +237,37 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      {/* 필터 */}
-      <div className="flex gap-3 flex-wrap">
-        <select className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          value={filterType} onChange={e => setFilterType(e.target.value)}>
-          <option value="">전체 구분</option>
-          {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-        <Input type="date" className="w-40" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
-        <div className="text-sm text-slate-500 flex items-center">총 {total}건</div>
+      {/* 필터 + 뷰 전환 */}
+      <div className="flex gap-3 flex-wrap items-center">
+        <div className="flex" style={{ border: '1px solid #e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
+          {([['list', '목록'], ['board', '보드']] as const).map(([k, label]) => (
+            <button key={k} type="button" onClick={() => setView(k)}
+              className="h-9 px-3 text-sm font-medium"
+              style={{
+                backgroundColor: view === k ? 'var(--nv-primary, #76b900)' : '#fff',
+                color: view === k ? '#000' : '#64748b',
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {view === 'list' && (
+          <>
+            <select className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              value={filterType} onChange={e => setFilterType(e.target.value)}>
+              <option value="">전체 구분</option>
+              {TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <Input type="date" className="w-40" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+            <div className="text-sm text-slate-500 flex items-center">총 {total}건</div>
+          </>
+        )}
       </div>
 
-      {/* 거래 목록 */}
-      {loading ? (
+      {/* 처리 칸반 보드 — 매출 거래 생애주기 (계산서·입금 자동 이동) */}
+      {view === 'board' ? (
+        <TransactionsKanban />
+      ) : loading ? (
         <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
       ) : transactions.length === 0 ? (
         <Card>
