@@ -68,7 +68,7 @@ export default function TransactionsPage() {
   const [filterType, setFilterType] = useState('')
   const [filterDate, setFilterDate] = useState('')
   const [searchClient, setSearchClient] = useState('')
-  const [view, setView] = useState<'list' | 'board'>('list') // 거래 목록 뷰 — 목록/칸반 보드
+  const [view, setView] = useState<'list' | 'board'>('board') // 거래 뷰 — 칸반 보드 기본 (대표 지시)
 
   // 해외운송비 PDF 자동 등록
   const [shippingOpen, setShippingOpen] = useState(false)
