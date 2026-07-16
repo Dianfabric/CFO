@@ -71,6 +71,8 @@ export const v10MenuItems: MenuItem[] = [
   { href: '/clients', label: '거래처 관리', icon: Users },
   // 미수금 관리 — 거래 관리 페이지 하단으로 통합 (대표 지시 2026-07-13, /receivables 는 URL 접근 유지)
   { href: '/products', label: '원단 단가 관리', icon: Package },
+  // 연차 관리 — 별도 앱 (dian-leave, 외부 링크)
+  { href: 'https://dian-leave.vercel.app', label: '연차 관리', icon: CalendarDays },
   { href: '/samples', label: '샘플 관리', icon: BookOpen },
   { href: '/costs', label: '비용 관리', icon: Wallet },
   { href: '/analysis', label: '분석/시뮬레이션', icon: BarChart3 },
@@ -154,6 +156,7 @@ export const menuGroups: MenuGroup[] = [
     icon: ShoppingBag,
     items: [
       { href: '/products', label: '원단 단가 관리', icon: Package },
+      { href: 'https://dian-leave.vercel.app', label: '연차 관리', icon: CalendarDays },
       { href: '/samples', label: '샘플 관리', icon: BookOpen },
       { href: '/finance/operations', label: '운영·샘플', icon: PackageIcon },
       { href: '/finance/operations/intake', label: '입고 워크플로우', icon: PackageOpen },
