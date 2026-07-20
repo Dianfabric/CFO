@@ -30,6 +30,7 @@ import { formatKRW } from '@/lib/formatters'
 import CycleStartCard from '@/components/v11/cycle/CycleStartCard'
 import CycleDashboardSummary from '@/components/v11/cycle/CycleDashboardSummary'
 import CycleKpiBoard from '@/components/v11/cycle/CycleKpiBoard'
+import EmployeesView from './employees/EmployeesView'
 import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
@@ -174,6 +175,18 @@ export default async function CyclePage() {
 
       {/* 직원별 OKR 합산 (큰 목표 + 사이클 미니 헤더 + 직원별 진행률 카드) */}
       <CycleDashboardSummary />
+
+      {/* 12주 목표 시스템 — 색동 신사업과 동일한 OKR 트리 (목표→KR→주간 타겟→5일 투두)
+          (대표 지시 2026-07-13: 색동 12주 목표 시스템과 동일하게) */}
+      <div>
+        <h2 className="mb-3 text-base font-semibold text-slate-800">
+          12주 목표 시스템{' '}
+          <span className="text-xs font-normal text-slate-400">
+            직원을 펼쳐 목표 → KR(선행/후행) → 주별 타겟 → 5일 투두를 바로 작성·체크
+          </span>
+        </h2>
+        <EmployeesView cycleId={cycle.id} cycleStart={cycle.start_date} cycleEnd={cycle.end_date} />
+      </div>
 
       {/* 자동 후행지표 (transactions 집계) */}
       <div>
