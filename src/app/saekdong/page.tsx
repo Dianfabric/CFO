@@ -12,6 +12,7 @@ import { Sparkles, Target, Wallet, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import type { Employee } from '@/lib/cycle-okr'
 import SaekdongOkr from './SaekdongOkr'
+import SaekdongCycleSetup from './SaekdongCycleSetup'
 import SaekdongSales from './SaekdongSales'
 import SaekdongOfflineSales from './SaekdongOfflineSales'
 import SaekdongVision from './SaekdongVision'
@@ -36,11 +37,11 @@ async function loadCycleAndProject(): Promise<{
   try {
     const sb = await createClient()
     const [{ data: cycle }, { data: project }] = await Promise.all([
+      // 색동 전용 사이클(status='saekdong') — 본체 active 사이클과 독립 (대표 지시 2026-07-13)
       sb
         .from('cycles')
         .select('id, start_date, end_date')
-        .eq('status', 'active')
-        .order('cycle_number', { ascending: false })
+        .eq('status', 'saekdong')
         .limit(1)
         .maybeSingle(),
       sb
@@ -101,6 +102,7 @@ export default async function SaekdongPage() {
             (큰 목표 → KR → 주별 → 일일 투두)
           </span>
         </h2>
+        <SaekdongCycleSetup current={cycle ? { start: cycle.start_date, end: cycle.end_date } : null} />
         {cycle && project ? (
           <SaekdongOkr
             project={project}
