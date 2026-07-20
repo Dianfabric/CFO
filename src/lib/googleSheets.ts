@@ -1,3 +1,5 @@
+import { prisma } from '@/lib/prisma'
+
 // Google Sheets 2025 TMS 시트 구조:
 // A열: 코드, B열: 브랜드, C열: 제품명, D열: 원단단가, E열: 소재, F열: 폭
 // G열: 무게, H열: 원가(USD), I~M열: 가격정보, N열: 브랜드, O열: 보조검색(영문명 등)
@@ -50,34 +52,42 @@ export async function getUSDtoKRW(): Promise<number> {
   }
 }
 
+interface FabricMasterRow {
+  product_name: string | null
+  sell_price: number | string | null
+  material: string | null
+  width_mm: number | string | null
+  brand: string | null
+  cost_usd: number | string | null
+  search_alias: string | null
+  raw: Record<string, unknown> | null
+}
+
 export async function getFabricPrices(sheetName = '2025 TMS'): Promise<FabricPrice[]> {
   const now = Date.now()
   if (cachedPrices && now - cacheTime < CACHE_TTL) return cachedPrices
 
-  const apiKey = process.env.GOOGLE_API_KEY
-  const sheetId = process.env.SHEET_ID
-  if (!apiKey || !sheetId) throw new Error('Google Sheets 환경변수가 설정되지 않았습니다')
-
-  const range = encodeURIComponent(`${sheetName}!A:O`)
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`
-
-  const res = await fetch(url)
-  const data = await res.json()
-  if (data.error) throw new Error(`Google Sheets 오류: ${data.error.message}`)
-
-  const rows: string[][] = (data.values ?? []).slice(1) // 헤더 제외
+  // 2025 TMS → Supabase 전환.
+  // 기존 getFabricPrices() 출력과 동일하게 raw 원본값 우선 사용한다.
+  // source_tab='88683325'는 기존 2025 TMS 탭 snapshot.
+  const rows = await prisma.$queryRawUnsafe<FabricMasterRow[]>(
+    `SELECT product_name, sell_price, material, width_mm, brand, cost_usd, search_alias, raw
+     FROM public.fabric_knowledge_master
+     WHERE source_tab = '88683325' AND is_active IS NOT FALSE
+     ORDER BY source_row ASC, product_name ASC`,
+  )
 
   cachedPrices = rows
-    .filter(r => r[2]?.trim()) // C열(제품명) 기준 필터
+    .filter(r => getRawText(r, '제품명(중)', r.product_name))
     .map(r => ({
-      name: r[2]?.trim() ?? '',       // C열: 제품명
-      price: parseSheetNum(r[3]),     // D열: 원단단가
-      material: r[4]?.trim() ?? '',   // E열: 소재
-      width: r[5]?.trim() ?? '',      // F열: 폭
-      altName: r[0]?.trim() ?? '',    // A열: 코드 (보조 검색용)
-      brand: r[13]?.trim() ?? '',     // N열: 브랜드
-      dealerPrice: parseSheetNum(r[7]), // H열: 원가(USD)
-      altName2: r[14]?.trim() ?? '',  // O열: 보조검색 (영문명 등)
+      name: getRawText(r, '제품명(중)', r.product_name),
+      price: parseSheetNum(getRawValue(r, '원단단가/Y', r.sell_price)),
+      material: getRawText(r, '소재', r.material),
+      width: getRawText(r, '폭', r.width_mm),
+      altName: getRawText(r, '코드', ''),
+      brand: getRawText(r, '브랜드', r.brand),
+      dealerPrice: parseSheetNum(getRawValue(r, '원가', r.cost_usd)),
+      altName2: getRawText(r, '이름 보조 검색', r.search_alias),
     }))
 
   cacheTime = now
@@ -172,8 +182,19 @@ export function findFabricCost(fabricName: string, prices: FabricPrice[]): numbe
   return result?.dealerPrice ?? 0
 }
 
-function parseSheetNum(val: string | undefined): number {
-  if (!val) return 0
-  const n = parseFloat(val.replace(/,/g, ''))
+function getRawValue(row: FabricMasterRow, key: string, fallback: unknown): unknown {
+  const rawValue = row.raw?.[key]
+  return rawValue ?? fallback
+}
+
+function getRawText(row: FabricMasterRow, key: string, fallback: unknown): string {
+  const value = getRawValue(row, key, fallback)
+  return value == null ? '' : String(value).trim()
+}
+
+function parseSheetNum(val: unknown): number {
+  if (val == null) return 0
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  const n = parseFloat(String(val).replace(/,/g, ''))
   return isNaN(n) ? 0 : n
 }
