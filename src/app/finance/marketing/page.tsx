@@ -24,6 +24,7 @@ import {
   Wand2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import PublishingSystem from './PublishingSystem'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -80,6 +81,9 @@ export default async function MarketingHubPage() {
           러셀·맥키·룬·비숍 — 빅 아이디어 → 콘텐츠 → 채널 → 결과
         </p>
       </div>
+
+      {/* 전사 콘텐츠 발행 시스템 — 주간 보드 + 준수율 (대표 지시 2026-07-14) */}
+      <PublishingSystem />
 
       {data.errors.length > 0 && (
         <Card className="border-rose-200 bg-rose-50">
