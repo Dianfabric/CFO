@@ -207,7 +207,7 @@ const addressCellValue: React.CSSProperties = {
 
 function splitHighlightedSchedule(body: string) {
   const raw = body || ''
-  const markerMatch = raw.match(/\n?\s*※\s*핵심\s*일정\s*\n?/)
+  const markerMatch = raw.match(/\n?\s*※\s*(?:핵심\s*)?일정(?:\s*안내)?\s*\n?/)
   if (!markerMatch || markerMatch.index === undefined) {
     return { mainBody: raw, scheduleLines: [] as string[] }
   }
@@ -228,7 +228,7 @@ function ScheduleHighlightBox({ lines }: { lines: string[] }) {
       <div style={scheduleHeaderStyle}>
         <div>
           <div style={scheduleEyebrowStyle}>OFFICIAL NOTICE</div>
-          <div style={scheduleTitleStyle}>핵심 일정 안내</div>
+          <div style={scheduleTitleStyle}>일정 안내</div>
         </div>
         <div style={scheduleStampStyle}>DIAN</div>
       </div>
