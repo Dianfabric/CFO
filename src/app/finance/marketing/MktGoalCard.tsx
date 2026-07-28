@@ -12,7 +12,7 @@ import { Target, Loader2, Pencil } from 'lucide-react'
 import { formatKRW } from '@/lib/formatters'
 import { fetchSharedSales, fetchSharedDianShop } from '@/app/saekdong/sharedFetch'
 
-interface Series { thisMonth: number; error?: string }
+interface Series { thisMonth: number; monthly?: { month: string; revenue: number }[]; error?: string }
 interface BizGoal {
   label: string          // 지표 이름 (예: 월 순이익, 월 매출, 팔로워)
   target: number         // 목표값 (auto=원, manual=자유 단위)
@@ -20,20 +20,33 @@ interface BizGoal {
   margin?: number        // auto + 마진율(%) → 순이익 추정 (없으면 매출 그대로)
   current?: number       // manual 현재값
   unit?: string          // manual 단위 (예: 명, 건)
+  start?: string         // 목표 기간 (YYYY-MM-DD)
+  end?: string
 }
 interface Goals { dian: BizGoal | null; saek: BizGoal | null }
 
 const EMPTY: Goals = { dian: null, saek: null }
 
 function BizCard({
-  biz, title, revenue, goal, onSave,
+  biz, title, series, goal, onSave,
 }: {
   biz: 'dian' | 'saek'
   title: string
-  revenue: number | null // 이번 달 쇼핑몰 매출 (공급가)
+  series: Series | null // 아임웹 매출 시계열
   goal: BizGoal | null
   onSave: (g: BizGoal) => Promise<void>
 }) {
+  // 자동 추적 매출 — 기간이 있으면 기간에 걸친 월들의 합, 없으면 이번 달 (공급가 환산)
+  const revenue = useMemo(() => {
+    if (!series) return null
+    if (goal?.start && goal?.end && series.monthly?.length) {
+      const s = goal.start.slice(0, 7)
+      const e = goal.end.slice(0, 7)
+      const sum = series.monthly.filter((m) => m.month >= s && m.month <= e).reduce((a, m) => a + m.revenue, 0)
+      return Math.round(sum / 1.1)
+    }
+    return Math.round((series.thisMonth ?? 0) / 1.1)
+  }, [series, goal?.start, goal?.end])
   const [editing, setEditing] = useState(!goal)
   const [label, setLabel] = useState(goal?.label ?? '월 순이익')
   const [mode, setMode] = useState<'auto' | 'manual'>(goal?.mode ?? 'auto')
@@ -41,13 +54,16 @@ function BizCard({
   const [mIn, setMIn] = useState(String(goal?.margin ?? ''))
   const [cIn, setCIn] = useState(String(goal?.current ?? ''))
   const [unit, setUnit] = useState(goal?.unit ?? '명')
+  const [sIn, setSIn] = useState(goal?.start ?? '')
+  const [eIn, setEIn] = useState(goal?.end ?? '')
   const [busy, setBusy] = useState(false)
 
   const save = async () => {
+    const period = sIn && eIn ? { start: sIn, end: eIn } : {}
     const g: BizGoal =
       mode === 'auto'
-        ? { label: label.trim() || '목표', target: Math.round(Number(tIn) * 10000), mode, margin: Number(mIn) || undefined }
-        : { label: label.trim() || '목표', target: Number(tIn), mode, current: Number(cIn) || 0, unit: unit.trim() || '' }
+        ? { label: label.trim() || '목표', target: Math.round(Number(tIn) * 10000), mode, margin: Number(mIn) || undefined, ...period }
+        : { label: label.trim() || '목표', target: Number(tIn), mode, current: Number(cIn) || 0, unit: unit.trim() || '', ...period }
     if (!g.target) return
     setBusy(true)
     try {
@@ -89,6 +105,13 @@ function BizCard({
       {editing ? (
         <div className="space-y-1.5 text-[11px]">
           <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-slate-500">기간</span>
+            <input type="date" value={sIn} onChange={(e) => setSIn(e.target.value)} className="h-6 px-1 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }} />
+            <span className="text-slate-400">~</span>
+            <input type="date" value={eIn} onChange={(e) => setEIn(e.target.value)} className="h-6 px-1 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }} />
+            <span className="text-slate-400">(비우면 이번 달 기준)</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-slate-500">지표</span>
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="예: 월 순이익 / 팔로워" className="h-6 w-32 px-1.5 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }} />
             <select value={mode} onChange={(e) => setMode(e.target.value as 'auto' | 'manual')} className="h-6 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }}>
@@ -127,8 +150,11 @@ function BizCard({
             <span className="text-[11px] text-slate-400">/ 목표 {calc.fmt(goal.target)} · 달성률 <b>{calc.pct}%</b></span>
             {goal.mode === 'auto' && (
               <span className="text-[10px] text-slate-400">
-                {goal.margin ? `이번 달 매출 ${formatKRW(revenue ?? 0)} × ${goal.margin}% · 필요 매출 ${formatKRW(calc.needRev!)}` : '이번 달 쇼핑몰 매출 (아임웹 공급가)'}
+                {goal.margin ? `${goal.start ? '기간' : '이번 달'} 매출 ${formatKRW(revenue ?? 0)} × ${goal.margin}% · 필요 매출 ${formatKRW(calc.needRev!)}` : `${goal.start ? '기간' : '이번 달'} 쇼핑몰 매출 (아임웹 공급가)`}
               </span>
+            )}
+            {goal.start && goal.end && (
+              <span className="text-[10px] text-slate-400">· {goal.start} ~ {goal.end}</span>
             )}
           </div>
           <div className="mt-1.5 h-2 w-full" style={{ backgroundColor: '#e2e8f0', borderRadius: '2px' }}>
@@ -190,9 +216,6 @@ export default function MktGoalCard() {
     })
   }
 
-  const dianRev = shop ? Math.round((shop.thisMonth ?? 0) / 1.1) : null
-  const saekRev = saek ? Math.round((saek.thisMonth ?? 0) / 1.1) : null
-
   return (
     <div className="bg-white p-4 sm:p-5" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }}>
       <div className="mb-2 flex items-center gap-2 flex-wrap">
@@ -204,8 +227,8 @@ export default function MktGoalCard() {
         <p className="py-4 text-center text-[12px] text-slate-400"><Loader2 className="w-4 h-4 animate-spin inline mr-1" />불러오는 중...</p>
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <BizCard biz="dian" title="디안" revenue={dianRev} goal={goals.dian} onSave={saveBiz('dian')} />
-          <BizCard biz="saek" title="색동공장" revenue={saekRev} goal={goals.saek} onSave={saveBiz('saek')} />
+          <BizCard biz="dian" title="디안" series={shop} goal={goals.dian} onSave={saveBiz('dian')} />
+          <BizCard biz="saek" title="색동공장" series={saek} goal={goals.saek} onSave={saveBiz('saek')} />
         </div>
       )}
     </div>

@@ -26,6 +26,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import PublishingSystem from './PublishingSystem'
 import MktGoalCard from './MktGoalCard'
+import MktPlanner from './MktPlanner'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -85,6 +86,9 @@ export default async function MarketingHubPage() {
 
       {/* 쇼핑몰 순이익 목표 — 발행 시스템의 존재 이유 (대표 지시 2026-07-28) */}
       <MktGoalCard />
+
+      {/* AI 발행 기획자 — 목표·기간 → 대화로 기획 → 확정 시 캘린더 반영 (대표 지시 2026-07-28) */}
+      <MktPlanner />
 
       {/* 전사 콘텐츠 발행 시스템 — 주간 보드 + 준수율 (대표 지시 2026-07-14) */}
       <PublishingSystem />

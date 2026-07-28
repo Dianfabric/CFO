@@ -102,6 +102,28 @@ export async function POST(req: NextRequest) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ ok: true })
     }
+    if (b.action === 'bulk-create') {
+      // AI 기획 확정 → 기간 전체 계획 일괄 등록 (중복 날짜+채널+유형 스킵)
+      const rows = (Array.isArray(b.rows) ? b.rows : []).filter(
+        (r: { channel: string; content_type: string; planned_date: string }) =>
+          CHANNELS.includes(r.channel) && TYPES.includes(r.content_type) && /^\d{4}-\d{2}-\d{2}$/.test(r.planned_date ?? ''),
+      )
+      if (!rows.length) return NextResponse.json({ error: '유효한 rows 없음' }, { status: 400 })
+      const dates = rows.map((r: { planned_date: string }) => r.planned_date).sort()
+      const { data: existing } = await sb.from('mkt_posts').select('channel, content_type, planned_date')
+        .gte('planned_date', dates[0]).lte('planned_date', dates[dates.length - 1])
+      const has = new Set((existing ?? []).map((p) => `${p.channel}|${p.content_type}|${p.planned_date}`))
+      const fresh = rows
+        .filter((r: { channel: string; content_type: string; planned_date: string }) => !has.has(`${r.channel}|${r.content_type}|${r.planned_date}`))
+        .map((r: { channel: string; content_type: string; planned_date: string; title?: string }) => ({
+          channel: r.channel, content_type: r.content_type, planned_date: r.planned_date, title: r.title?.trim() || null,
+        }))
+      if (fresh.length) {
+        const { error } = await sb.from('mkt_posts').insert(fresh)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      return NextResponse.json({ ok: true, created: fresh.length, skipped: rows.length - fresh.length })
+    }
     if (b.action === 'generate-week') {
       // monday 기준 한 주 — 템플릿마다 해당 요일 날짜에 슬롯 생성 (이미 있으면 스킵)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(b.monday ?? '')) {
