@@ -9,19 +9,19 @@ import { useEffect, useRef, useState } from 'react'
 import { Bot, Loader2, Send, CalendarCheck } from 'lucide-react'
 
 interface Msg { role: 'user' | 'assistant'; content: string }
-interface PlanRow { channel: string; content_type: string; planned_date: string; title?: string }
+interface PlanRow { channel: string; content_type: string; planned_date: string; title?: string; memo?: string }
 
 const CH_LABEL: Record<string, string> = {
   dian_blog: '디안 블로그', dian_insta: '디안 인스타', dian_yt: '디안 유튜브',
   saek_blog: '색동 블로그', saek_insta: '색동 인스타', saek_yt: '색동 유튜브',
 }
 
-function parsePlan(text: string): PlanRow[] | null {
+function parsePlan(text: string): { posts: PlanRow[]; strategy?: string } | null {
   const m = [...text.matchAll(/```json\s*([\s\S]*?)```/g)]
   if (!m.length) return null
   try {
     const j = JSON.parse(m[m.length - 1][1])
-    return Array.isArray(j.posts) && j.posts.length ? j.posts : null
+    return Array.isArray(j.posts) && j.posts.length ? { posts: j.posts, strategy: j.strategy } : null
   } catch {
     return null
   }
@@ -36,6 +36,7 @@ export default function MktPlanner() {
   const [busy, setBusy] = useState(false)
   const [applied, setApplied] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [savedStrategy, setSavedStrategy] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -44,6 +45,13 @@ export default function MktPlanner() {
       .then((j) => setGoals(j.value ?? {}))
       .catch(() => {})
   }, [open])
+  useEffect(() => {
+    setSavedStrategy(null)
+    fetch(`/api/mkt/settings?key=mkt_strategy_${biz}`)
+      .then((r) => r.json())
+      .then((j) => setSavedStrategy(j.value?.text ?? null))
+      .catch(() => {})
+  }, [biz, open])
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, busy])
 
   const goal = goals[biz]
@@ -85,11 +93,21 @@ export default function MktPlanner() {
       const r = await fetch('/api/mkt/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'bulk-create', rows: plan }),
+        body: JSON.stringify({ action: 'bulk-create', rows: plan.posts }),
       })
       const j = await r.json()
-      if (j.ok) setApplied(`캘린더 반영 완료 — ${j.created}건 등록${j.skipped ? `, 중복 ${j.skipped}건 제외` : ''}. 새로고침하면 캘린더에 보입니다.`)
-      else setError(j.error ?? '반영 실패')
+      if (j.ok) {
+        setApplied(`캘린더 반영 완료 — ${j.created}건 등록${j.skipped ? `, 중복 ${j.skipped}건 제외` : ''}. 새로고침하면 캘린더에 보입니다.`)
+        if (plan.strategy) {
+          // 전략 노트 보존 — 실행 중 언제든 다시 볼 수 있게
+          setSavedStrategy(plan.strategy)
+          fetch('/api/mkt/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: `mkt_strategy_${biz}`, value: { text: plan.strategy, saved_at: new Date().toISOString() } }),
+          }).catch(() => {})
+        }
+      } else setError(j.error ?? '반영 실패')
     } finally {
       setBusy(false)
     }
@@ -119,6 +137,11 @@ export default function MktPlanner() {
               {goal ? `목표: ${goal.label} ${goal.target.toLocaleString()}${goal.unit ?? ''} · ${goal.start ?? '기간 미설정'}${goal.end ? ` ~ ${goal.end}` : ''}` : '⚠ 위 목표 카드에서 먼저 목표·기간을 저장하세요'}
             </span>
           </div>
+          {savedStrategy && (
+            <p className="text-[11px] text-slate-500 px-2 py-1.5 whitespace-pre-wrap" style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '2px' }}>
+              🧭 <b>현재 실행 중인 전략</b>: {savedStrategy}
+            </p>
+          )}
 
           {/* 대화 */}
           <div className="max-h-[360px] overflow-y-auto space-y-2 p-2" style={{ backgroundColor: 'var(--nv-surface-soft, #f8fafc)', borderRadius: '2px' }}>
@@ -144,8 +167,11 @@ export default function MktPlanner() {
           {/* 확정 계획 반영 */}
           {plan && !applied && (
             <div className="p-2" style={{ border: '1px solid var(--nv-primary, #76b900)', backgroundColor: 'rgba(118,185,0,0.06)', borderRadius: '2px' }}>
-              <p className="text-[12px] font-bold text-slate-800 mb-1">최종 계획 {plan.length}건 — 채널 구성:{' '}
-                {Object.entries(plan.reduce((a: Record<string, number>, p) => { a[p.channel] = (a[p.channel] ?? 0) + 1; return a }, {})).map(([c, n]) => `${CH_LABEL[c] ?? c} ${n}`).join(' · ')}
+              {plan.strategy && (
+                <p className="text-[11px] text-slate-600 mb-1 whitespace-pre-wrap">🧭 <b>전략</b>: {plan.strategy}</p>
+              )}
+              <p className="text-[12px] font-bold text-slate-800 mb-1">최종 계획 {plan.posts.length}건 (훅·CTA 포함) — 채널 구성:{' '}
+                {Object.entries(plan.posts.reduce((a: Record<string, number>, p) => { a[p.channel] = (a[p.channel] ?? 0) + 1; return a }, {})).map(([c, n]) => `${CH_LABEL[c] ?? c} ${n}`).join(' · ')}
               </p>
               <button type="button" onClick={apply} disabled={busy} className="h-7 px-3 text-[12px] font-bold" style={{ backgroundColor: 'var(--nv-primary, #76b900)', color: '#000', borderRadius: '2px' }}>
                 <CalendarCheck className="w-3.5 h-3.5 inline mr-1" />캘린더에 반영

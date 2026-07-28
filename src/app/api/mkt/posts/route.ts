@@ -115,8 +115,9 @@ export async function POST(req: NextRequest) {
       const has = new Set((existing ?? []).map((p) => `${p.channel}|${p.content_type}|${p.planned_date}`))
       const fresh = rows
         .filter((r: { channel: string; content_type: string; planned_date: string }) => !has.has(`${r.channel}|${r.content_type}|${r.planned_date}`))
-        .map((r: { channel: string; content_type: string; planned_date: string; title?: string }) => ({
-          channel: r.channel, content_type: r.content_type, planned_date: r.planned_date, title: r.title?.trim() || null,
+        .map((r: { channel: string; content_type: string; planned_date: string; title?: string; memo?: string }) => ({
+          channel: r.channel, content_type: r.content_type, planned_date: r.planned_date,
+          title: r.title?.trim() || null, memo: r.memo?.trim() || null,
         }))
       if (fresh.length) {
         const { error } = await sb.from('mkt_posts').insert(fresh)
