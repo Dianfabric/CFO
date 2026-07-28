@@ -225,9 +225,14 @@ function splitHighlightedSchedule(body: string) {
 function ScheduleHighlightBox({ lines }: { lines: string[] }) {
   return (
     <div style={scheduleBoxStyle}>
-      <div style={scheduleEyebrowStyle}>꼭 확인해 주세요</div>
-      <div style={scheduleTitleStyle}>핵심 일정</div>
-      <div style={{ display: 'grid', gap: 10 }}>
+      <div style={scheduleHeaderStyle}>
+        <div>
+          <div style={scheduleEyebrowStyle}>OFFICIAL NOTICE</div>
+          <div style={scheduleTitleStyle}>핵심 일정 안내</div>
+        </div>
+        <div style={scheduleStampStyle}>DIAN</div>
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
         {lines.map((line, idx) => {
           const cleaned = line.replace(/^■\s*/, '')
           const [label, ...rest] = cleaned.split(':')
@@ -246,58 +251,73 @@ function ScheduleHighlightBox({ lines }: { lines: string[] }) {
 
 const scheduleBoxStyle: React.CSSProperties = {
   margin: '4px 0 36px 0',
-  padding: '22px 24px',
-  border: '2px solid #d97706',
-  borderRadius: 16,
-  background: 'linear-gradient(135deg, #fff7ed 0%, #fffbeb 48%, #ffffff 100%)',
-  boxShadow: '0 10px 24px rgba(146, 64, 14, 0.12)',
+  padding: '22px 24px 24px 24px',
+  border: '1.5px solid #1f2a44',
+  borderLeft: '8px solid #1f2a44',
+  borderRadius: 4,
+  background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+  boxShadow: '0 8px 18px rgba(15, 23, 42, 0.10)',
+}
+
+const scheduleHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  gap: 16,
+  paddingBottom: 14,
+  marginBottom: 14,
+  borderBottom: '1px solid #cbd5e1',
 }
 
 const scheduleEyebrowStyle: React.CSSProperties = {
-  display: 'inline-block',
-  marginBottom: 6,
-  padding: '4px 10px',
-  borderRadius: 999,
-  background: '#92400e',
-  color: '#fff7ed',
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: 1.2,
+  marginBottom: 5,
+  color: '#64748b',
+  fontSize: 10,
+  fontWeight: 800,
+  letterSpacing: 2.2,
 }
 
 const scheduleTitleStyle: React.CSSProperties = {
-  marginBottom: 16,
-  fontSize: 22,
+  fontSize: 21,
   lineHeight: 1.2,
   fontWeight: 800,
-  color: '#7c2d12',
-  letterSpacing: 1.5,
+  color: '#0f172a',
+  letterSpacing: 0.2,
+}
+
+const scheduleStampStyle: React.CSSProperties = {
+  minWidth: 58,
+  padding: '7px 9px',
+  border: '1px solid #94a3b8',
+  color: '#334155',
+  textAlign: 'center',
+  fontSize: 12,
+  fontWeight: 800,
+  letterSpacing: 2,
 }
 
 const scheduleRowStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: '118px 1fr',
+  gridTemplateColumns: '120px 1fr',
   alignItems: 'center',
-  gap: 14,
-  padding: '12px 14px',
-  borderRadius: 12,
-  background: 'rgba(255, 255, 255, 0.82)',
-  border: '1px solid rgba(217, 119, 6, 0.28)',
+  gap: 16,
+  padding: '11px 0',
+  borderBottom: '1px solid #e2e8f0',
 }
 
 const scheduleLabelStyle: React.CSSProperties = {
-  color: '#9a3412',
-  fontSize: 13,
+  color: '#475569',
+  fontSize: 12,
   fontWeight: 800,
-  letterSpacing: 0.5,
+  letterSpacing: 0.8,
 }
 
 const scheduleValueStyle: React.CSSProperties = {
-  color: '#111827',
-  fontSize: 20,
+  color: '#0f172a',
+  fontSize: 19,
   lineHeight: 1.25,
   fontWeight: 800,
-  letterSpacing: -0.2,
+  letterSpacing: -0.15,
 }
 
 function formatKoreanDate(d: Date) {
