@@ -36,6 +36,32 @@ const TYPES: Record<string, { label: string; bg: string; color: string }> = {
 }
 const DAYS = ['월', '화', '수', '목', '금', '토', '일']
 
+/** 월 그리드 범위 — 1일이 낀 주의 월요일 ~ 말일이 낀 주의 일요일 */
+function monthGrid(offsetMonths: number): { ym: string; label: string; start: string; end: string; days: string[] } {
+  const t = new Date()
+  const first = new Date(t.getFullYear(), t.getMonth() + offsetMonths, 1)
+  const last = new Date(t.getFullYear(), t.getMonth() + offsetMonths + 1, 0)
+  const start = new Date(first)
+  const dow = first.getDay()
+  start.setDate(first.getDate() - (dow === 0 ? 6 : dow - 1))
+  const end = new Date(last)
+  const edow = last.getDay()
+  end.setDate(last.getDate() + (edow === 0 ? 0 : 7 - edow))
+  const days: string[] = []
+  const cur = new Date(start)
+  while (cur <= end) {
+    days.push(cur.toLocaleDateString('sv-SE'))
+    cur.setDate(cur.getDate() + 1)
+  }
+  return {
+    ym: `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}`,
+    label: `${first.getFullYear()}년 ${first.getMonth() + 1}월`,
+    start: start.toLocaleDateString('sv-SE'),
+    end: end.toLocaleDateString('sv-SE'),
+    days,
+  }
+}
+
 function mondayOf(offsetWeeks: number): string {
   const t = new Date()
   const dow = t.getDay()
@@ -65,6 +91,18 @@ export default function PublishingSystem() {
 
   const monday = useMemo(() => mondayOf(weekOffset), [weekOffset])
   const today = new Date().toLocaleDateString('sv-SE')
+  // 월 전체 캘린더 — 주간 보드 위에 표시 (대표 지시)
+  const [monthOffset, setMonthOffset] = useState(0)
+  const [monthPosts, setMonthPosts] = useState<Post[]>([])
+  const grid = useMemo(() => monthGrid(monthOffset), [monthOffset])
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    fetch(`/api/mkt/posts?start=${grid.start}&end=${grid.end}`)
+      .then((r) => r.json())
+      .then((j) => setMonthPosts(Array.isArray(j.posts) ? j.posts : []))
+      .catch(() => {})
+  }, [grid.start, grid.end, refreshKey])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -90,6 +128,7 @@ export default function PublishingSystem() {
     })
     const j = await r.json()
     if (!j.ok) setError(j.error ?? '처리 실패')
+    else setRefreshKey((k) => k + 1) // 월 캘린더 동기화
     return j
   }
 
@@ -154,6 +193,80 @@ export default function PublishingSystem() {
         <p className="py-8 text-center text-[12px] text-slate-400"><Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />불러오는 중...</p>
       ) : (
         <>
+          {/* 월 전체 발행 캘린더 — 전 채널 한눈에 (주간 보드 위) */}
+          <div className="mb-4">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <span className="text-[12px] font-bold text-slate-700">월 발행 캘린더</span>
+              <span className="text-[10px] text-slate-400">칩 클릭 = 완료 토글 · 날짜 클릭 = 그 주로 이동</span>
+              <div className="ml-auto flex items-center gap-1">
+                <button type="button" onClick={() => setMonthOffset((m) => m - 1)} className="h-6 w-6 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }}>
+                  <ChevronLeft className="w-3.5 h-3.5 mx-auto text-slate-500" />
+                </button>
+                <span className="text-[11px] font-bold text-slate-600">{grid.label}{monthOffset === 0 ? ' (이번 달)' : ''}</span>
+                <button type="button" onClick={() => setMonthOffset((m) => m + 1)} className="h-6 w-6 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }}>
+                  <ChevronRight className="w-3.5 h-3.5 mx-auto text-slate-500" />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <div style={{ minWidth: 700 }}>
+                <div className="grid grid-cols-7 text-center text-[10px] font-medium text-slate-400 border-b bg-slate-50">
+                  {DAYS.map((d) => <div key={d} className="py-1">{d}</div>)}
+                </div>
+                <div className="grid grid-cols-7" style={{ border: '1px solid #f1f5f9' }}>
+                  {grid.days.map((date) => {
+                    const inMonth = date.slice(0, 7) === grid.ym
+                    const cell = monthPosts.filter((p) => p.planned_date === date)
+                    const wkOffset = Math.round((new Date(date + 'T12:00:00').getTime() - new Date(mondayOf(0) + 'T12:00:00').getTime()) / 86400000 / 7 - 0.49)
+                    return (
+                      <div key={date} className="min-h-[64px] p-1 align-top" style={{ border: '1px solid #f1f5f9', backgroundColor: date === today ? 'rgba(118,185,0,0.06)' : inMonth ? '#fff' : '#fafafa' }}>
+                        <button
+                          type="button"
+                          onClick={() => setWeekOffset(wkOffset)}
+                          className="text-[10px] font-bold tabular-nums"
+                          style={{ color: date === today ? 'var(--nv-primary, #76b900)' : inMonth ? '#64748b' : '#cbd5e1' }}
+                          title="이 주를 주간 보드에서 열기"
+                        >
+                          {Number(date.slice(8))}
+                        </button>
+                        <div className="mt-0.5 space-y-0.5">
+                          {cell.map((p) => {
+                            const t = TYPES[p.content_type] ?? TYPES.info
+                            const grp = p.channel.startsWith('saek') ? '색' : '디'
+                            const overdue = p.status !== 'done' && p.planned_date < today
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={async () => {
+                                  const next = p.status === 'done' ? 'planned' : 'done'
+                                  setMonthPosts((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: next } : x)))
+                                  setPosts((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: next } : x)))
+                                  await act({ action: 'status', id: p.id, status: next })
+                                }}
+                                title={p.title ?? t.label}
+                                className="block w-full px-0.5 py-px text-left text-[9px] font-bold truncate"
+                                style={{
+                                  backgroundColor: p.status === 'done' ? 'rgba(118,185,0,0.15)' : t.bg,
+                                  color: p.status === 'done' ? 'var(--nv-success-deep, #4a7c00)' : t.color,
+                                  borderRadius: '2px',
+                                  border: overdue ? '1px solid #fca5a5' : '1px solid transparent',
+                                  textDecoration: p.status === 'done' ? 'line-through' : undefined,
+                                }}
+                              >
+                                {p.status === 'done' ? '✓' : ''}{grp}·{t.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <p className="mb-2 text-[11px] text-slate-400">
             이번 주 계획 {weekTotal}건 · 완료 {weekDone}건
           </p>
