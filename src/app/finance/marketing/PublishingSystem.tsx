@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 /**
  * 전사 콘텐츠 발행 시스템 — 주간 보드 (대표 지시 2026-07-14)
@@ -15,6 +15,7 @@ interface Post {
   content_type: string
   planned_date: string
   title: string | null
+  memo?: string | null
   status: 'planned' | 'done' | 'skipped'
 }
 interface Tpl { id: number; channel: string; content_type: string; weekday: number }
@@ -85,6 +86,7 @@ export default function PublishingSystem() {
   const [adding, setAdding] = useState<{ channel: string; date: string } | null>(null)
   const [addType, setAddType] = useState('info')
   const [addTitle, setAddTitle] = useState('')
+  const [editPost, setEditPost] = useState<Post | null>(null) // 칩 상세 편집 (날짜·제목·훅/CTA)
   const [tplChannel, setTplChannel] = useState('dian_insta')
   const [tplType, setTplType] = useState('info')
   const [tplDay, setTplDay] = useState(0)
@@ -316,6 +318,9 @@ export default function PublishingSystem() {
                                   >
                                     {p.status === 'done' ? '✓ ' : ''}{t.label}{p.title ? ` · ${p.title}` : ''}
                                   </button>
+                                  <button type="button" onClick={() => setEditPost(p)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-slate-600" title="상세 편집 (날짜·제목·훅/CTA)">
+                                    ✎
+                                  </button>
                                   <button type="button" onClick={() => remove(p)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500">
                                     <X className="w-3 h-3" />
                                   </button>
@@ -392,6 +397,52 @@ export default function PublishingSystem() {
             )}
           </div>
         </>
+      )}
+
+      {/* 칩 상세 편집 — 날짜 이동·제목·훅/CTA 메모 (확정 후에도 자유 수정) */}
+      {editPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(15,23,42,0.35)' }} onClick={() => setEditPost(null)}>
+          <div className="w-full max-w-sm bg-white p-4 space-y-2" style={{ borderRadius: '2px', border: '1px solid #e2e8f0' }} onClick={(e) => e.stopPropagation()}>
+            <p className="text-[13px] font-bold text-slate-800">
+              콘텐츠 편집 — {CHANNELS.find((c) => c.key === editPost.channel)?.group} {CHANNELS.find((c) => c.key === editPost.channel)?.label} · {TYPES[editPost.content_type]?.label}
+            </p>
+            <div className="space-y-1.5 text-[12px]">
+              <label className="block">
+                <span className="text-slate-500">배포일</span>
+                <input type="date" value={editPost.planned_date} onChange={(e) => setEditPost({ ...editPost, planned_date: e.target.value })}
+                  className="mt-0.5 w-full h-8 px-2 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }} />
+              </label>
+              <label className="block">
+                <span className="text-slate-500">주제/제목</span>
+                <input value={editPost.title ?? ''} onChange={(e) => setEditPost({ ...editPost, title: e.target.value })}
+                  className="mt-0.5 w-full h-8 px-2 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }} />
+              </label>
+              <label className="block">
+                <span className="text-slate-500">메모 (훅 / CTA)</span>
+                <textarea value={editPost.memo ?? ''} onChange={(e) => setEditPost({ ...editPost, memo: e.target.value })} rows={3}
+                  className="mt-0.5 w-full px-2 py-1 bg-white" style={{ border: '1px solid #e2e8f0', borderRadius: '2px' }} />
+              </label>
+            </div>
+            <div className="flex gap-1.5 pt-1">
+              <button type="button" className="h-8 px-3 text-[12px] font-bold" style={{ backgroundColor: 'var(--nv-primary, #76b900)', color: '#000', borderRadius: '2px' }}
+                onClick={async () => {
+                  await act({ action: 'update', id: editPost.id, title: editPost.title, memo: editPost.memo, planned_date: editPost.planned_date })
+                  setEditPost(null)
+                  load()
+                }}>
+                저장
+              </button>
+              <button type="button" className="h-8 px-3 text-[12px] font-bold bg-white" style={{ border: '1px solid #fca5a5', color: '#dc2626', borderRadius: '2px' }}
+                onClick={async () => { await act({ action: 'delete', id: editPost.id }); setEditPost(null); load() }}>
+                삭제
+              </button>
+              <button type="button" className="ml-auto h-8 px-3 text-[12px] bg-white" style={{ border: '1px solid #e2e8f0', color: '#64748b', borderRadius: '2px' }}
+                onClick={() => setEditPost(null)}>
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
