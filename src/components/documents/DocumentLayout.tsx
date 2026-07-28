@@ -38,6 +38,7 @@ interface Props {
  */
 export default function DocumentLayout({ header, body, bodyLineHeight = 1.9, table, footer }: Props) {
   const issueDate = header.issueDate || formatKoreanDate(new Date())
+  const { mainBody, scheduleLines } = splitHighlightedSchedule(body)
 
   return (
     <div
@@ -116,11 +117,13 @@ export default function DocumentLayout({ header, body, bodyLineHeight = 1.9, tab
       </div>
 
       {/* ===== 본문 (제목과 표 사이) ===== */}
-      {body ? (
-        <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: bodyLineHeight, color: '#222', marginBottom: table ? 24 : 40 }}>
-          {body}
+      {mainBody ? (
+        <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: bodyLineHeight, color: '#222', marginBottom: scheduleLines.length ? 22 : table ? 24 : 40 }}>
+          {mainBody}
         </div>
       ) : null}
+
+      {scheduleLines.length ? <ScheduleHighlightBox lines={scheduleLines} /> : null}
 
       {/* ===== 표 ===== */}
       {table ? (
@@ -200,6 +203,101 @@ const addressCellValue: React.CSSProperties = {
   fontSize: 13,
   color: '#222',
   fontWeight: 500,
+}
+
+function splitHighlightedSchedule(body: string) {
+  const raw = body || ''
+  const markerMatch = raw.match(/\n?\s*※\s*핵심\s*일정\s*\n?/)
+  if (!markerMatch || markerMatch.index === undefined) {
+    return { mainBody: raw, scheduleLines: [] as string[] }
+  }
+
+  const mainBody = raw.slice(0, markerMatch.index).trimEnd()
+  const scheduleText = raw.slice(markerMatch.index + markerMatch[0].length).trim()
+  const scheduleLines = scheduleText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return { mainBody, scheduleLines }
+}
+
+function ScheduleHighlightBox({ lines }: { lines: string[] }) {
+  return (
+    <div style={scheduleBoxStyle}>
+      <div style={scheduleEyebrowStyle}>꼭 확인해 주세요</div>
+      <div style={scheduleTitleStyle}>핵심 일정</div>
+      <div style={{ display: 'grid', gap: 10 }}>
+        {lines.map((line, idx) => {
+          const cleaned = line.replace(/^■\s*/, '')
+          const [label, ...rest] = cleaned.split(':')
+          const value = rest.join(':').trim()
+          return (
+            <div key={`${line}-${idx}`} style={scheduleRowStyle}>
+              <div style={scheduleLabelStyle}>{label.trim()}</div>
+              <div style={scheduleValueStyle}>{value || cleaned}</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+const scheduleBoxStyle: React.CSSProperties = {
+  margin: '4px 0 36px 0',
+  padding: '22px 24px',
+  border: '2px solid #d97706',
+  borderRadius: 16,
+  background: 'linear-gradient(135deg, #fff7ed 0%, #fffbeb 48%, #ffffff 100%)',
+  boxShadow: '0 10px 24px rgba(146, 64, 14, 0.12)',
+}
+
+const scheduleEyebrowStyle: React.CSSProperties = {
+  display: 'inline-block',
+  marginBottom: 6,
+  padding: '4px 10px',
+  borderRadius: 999,
+  background: '#92400e',
+  color: '#fff7ed',
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 1.2,
+}
+
+const scheduleTitleStyle: React.CSSProperties = {
+  marginBottom: 16,
+  fontSize: 22,
+  lineHeight: 1.2,
+  fontWeight: 800,
+  color: '#7c2d12',
+  letterSpacing: 1.5,
+}
+
+const scheduleRowStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '118px 1fr',
+  alignItems: 'center',
+  gap: 14,
+  padding: '12px 14px',
+  borderRadius: 12,
+  background: 'rgba(255, 255, 255, 0.82)',
+  border: '1px solid rgba(217, 119, 6, 0.28)',
+}
+
+const scheduleLabelStyle: React.CSSProperties = {
+  color: '#9a3412',
+  fontSize: 13,
+  fontWeight: 800,
+  letterSpacing: 0.5,
+}
+
+const scheduleValueStyle: React.CSSProperties = {
+  color: '#111827',
+  fontSize: 20,
+  lineHeight: 1.25,
+  fontWeight: 800,
+  letterSpacing: -0.2,
 }
 
 function formatKoreanDate(d: Date) {
