@@ -27,6 +27,7 @@ import { createClient } from '@/lib/supabase/server'
 import PublishingSystem from './PublishingSystem'
 import MktGoalCard from './MktGoalCard'
 import MktPlanner from './MktPlanner'
+import MktInsightsCard from './MktInsightsCard'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -92,6 +93,9 @@ export default async function MarketingHubPage() {
 
       {/* 전사 콘텐츠 발행 시스템 — 주간 보드 + 준수율 (대표 지시 2026-07-14) */}
       <PublishingSystem />
+
+      {/* 채널 성과 — 후행지표 자동 수집 (대표 지시 2026-07-28) */}
+      <MktInsightsCard />
 
       {data.errors.length > 0 && (
         <Card className="border-rose-200 bg-rose-50">
