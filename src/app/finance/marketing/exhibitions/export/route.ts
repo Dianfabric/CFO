@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
       '직책': lead.jobTitle,
       '전화번호': lead.phone,
       '이메일': lead.email,
+      '마케팅 수신 동의': lead.marketingConsent ? '동의' : '미동의',
       '마케팅 수신 동의일시': lead.consentedAt ?? '',
       '등록 경로': '공간디자인페어 QR VIP 등록',
     }))
