@@ -37,6 +37,11 @@ function field(record: AirtableRecord, name: string) {
   return typeof value === "string" ? value : "";
 }
 
+function jobTitle(note: string) {
+  const match = note.match(/\[직책\]\s*([\s\S]*?)\s*\[마케팅수신동의\]/);
+  return match?.[1]?.trim() ?? '';
+}
+
 function consentedAt(note: string) {
   const marker = "[마케팅수신동의] ";
   const index = note.indexOf(marker);
@@ -68,7 +73,7 @@ export async function getExhibitionLeads(slug = EVENT.slug): Promise<ExhibitionL
     return {
       id: record.id,
       companyName: field(record, "거래처 이름"),
-      jobTitle: field(record, "직군"),
+      jobTitle: jobTitle(note),
       phone: field(record, "전화번호"),
       email: field(record, "E-mail"),
       marketingConsent: Boolean(agreedAt),
