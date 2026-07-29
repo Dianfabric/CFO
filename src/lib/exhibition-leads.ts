@@ -56,8 +56,6 @@ export async function getExhibitionLeads(slug = EVENT.slug): Promise<ExhibitionL
   const formula = `FIND('${EVENT_TAG}', {비고})`;
   const url = new URL(`https://api.airtable.com/v0/${env.baseId}/${env.tableId}`);
   url.searchParams.set("filterByFormula", formula);
-  url.searchParams.set("sort[0][field]", "등록 일시");
-  url.searchParams.set("sort[0][direction]", "desc");
   url.searchParams.append("fields[]", "거래처 이름");
   url.searchParams.append("fields[]", "직군");
   url.searchParams.append("fields[]", "전화번호");
