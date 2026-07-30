@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import { getExhibitionLeads, SHOW_CURRENT_CATALOG_CUSTOMERS } from '@/lib/exhibition-leads'
+import { getCatalogCustomers } from '@/lib/exhibition-leads'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,10 +9,12 @@ function formatDate(value: string | null) {
 }
 
 export async function GET(request: NextRequest) {
-  const event = request.nextUrl.searchParams.get('event')
-  if (!event || !/^[a-z0-9-]+$/.test(event)) return NextResponse.json({ error: '행사 정보가 올바르지 않습니다.' }, { status: 400 })
+  const start = request.nextUrl.searchParams.get('start') || undefined
+  const end = request.nextUrl.searchParams.get('end') || undefined
+  const validDate = (value: string | undefined) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value)
+  if (!validDate(start) || !validDate(end)) return NextResponse.json({ error: '날짜 형식이 올바르지 않습니다.' }, { status: 400 })
 
-  const leads = await getExhibitionLeads(event)
+  const leads = await getCatalogCustomers({ start, end })
   const rows = leads.map((lead) => ({
     '가입일시': formatDate(lead.createdAt),
     '작성 이메일': lead.email ?? '',
@@ -32,9 +34,8 @@ export async function GET(request: NextRequest) {
   const book = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(book, sheet, '카탈로그 가입 고객')
   const body = XLSX.write(book, { bookType: 'xlsx', type: 'buffer' })
-  const filename = SHOW_CURRENT_CATALOG_CUSTOMERS
-    ? `DIAN_현재-카탈로그-가입고객_테스트.xlsx`
-    : `DIAN_${event}_카탈로그-가입고객.xlsx`
+  const period = start || end ? `${start || '전체'}~${end || '전체'}` : '전체'
+  const filename = `DIAN_카탈로그-가입고객_${period}.xlsx`
 
   return new NextResponse(body, {
     headers: {

@@ -1,12 +1,3 @@
-// 행사 시작 전 화면·엑셀 동작 확인용. 행사 종료 후 false로 되돌리면 해당 행사 기간 가입자만 조회한다.
-export const SHOW_CURRENT_CATALOG_CUSTOMERS = true;
-
-export type ExhibitionEvent = {
-  slug: string;
-  name: string;
-  leadCount: number;
-};
-
 export type ExhibitionLead = {
   id: string;
   email: string | null;
@@ -21,13 +12,6 @@ export type ExhibitionLead = {
   createdAt: string | null;
 };
 
-type EventRow = {
-  id: string;
-  slug: string;
-  name: string;
-  starts_on: string | null;
-  ends_on: string | null;
-};
 type CatalogCustomerRow = {
   id: string;
   email: string | null;
@@ -42,51 +26,50 @@ type CatalogCustomerRow = {
   created_at: string | null;
 };
 
+export type CatalogCustomerDateFilter = {
+  start?: string;
+  end?: string;
+};
+
 function config() {
   const url = process.env.SUPABASE_FABRIC_URL || process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_FABRIC_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-  return url && key ? { url: url.replace(/\/$/, ""), key } : null;
+  return url && key ? { url: url.replace(/\/$/, ''), key } : null;
 }
 
 function headers(key: string): HeadersInit {
   return { apikey: key, Authorization: `Bearer ${key}` };
 }
 
-function exhibitionDateRange(event: EventRow) {
-  if (!event.starts_on || !event.ends_on) return null;
-  const start = new Date(`${event.starts_on}T00:00:00+09:00`);
-  const endExclusive = new Date(`${event.ends_on}T00:00:00+09:00`);
-  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(endExclusive.getTime())) return null;
-  return { start: start.toISOString(), endExclusive: endExclusive.toISOString() };
+function kstStartOfDay(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const result = new Date(`${date}T00:00:00+09:00`);
+  return Number.isNaN(result.getTime()) ? null : result;
 }
 
-async function getEventRows(): Promise<EventRow[]> {
-  const env = config();
-  if (!env) return [];
-  const query = new URLSearchParams({ select: "id,slug,name,starts_on,ends_on", order: "starts_on.desc.nullslast,created_at.desc" });
-  const response = await fetch(`${env.url}/rest/v1/exhibition_events?${query}`, { headers: headers(env.key), cache: "no-store" });
-  if (!response.ok) throw new Error("행사 정보를 불러오지 못했습니다.");
-  return (await response.json()) as EventRow[];
+function kstEndExclusive(date: string) {
+  const result = kstStartOfDay(date);
+  if (!result) return null;
+  result.setUTCDate(result.getUTCDate() + 1);
+  return result;
 }
 
-export async function getExhibitionLeads(slug: string): Promise<ExhibitionLead[]> {
+/** 카탈로그 전체 가입 고객. 날짜를 넣으면 KST 기준 해당 날짜를 포함해 필터한다. */
+export async function getCatalogCustomers(filter: CatalogCustomerDateFilter = {}): Promise<ExhibitionLead[]> {
   const env = config();
   if (!env) return [];
-  const event = (await getEventRows()).find((item) => item.slug === slug);
-  const range = event ? exhibitionDateRange(event) : null;
-  if (!SHOW_CURRENT_CATALOG_CUSTOMERS && !range) return [];
 
   const query = new URLSearchParams({
-    select: "id,email,kakao_email,name,phone,company_name,position,favorite_fabrics,provider,profile_completed,created_at",
-    order: "created_at.desc",
+    select: 'id,email,kakao_email,name,phone,company_name,position,favorite_fabrics,provider,profile_completed,created_at',
+    order: 'created_at.desc',
   });
-  if (!SHOW_CURRENT_CATALOG_CUSTOMERS && range) {
-    query.append("created_at", `gte.${range.start}`);
-    query.append("created_at", `lt.${range.endExclusive}`);
-  }
-  const response = await fetch(`${env.url}/rest/v1/catalog_customers?${query}`, { headers: headers(env.key), cache: "no-store" });
-  if (!response.ok) throw new Error("카탈로그 가입 고객 정보를 불러오지 못했습니다.");
+  const start = filter.start ? kstStartOfDay(filter.start) : null;
+  const endExclusive = filter.end ? kstEndExclusive(filter.end) : null;
+  if (start) query.append('created_at', `gte.${start.toISOString()}`);
+  if (endExclusive) query.append('created_at', `lt.${endExclusive.toISOString()}`);
+
+  const response = await fetch(`${env.url}/rest/v1/catalog_customers?${query}`, { headers: headers(env.key), cache: 'no-store' });
+  if (!response.ok) throw new Error('카탈로그 가입 고객 정보를 불러오지 못했습니다.');
   const rows = (await response.json()) as CatalogCustomerRow[];
   return rows.map((row) => ({
     id: row.id,
@@ -101,13 +84,4 @@ export async function getExhibitionLeads(slug: string): Promise<ExhibitionLead[]
     profileCompleted: row.profile_completed,
     createdAt: row.created_at,
   }));
-}
-
-export async function getExhibitionEvents(): Promise<ExhibitionEvent[]> {
-  const events = await getEventRows();
-  return Promise.all(events.map(async (event) => ({
-    slug: event.slug,
-    name: event.name,
-    leadCount: (await getExhibitionLeads(event.slug)).length,
-  })));
 }
