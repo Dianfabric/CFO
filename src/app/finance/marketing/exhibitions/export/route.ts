@@ -25,7 +25,9 @@ export async function GET(request: NextRequest) {
     '로그인 방식': lead.provider ?? '',
     '필수정보': lead.profileCompleted ? '완료' : '미완료',
   }))
-  const sheet = XLSX.utils.json_to_sheet(rows)
+  const headers = ['가입일시', '작성 이메일', '카카오 이메일', '성함', '전화번호', '회사명', '직책', '자주 쓰는 원단', '로그인 방식', '필수정보']
+  const sheet = XLSX.utils.aoa_to_sheet([headers])
+  XLSX.utils.sheet_add_json(sheet, rows, { origin: 'A2', skipHeader: true })
   sheet['!cols'] = [20, 30, 30, 16, 18, 24, 16, 28, 16, 14].map((wch) => ({ wch }))
   const book = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(book, sheet, '카탈로그 가입 고객')

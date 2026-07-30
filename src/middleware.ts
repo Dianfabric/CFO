@@ -1,21 +1,38 @@
-/**
- * Next.js 15 + Supabase SSR 미들웨어
- *
- * V2.2 — 개발 중에는 로그인 강제 없음.
- * 모든 페이지는 로그인 없이 접근 가능. 세션 쿠키만 갱신.
- */
-import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-// 인증 강제 X — 개발 중 모든 페이지 접근 허용
-const PROTECTED_PREFIXES: string[] = []
+const EXHIBITION_PATH = '/finance/marketing/exhibitions'
+
+function needsExhibitionAuth(pathname: string) {
+  return pathname === EXHIBITION_PATH || pathname === `${EXHIBITION_PATH}/export`
+}
 
 export async function middleware(request: NextRequest) {
-  // V2.2 — 인증 강제 해제. 모든 요청 그대로 통과.
-  return NextResponse.next({ request })
+  if (!needsExhibitionAuth(request.nextUrl.pathname)) return NextResponse.next({ request })
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anonKey) {
+    return new NextResponse('CFO authentication is not configured.', { status: 503 })
+  }
+
+  const response = NextResponse.next({ request })
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (cookiesToSet) => cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options)),
+    },
+  })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) return response
+
+  const loginUrl = request.nextUrl.clone()
+  loginUrl.pathname = '/login'
+  loginUrl.search = ''
+  loginUrl.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`)
+  return NextResponse.redirect(loginUrl)
 }
 
 export const config = {
-  // 정적 자산·이미지·favicon은 제외
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }
