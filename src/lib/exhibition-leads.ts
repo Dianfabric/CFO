@@ -15,73 +15,68 @@ export type ExhibitionLead = {
   createdAt: string | null;
 };
 
-const EVENT = { slug: "space-design-fair-2026-08", name: "공간디자인페어 2026.08" };
-const EVENT_TAG = `[전시VIP][${EVENT.name}]`;
-
-type AirtableRecord = {
+type EventRow = { id: string; slug: string; name: string };
+type LeadRow = {
   id: string;
-  createdTime?: string;
-  fields: Record<string, unknown>;
+  company_name: string;
+  job_title: string;
+  phone: string;
+  email: string;
+  marketing_consent: boolean;
+  marketing_consent_at: string | null;
+  created_at: string | null;
 };
 
 function config() {
-  const token = process.env.DIAN_VIP_AIRTABLE_TOKEN;
-  const baseId = process.env.DIAN_VIP_AIRTABLE_BASE_ID;
-  const tableId = process.env.DIAN_VIP_AIRTABLE_TABLE_ID;
-  if (!token || !baseId || !tableId) return null;
-  return { token, baseId, tableId };
+  const url = process.env.SUPABASE_FABRIC_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_FABRIC_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  return url && key ? { url: url.replace(/\/$/, ""), key } : null;
 }
 
-function field(record: AirtableRecord, name: string) {
-  const value = record.fields[name];
-  return typeof value === "string" ? value : "";
+function headers(key: string): HeadersInit {
+  return { apikey: key, Authorization: `Bearer ${key}` };
 }
 
-function jobTitle(note: string) {
-  const match = note.match(/\[직책\]\s*([\s\S]*?)\s*\[마케팅수신동의\]/);
-  return match?.[1]?.trim() ?? '';
-}
-
-function consentedAt(note: string) {
-  const marker = "[마케팅수신동의] ";
-  const index = note.indexOf(marker);
-  return index === -1 ? null : note.slice(index + marker.length).trim() || null;
-}
-
-export async function getExhibitionLeads(slug = EVENT.slug): Promise<ExhibitionLead[]> {
-  if (slug !== EVENT.slug) return [];
+async function getEventRows(): Promise<EventRow[]> {
   const env = config();
   if (!env) return [];
+  const query = new URLSearchParams({ select: "id,slug,name", order: "starts_on.desc.nullslast,created_at.desc" });
+  const response = await fetch(`${env.url}/rest/v1/exhibition_events?${query}`, { headers: headers(env.key), cache: "no-store" });
+  if (!response.ok) throw new Error("행사 정보를 불러오지 못했습니다.");
+  return (await response.json()) as EventRow[];
+}
 
-  const formula = `FIND('${EVENT_TAG}', {비고})`;
-  const url = new URL(`https://api.airtable.com/v0/${env.baseId}/${env.tableId}`);
-  url.searchParams.set("filterByFormula", formula);
-  url.searchParams.append("fields[]", "거래처 이름");
-  url.searchParams.append("fields[]", "직군");
-  url.searchParams.append("fields[]", "전화번호");
-  url.searchParams.append("fields[]", "E-mail");
-  url.searchParams.append("fields[]", "비고");
-
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${env.token}` }, cache: "no-store" });
-  if (!response.ok) throw new Error("행사 고객 정보를 불러오지 못했습니다.");
-  const data = (await response.json()) as { records?: AirtableRecord[] };
-  return (data.records ?? []).map((record) => {
-    const note = field(record, "비고");
-    const agreedAt = consentedAt(note);
-    return {
-      id: record.id,
-      companyName: field(record, "거래처 이름"),
-      jobTitle: jobTitle(note),
-      phone: field(record, "전화번호"),
-      email: field(record, "E-mail"),
-      marketingConsent: Boolean(agreedAt),
-      consentedAt: agreedAt,
-      createdAt: record.createdTime ?? null,
-    };
+export async function getExhibitionLeads(slug: string): Promise<ExhibitionLead[]> {
+  const env = config();
+  if (!env) return [];
+  const event = (await getEventRows()).find((item) => item.slug === slug);
+  if (!event) return [];
+  const query = new URLSearchParams({
+    select: "id,company_name,job_title,phone,email,marketing_consent,marketing_consent_at,created_at",
+    event_id: `eq.${event.id}`,
+    marketing_consent: "eq.true",
+    order: "created_at.desc",
   });
+  const response = await fetch(`${env.url}/rest/v1/exhibition_leads?${query}`, { headers: headers(env.key), cache: "no-store" });
+  if (!response.ok) throw new Error("행사 고객 정보를 불러오지 못했습니다.");
+  const rows = (await response.json()) as LeadRow[];
+  return rows.map((row) => ({
+    id: row.id,
+    companyName: row.company_name,
+    jobTitle: row.job_title,
+    phone: row.phone,
+    email: row.email,
+    marketingConsent: row.marketing_consent,
+    consentedAt: row.marketing_consent_at,
+    createdAt: row.created_at,
+  }));
 }
 
 export async function getExhibitionEvents(): Promise<ExhibitionEvent[]> {
-  const leads = await getExhibitionLeads();
-  return [{ ...EVENT, leadCount: leads.length }];
+  const events = await getEventRows();
+  return Promise.all(events.map(async (event) => ({
+    slug: event.slug,
+    name: event.name,
+    leadCount: (await getExhibitionLeads(event.slug)).length,
+  })));
 }
