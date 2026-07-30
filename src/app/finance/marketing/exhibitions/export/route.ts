@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import { getExhibitionLeads } from '@/lib/exhibition-leads'
+import { getExhibitionLeads, SHOW_CURRENT_CATALOG_CUSTOMERS } from '@/lib/exhibition-leads'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +32,9 @@ export async function GET(request: NextRequest) {
   const book = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(book, sheet, '카탈로그 가입 고객')
   const body = XLSX.write(book, { bookType: 'xlsx', type: 'buffer' })
-  const filename = `DIAN_${event}_카탈로그-가입고객.xlsx`
+  const filename = SHOW_CURRENT_CATALOG_CUSTOMERS
+    ? `DIAN_현재-카탈로그-가입고객_테스트.xlsx`
+    : `DIAN_${event}_카탈로그-가입고객.xlsx`
 
   return new NextResponse(body, {
     headers: {

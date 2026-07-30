@@ -1,3 +1,6 @@
+// 행사 시작 전 화면·엑셀 동작 확인용. 행사 종료 후 false로 되돌리면 해당 행사 기간 가입자만 조회한다.
+export const SHOW_CURRENT_CATALOG_CUSTOMERS = true;
+
 export type ExhibitionEvent = {
   slug: string;
   name: string;
@@ -72,14 +75,16 @@ export async function getExhibitionLeads(slug: string): Promise<ExhibitionLead[]
   if (!env) return [];
   const event = (await getEventRows()).find((item) => item.slug === slug);
   const range = event ? exhibitionDateRange(event) : null;
-  if (!range) return [];
+  if (!SHOW_CURRENT_CATALOG_CUSTOMERS && !range) return [];
 
   const query = new URLSearchParams({
     select: "id,email,kakao_email,name,phone,company_name,position,favorite_fabrics,provider,profile_completed,created_at",
     order: "created_at.desc",
   });
-  query.append("created_at", `gte.${range.start}`);
-  query.append("created_at", `lt.${range.endExclusive}`);
+  if (!SHOW_CURRENT_CATALOG_CUSTOMERS && range) {
+    query.append("created_at", `gte.${range.start}`);
+    query.append("created_at", `lt.${range.endExclusive}`);
+  }
   const response = await fetch(`${env.url}/rest/v1/catalog_customers?${query}`, { headers: headers(env.key), cache: "no-store" });
   if (!response.ok) throw new Error("카탈로그 가입 고객 정보를 불러오지 못했습니다.");
   const rows = (await response.json()) as CatalogCustomerRow[];

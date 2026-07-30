@@ -69,7 +69,8 @@ assert.deepEqual(leads, [{
 }]);
 
 const catalogQuery = new URL(requests.find((url) => url.includes('/catalog_customers?')));
-assert.deepEqual(catalogQuery.searchParams.getAll('created_at'), ['gte.2026-08-04T15:00:00.000Z', 'lt.2026-08-08T15:00:00.000Z']);
+assert.equal(mod.SHOW_CURRENT_CATALOG_CUSTOMERS, true);
+assert.deepEqual(catalogQuery.searchParams.getAll('created_at'), []);
 assert.equal(catalogQuery.searchParams.get('order'), 'created_at.desc');
 assert.ok(catalogQuery.searchParams.get('select').includes('favorite_fabrics'));
 

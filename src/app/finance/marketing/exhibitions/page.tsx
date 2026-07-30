@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ChevronLeft, Download, UsersRound } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getExhibitionEvents, getExhibitionLeads } from '@/lib/exhibition-leads'
+import { getExhibitionEvents, getExhibitionLeads, SHOW_CURRENT_CATALOG_CUSTOMERS } from '@/lib/exhibition-leads'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -30,7 +30,7 @@ export default async function ExhibitionLeadsPage({ searchParams }: Props) {
       <div>
         <div className="mb-1 flex items-center gap-1.5"><UsersRound className="h-3.5 w-3.5 text-blue-500" /><span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">v1.1 · #2b ⑫ 행사 업체 정보</span></div>
         <h1 className="text-2xl font-bold text-slate-900">행사 업체 정보</h1>
-        <p className="mt-1 text-sm text-slate-500">행사 기간에 카탈로그에 가입한 고객 정보를 행사별로 모아 확인합니다.</p>
+        <p className="mt-1 text-sm text-slate-500">{SHOW_CURRENT_CATALOG_CUSTOMERS ? '테스트용으로 현재 가입된 카탈로그 고객 전체를 표시합니다.' : '행사 기간에 카탈로그에 가입한 고객 정보를 행사별로 모아 확인합니다.'}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -44,13 +44,13 @@ export default async function ExhibitionLeadsPage({ searchParams }: Props) {
       {selected ? (
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
-            <div><CardTitle className="text-base">{selected.name}</CardTitle><p className="mt-1 text-xs text-slate-500">행사 기간 카탈로그 가입 고객 {leads.length}건</p></div>
-            <a href={`/finance/marketing/exhibitions/export?event=${encodeURIComponent(selected.slug)}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"><Download className="h-3.5 w-3.5" />가입 고객 엑셀 다운로드</a>
+            <div><CardTitle className="text-base">{selected.name}</CardTitle><p className="mt-1 text-xs text-slate-500">{SHOW_CURRENT_CATALOG_CUSTOMERS ? `현재 카탈로그 가입 고객 ${leads.length}건 (테스트)` : `행사 기간 카탈로그 가입 고객 ${leads.length}건`}</p></div>
+            <a href={`/finance/marketing/exhibitions/export?event=${encodeURIComponent(selected.slug)}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"><Download className="h-3.5 w-3.5" />{SHOW_CURRENT_CATALOG_CUSTOMERS ? '현재 가입 고객 엑셀 다운로드' : '가입 고객 엑셀 다운로드'}</a>
           </CardHeader>
           <CardContent>
             {leads.length ? (
               <div className="overflow-x-auto"><table className="w-full min-w-[1400px] text-left text-sm"><thead className="border-y bg-slate-50 text-xs text-slate-500"><tr><th className="p-3">가입일</th><th className="p-3">작성 이메일</th><th className="p-3">카카오 이메일</th><th className="p-3">성함</th><th className="p-3">전화번호</th><th className="p-3">회사명</th><th className="p-3">직책</th><th className="p-3">자주 쓰는 원단</th><th className="p-3">로그인 방식</th><th className="p-3">필수정보</th></tr></thead><tbody>{leads.map((lead) => <tr key={lead.id} className="border-b"><td className="p-3 text-xs text-slate-500">{formatDate(lead.createdAt)}</td><td className="p-3">{value(lead.email)}</td><td className="p-3">{value(lead.kakaoEmail)}</td><td className="p-3 font-medium">{value(lead.name)}</td><td className="p-3">{value(lead.phone)}</td><td className="p-3">{value(lead.companyName)}</td><td className="p-3">{value(lead.jobTitle)}</td><td className="p-3">{value(lead.favoriteFabrics)}</td><td className="p-3">{value(lead.provider)}</td><td className={`p-3 ${lead.profileCompleted ? 'text-emerald-700' : 'text-amber-700'}`}>{lead.profileCompleted ? '완료' : '미완료'}</td></tr>)}</tbody></table></div>
-            ) : <p className="py-12 text-center text-sm text-slate-400">행사 기간에 가입한 카탈로그 고객이 없습니다.</p>}
+            ) : <p className="py-12 text-center text-sm text-slate-400">{SHOW_CURRENT_CATALOG_CUSTOMERS ? '현재 가입된 카탈로그 고객이 없습니다.' : '행사 기간에 가입한 카탈로그 고객이 없습니다.'}</p>}
           </CardContent>
         </Card>
       ) : <Card><CardContent className="py-12 text-center text-sm text-slate-400">등록된 행사가 없습니다.</CardContent></Card>}
