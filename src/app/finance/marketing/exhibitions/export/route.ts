@@ -1,47 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import { getCatalogCustomers } from '@/lib/exhibition-leads'
-
-export const dynamic = 'force-dynamic'
-
-function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : ''
-}
-
-export async function GET(request: NextRequest) {
-  const start = request.nextUrl.searchParams.get('start') || undefined
-  const end = request.nextUrl.searchParams.get('end') || undefined
-  const validDate = (value: string | undefined) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value)
-  if (!validDate(start) || !validDate(end)) return NextResponse.json({ error: '날짜 형식이 올바르지 않습니다.' }, { status: 400 })
-
-  const leads = await getCatalogCustomers({ start, end })
-  const rows = leads.map((lead) => ({
-    '가입일시': formatDate(lead.createdAt),
-    '작성 이메일': lead.email ?? '',
-    '카카오 이메일': lead.kakaoEmail ?? '',
-    '성함': lead.name ?? '',
-    '전화번호': lead.phone ?? '',
-    '회사명': lead.companyName ?? '',
-    '직책': lead.jobTitle ?? '',
-    '자주 쓰는 원단': lead.favoriteFabrics ?? '',
-    '로그인 방식': lead.provider ?? '',
-    '필수정보': lead.profileCompleted ? '완료' : '미완료',
-  }))
-  const headers = ['가입일시', '작성 이메일', '카카오 이메일', '성함', '전화번호', '회사명', '직책', '자주 쓰는 원단', '로그인 방식', '필수정보']
-  const sheet = XLSX.utils.aoa_to_sheet([headers])
-  XLSX.utils.sheet_add_json(sheet, rows, { origin: 'A2', skipHeader: true })
-  sheet['!cols'] = [20, 30, 30, 16, 18, 24, 16, 28, 16, 14].map((wch) => ({ wch }))
-  const book = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(book, sheet, '카탈로그 가입 고객')
-  const body = XLSX.write(book, { bookType: 'xlsx', type: 'buffer' })
-  const period = start || end ? `${start || '전체'}~${end || '전체'}` : '전체'
-  const filename = `DIAN_카탈로그-가입고객_${period}.xlsx`
-
-  return new NextResponse(body, {
-    headers: {
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
-      'Cache-Control': 'no-store',
-    },
-  })
-}
+import { getAllExhibitionCustomers } from '@/lib/exhibition-leads'
+export const dynamic='force-dynamic'
+const formatDate=(v:string|null)=>v?new Date(v).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'';
+const typeLabel={catalog:'카탈로그 가입',dian:'디안 고객',saekdong:'색동공장 고객',other:'기타'} as const;
+export async function GET(request:NextRequest){const start=request.nextUrl.searchParams.get('start')||undefined;const end=request.nextUrl.searchParams.get('end')||undefined;const valid=(v:string|undefined)=>!v||/^\d{4}-\d{2}-\d{2}$/.test(v);if(!valid(start)||!valid(end))return NextResponse.json({error:'날짜 형식이 올바르지 않습니다.'},{status:400});const leads=await getAllExhibitionCustomers({start,end});const headers=['등록일시','등록 유형','성함','회사명','직책','전화번호','이메일','색동 스와치','기타 문의','카탈로그 선호 원단'];const rows=leads.map(l=>({'등록일시':formatDate(l.createdAt),'등록 유형':typeLabel[l.registrationType],'성함':l.name??'','회사명':l.companyName??'','직책':l.jobTitle??'','전화번호':l.phone??'','이메일':l.email??'','색동 스와치':l.swatches.join(', '),'기타 문의':l.inquiry??'','카탈로그 선호 원단':l.favoriteFabrics??''}));const sheet=XLSX.utils.aoa_to_sheet([headers]);XLSX.utils.sheet_add_json(sheet,rows,{origin:'A2',skipHeader:true});sheet['!cols']=[20,16,14,24,16,18,30,48,48,28].map(wch=>({wch}));const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,'행사 고객 정보');const body=XLSX.write(book,{bookType:'xlsx',type:'buffer'});const period=start||end?`${start||'전체'}~${end||'전체'}`:'전체';return new NextResponse(body,{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(`DIAN_행사-고객정보_${period}.xlsx`)}`,'Cache-Control':'no-store'}})}
