@@ -69,6 +69,7 @@ function computeSaekPnl(
   saekCosts: { purchases: SaekdongPurchase[]; expenses: SaekdongExpense[]; itemCosts: SaekdongItemCost[] } | null,
   saekOn: SeriesData | null,
   range: PeriodRange,
+  storeSales?: { sale_date: string; amount: number }[], // 매장 직접 판매 (현금·카드, 부가세 포함 결제액)
 ) {
   const purchases = saekCosts?.purchases ?? []
   const expenses = saekCosts?.expenses ?? []
@@ -100,9 +101,15 @@ function computeSaekPnl(
   const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
   const purch = purchases.filter((pu) => inPeriod(pu.purchase_date)).reduce((s, pu) => s + pu.amount, 0)
   const cogsExpense = expSum((e) => e.nature === '매출원가')
-  const stdEstimate = Math.round(onlineSupply * stdRate)
+  // 매장 직접 판매 — 결제액(부가세 포함) → 공급가 환산해 총매출·원가 추정에 합산 (대표 지시 2026-08-10)
+  const storeRaw = (storeSales ?? [])
+    .filter((s) => s.sale_date >= range.start && s.sale_date <= range.end)
+    .reduce((a, s) => a + s.amount, 0)
+  const storeSupply = Math.round(storeRaw / 1.1)
+  const stdEstimate = Math.round((onlineSupply + storeSupply) * stdRate)
   return {
     onlineSupply,
+    storeSupply,
     purch,
     cogsExpense,
     stdEstimate,
@@ -150,6 +157,7 @@ export default function DianOverview() {
     expenses: SaekdongExpense[]
     itemCosts: SaekdongItemCost[]
   } | null>(null)
+  const [storeSales, setStoreSales] = useState<{ sale_date: string; amount: number }[]>([]) // 색동 매장 판매
   const [bodyPnl, setBodyPnl] = useState<Record<string, BodyPnl>>({})
   const [loading, setLoading] = useState(true)
   // 월중 예상 토글 — 블록별 독립 (이번 달 조회 시에만 노출, 대표 지시 2026-07-13)
@@ -197,17 +205,20 @@ export default function DianOverview() {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [s, o, sc, ds] = await Promise.all([
+      const [s, o, sc, ds, ss] = await Promise.all([
         fetchSharedSales<SeriesData>().catch(() => null),
         fetchSharedOffline<SeriesData>().catch(() => null),
         listSaekdongCosts().catch(() => null),
         // 디안 원단몰 (아임웹 2호점) — 본체 매출에 편입
         fetchSharedDianShop<SeriesData>().catch(() => null),
+        // 색동 매장 직접 판매 (현금·카드) — 총매출·원가 정산 합산 (대표 지시 2026-08-10)
+        fetch('/api/saekdong/store-sales?months=24').then((r) => r.json()).catch(() => null),
       ])
       setSaekOn(s)
       setSaekOff(o)
       setDianShop(ds)
       if (sc) setSaekCosts({ purchases: sc.purchases, expenses: sc.expenses, itemCosts: sc.itemCosts })
+      if (ss?.rows) setStoreSales(ss.rows)
     } catch {
       // 부가 표시 — 실패 시 0
     } finally {
@@ -226,18 +237,23 @@ export default function DianOverview() {
     const shopSupply = Math.round(seriesRevenue(dianShop, shareSel.range) / 1.1)
     const bodyRev = body.sales - saekOffline + shopSupply
     const naidRev = body.naid?.sales ?? 0
-    const saekRev = saekOnline + saekOffline
+    const storeSupply = Math.round(
+      storeSales
+        .filter((s) => s.sale_date >= shareSel.range.start && s.sale_date <= shareSel.range.end)
+        .reduce((a, s) => a + s.amount, 0) / 1.1,
+    )
+    const saekRev = saekOnline + saekOffline + storeSupply
     return { bodyRev, saekRev, naidRev, total: bodyRev + saekRev + naidRev }
-  }, [bodyPnl, shareSel.rangeKey, shareSel.range, saekOn, saekOff, dianShop])
+  }, [bodyPnl, shareSel.rangeKey, shareSel.range, saekOn, saekOff, dianShop, storeSales])
 
   // ── 색동 기간 손익 재료 (색동 계기판과 동일 규칙, 과거 기간 지원) — 통합 합산용 ──
-  const saekChain = useMemo(() => computeSaekPnl(saekCosts, saekOn, range), [saekCosts, saekOn, range])
+  const saekChain = useMemo(() => computeSaekPnl(saekCosts, saekOn, range, storeSales), [saekCosts, saekOn, range, storeSales])
 
   // ── 색동 블록 손익 사슬 (독립 선택기 saekSel — 생키용 전체 사슬) ──
   const saekBlockChain = useMemo(() => {
-    const p = computeSaekPnl(saekCosts, saekOn, saekSel.range)
+    const p = computeSaekPnl(saekCosts, saekOn, saekSel.range, storeSales)
     const offline = saekOff && !saekOff.error ? seriesRevenue(saekOff, saekSel.range) : 0
-    const revenue = p.onlineSupply + offline
+    const revenue = p.onlineSupply + offline + p.storeSupply
     const gross = revenue - p.cogs
     const contribution = gross - p.variable
     const operating = contribution - p.fixed
@@ -258,7 +274,7 @@ export default function DianOverview() {
         nonOp: [{ label: '색동 영업외', amount: p.nonOp }],
       },
     }
-  }, [saekCosts, saekOn, saekOff, saekSel.range])
+  }, [saekCosts, saekOn, saekOff, saekSel.range, storeSales])
 
   // ── 회사 전체 손익 사슬 = 본체(일계표 + 디안몰) + 색동 (오프라인은 본체에 포함 — 이중계상 없음) ──
   const chain = useMemo(() => {
@@ -267,7 +283,7 @@ export default function DianOverview() {
     const shopSupply = Math.round(seriesRevenue(dianShop, range) / 1.1) // 디안 원단몰 — 본체 소속 (원가 미연동)
     const naidSales = body.naid?.sales ?? 0
     const naidCogs = body.naid?.cogs ?? 0
-    const revenue = body.sales + saekChain.onlineSupply + shopSupply + naidSales
+    const revenue = body.sales + saekChain.onlineSupply + saekChain.storeSupply + shopSupply + naidSales
     const cogs = body.fabricCogs + saekChain.cogs + naidCogs
     const gross = revenue - cogs
     const variable = body.expenses + body.shipping + saekChain.variable
@@ -412,10 +428,10 @@ export default function DianOverview() {
     }
   }, [avg6])
   const saekAvg = useMemo(() => {
-    const p = computeSaekPnl(saekCosts, saekOn, avg6Range)
+    const p = computeSaekPnl(saekCosts, saekOn, avg6Range, storeSales)
     const n = 6
     return { cogs: p.cogs / n, variable: p.variable / n, fixed: p.fixed / n, nonOp: p.nonOp / n }
-  }, [saekCosts, saekOn, avg6Range])
+  }, [saekCosts, saekOn, avg6Range, storeSales])
 
   const isCurMonth = (sel: PeriodSel) => sel.period === 'month' && sel.selMonth === sel.nowM
 
@@ -551,7 +567,7 @@ export default function DianOverview() {
     const naidIntP = estOr(niA, fcAvg.naidInterest)
     const month = deriveChain({
       revenue:
-        Math.round(a.sales * pace) + Math.round(saekChain.onlineSupply * pace) +
+        Math.round(a.sales * pace) + Math.round((saekChain.onlineSupply + saekChain.storeSupply) * pace) +
         Math.round(shop * pace) + estOr(nsA, fcAvg.naidSales),
       cogs: bodySoldP + lateP + saekCogsP + naidCogsP,
       variable: bodyVarP + shipP + saekVarP,
@@ -559,7 +575,7 @@ export default function DianOverview() {
       nonOp: bodyIntP + saekNonOpP + naidIntP,
     })
     const today = deriveChain({
-      revenue: a.sales + saekChain.onlineSupply + shop + nsA,
+      revenue: a.sales + saekChain.onlineSupply + saekChain.storeSupply + shop + nsA,
       cogs: soldA + estOr(lateA, fcAvg.late * ratio) + saekChain.cogs + estOr(ncA, fcAvg.naidCogs * ratio),
       variable:
         estOr(a.expenses, fcAvg.variable * ratio) + a.shipping +
