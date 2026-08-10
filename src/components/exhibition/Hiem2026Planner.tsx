@@ -21,7 +21,7 @@ type CustomBooth = HiemBooth & {
 const NOTES_STORAGE_KEY = 'dian:shanghai-intertextile-2026:notes'
 const LEGACY_NOTES_STORAGE_KEY = 'dian:hiem-intertextile-2026:notes'
 const CUSTOM_BOOTH_STORAGE_KEY = 'dian:shanghai-intertextile-2026:custom-booths'
-const halls = ['전체', '5.1', '5.2', '6.1', '6.2', '확인 중']
+const halls = ['전체', '5.1', '5.2', '6.1', '6.2', '확인 중', '새 업체']
 
 export default function Hiem2026Planner() {
   const [query, setQuery] = useState('')
@@ -46,14 +46,18 @@ export default function Hiem2026Planner() {
   const visibleBooths = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return allBooths.filter((booth) => {
-      const matchesHall = hall === '전체' || booth.hall === hall
+      const isCustom = booth.id.startsWith('custom-')
+      const matchesHall = hall === '전체' || (hall === '새 업체' ? isCustom : booth.hall === hall)
       const matchesQuery = !needle || `${booth.brand} ${booth.hall} ${booth.booth}`.toLowerCase().includes(needle)
       return matchesHall && matchesQuery
     })
   }, [hall, query, allBooths])
 
   const groups = useMemo(
-    () => halls.slice(1).map((name) => ({ name, booths: visibleBooths.filter((booth) => booth.hall === name) })).filter((group) => group.booths.length),
+    () => [
+      ...halls.slice(1, -1).map((name) => ({ name, booths: visibleBooths.filter((booth) => booth.hall === name && !booth.id.startsWith('custom-')) })),
+      { name: '새 업체 분류', booths: visibleBooths.filter((booth) => booth.id.startsWith('custom-')) },
+    ].filter((group) => group.booths.length),
     [visibleBooths],
   )
 
@@ -168,7 +172,7 @@ function Summary({ value, label }: { value: string; label: string }) {
 }
 
 function BoothGroup({ name, booths, selectedId, notes, onSelect }: { name: string; booths: HiemBooth[]; selectedId: string | null; notes: Record<string, BoothNote>; onSelect: (id: string) => void }) {
-  return <section><div className="mb-3 flex items-center justify-between border-b border-black pb-2"><h2 className="text-lg font-bold tracking-[-0.035em]">Hall {name}</h2><span className="text-xs text-[#757575]">{booths.length}개 업체</span></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">{booths.map((booth) => { const hasNote = Boolean(notes[booth.id] && Object.values(notes[booth.id]).some(Boolean)); const status = notes[booth.id]?.status; return <button key={booth.id} onClick={() => onSelect(booth.id)} className={`min-h-[106px] border p-4 text-left transition ${selectedId === booth.id ? 'border-[#76b900] bg-[#f7f7f7] ring-1 ring-[#76b900]' : 'border-[#ccc] bg-white hover:border-black'}`}><div className="flex items-center justify-between gap-2 text-[11px] font-bold tracking-[0.08em] text-[#5a8d00]"><span>{booth.hall} · {booth.booth}</span>{hasNote && <span className="h-2 w-2 bg-[#76b900]" aria-label="메모 있음" />}</div><div className="mt-3 flex items-end justify-between gap-3"><span className="text-[17px] font-bold tracking-[-0.03em]">{booth.brand}</span>{status && status !== '방문 예정' && <span className="ml-auto border border-[#76b900] bg-[#f2ffe0] px-1.5 py-0.5 text-[10px] font-bold text-[#4e7900]">{status}</span>}<ChevronRight className="h-4 w-4 shrink-0 text-[#757575]" /></div></button> })}</div></section>
+  return <section><div className="mb-3 flex items-center justify-between border-b border-black pb-2"><h2 className="text-lg font-bold tracking-[-0.035em]">Hall {name}</h2><span className="text-xs text-[#757575]">{booths.length}개 업체</span></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">{booths.map((booth) => { const hasNote = Boolean(notes[booth.id] && Object.values(notes[booth.id]).some(Boolean)); const status = notes[booth.id]?.status; const isCustom = booth.id.startsWith('custom-'); return <button key={booth.id} onClick={() => onSelect(booth.id)} className={`min-h-[106px] border p-4 text-left transition ${selectedId === booth.id ? 'border-[#76b900] bg-[#f7f7f7] ring-1 ring-[#76b900]' : 'border-[#ccc] bg-white hover:border-black'}`}><div className="flex items-center justify-between gap-2 text-[11px] font-bold tracking-[0.08em] text-[#5a8d00]"><span>{booth.hall} · {booth.booth}</span>{isCustom && <span className="border border-[#76b900] bg-[#f2ffe0] px-1 py-0.5 text-[9px] text-[#4e7900]">새 업체 카드</span>}{hasNote && <span className="h-2 w-2 bg-[#76b900]" aria-label="메모 있음" />}</div><div className="mt-3 flex items-end justify-between gap-3"><span className="text-[17px] font-bold tracking-[-0.03em]">{booth.brand}</span>{status && status !== '방문 예정' && <span className="ml-auto border border-[#76b900] bg-[#f2ffe0] px-1.5 py-0.5 text-[10px] font-bold text-[#4e7900]">{status}</span>}<ChevronRight className="h-4 w-4 shrink-0 text-[#757575]" /></div></button> })}</div></section>
 }
 
 function DetailPanel({ booth, note, saved, onSave, onClose }: { booth: HiemBooth | null; note?: BoothNote; saved: boolean; onSave: (note: BoothNote) => void; onClose?: () => void }) {
