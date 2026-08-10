@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Employee } from '@/lib/cycle-okr'
 import SaekdongOkr from './SaekdongOkr'
 import SaekdongCycleSetup from './SaekdongCycleSetup'
+import SaekdongStoreSales from './SaekdongStoreSales'
 import SaekdongSales from './SaekdongSales'
 import SaekdongOfflineSales from './SaekdongOfflineSales'
 import SaekdongVision from './SaekdongVision'
@@ -89,6 +90,9 @@ export default async function SaekdongPage() {
 
       {/* 비전 · 미션 — 사장님이 직접 작성·수정 */}
       <SaekdongVision initialVision={vision.vision} initialMission={vision.mission} />
+
+      {/* 매장 직접 판매 — 현금·카드 수기 입력 (대표 지시 2026-07-28) */}
+      <SaekdongStoreSales />
 
       {/* 12주 목표 — 색동 프로젝트 OKR (큰 목표 + KR + 주별 타겟 + 5일 투두) */}
       <div>
