@@ -30,6 +30,7 @@ const confirmed: Array<[string, string, string]> = [
   ['Hexin', '5.1', 'F32'],
   ['Top choice', '6.2', 'D73'],
   ['NABOO', '5.1', 'F10'],
+  ['KELLY FU', '5.1', 'H33'],
 ]
 
 const pending = ['NOVATEX', 'DEKAI', 'EASTERN', 'ALWAYS', 'JES']

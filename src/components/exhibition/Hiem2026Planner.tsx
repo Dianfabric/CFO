@@ -74,7 +74,7 @@ export default function Hiem2026Planner() {
 
       <main className="mx-auto max-w-[1440px] px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
         <section className="grid grid-cols-3 border border-[#ccc]">
-          <Summary value="21" label="확인된 부스" />
+          <Summary value={String(hiem2026Booths.filter((booth) => booth.status === 'confirmed').length)} label="확인된 부스" />
           <Summary value={String(Object.values(notes).filter((note) => Object.values(note).some(Boolean)).length)} label="메모 작성 업체" />
           <Summary value="5" label="부스 확인 중" />
         </section>
