@@ -144,6 +144,8 @@ export default function DocumentPreviewDialog({ open, onOpenChange, doc }: Props
       router.push(`/documents/new/price-change?direction=${direction}&from=${doc.id}`)
     } else if (doc.type === 'PRICE_INFO') {
       router.push(`/documents/new/price-info?from=${doc.id}`)
+    } else if (doc.type === 'HOLIDAY') {
+      router.push(`/documents/new/notice?from=${doc.id}`)
     } else {
       alert('이 유형은 수정 생성을 지원하지 않습니다.')
       return

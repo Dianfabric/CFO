@@ -203,6 +203,13 @@ export default function DocumentsPage() {
                 <div className="text-xs text-slate-500 mt-1">품목별 현행 단가 안내</div>
               </div>
             </Link>
+            <Link href="/documents/new/notice">
+              <div className="border rounded-lg p-4 bg-white hover:border-amber-400 hover:shadow-sm transition">
+                <CalendarOff className="w-5 h-5 text-amber-600 mb-2" />
+                <div className="font-semibold text-sm">휴무/업체 공지</div>
+                <div className="text-xs text-slate-500 mt-1">휴가·배송·운영 안내</div>
+              </div>
+            </Link>
             <div className="border rounded-lg p-4 bg-slate-50 opacity-60 cursor-not-allowed">
               <Wallet className="w-5 h-5 text-blue-600 mb-2" />
               <div className="font-semibold text-sm">결제 요청</div>

@@ -22,6 +22,7 @@ import {
   Layers,
   Library,
   Wand2,
+  UsersRound,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import PublishingSystem from './PublishingSystem'
@@ -279,10 +280,18 @@ export default async function MarketingHubPage() {
               </CardContent>
             </Card>
           </Link>
+          <Link href="/finance/marketing/exhibitions">
+            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
+              <CardContent className="space-y-1 py-3">
+                <UsersRound className="h-5 w-5 text-blue-500" />
+                <div className="text-sm font-semibold">⑫ 행사 업체 정보</div>
+                <div className="text-[11px] text-slate-500">행사별 VIP 고객·엑셀 다운로드</div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 
-      {/* 가이드 */}
       <Card className="border-amber-100 bg-amber-50/40">
         <CardHeader>
           <CardTitle className="text-sm">📌 마케팅 시작 순서</CardTitle>
