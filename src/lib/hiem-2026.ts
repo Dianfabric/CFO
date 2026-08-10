@@ -31,9 +31,10 @@ const confirmed: Array<[string, string, string]> = [
   ['Top choice', '6.2', 'D73'],
   ['NABOO', '5.1', 'F10'],
   ['KELLY FU', '5.1', 'H33'],
+  ['DEKAI', '6.2', 'D60'],
 ]
 
-const pending = ['NOVATEX', 'DEKAI', 'EASTERN', 'ALWAYS', 'JES']
+const pending = ['NOVATEX', 'EASTERN', 'ALWAYS', 'JES']
 
 export const hiem2026Booths: HiemBooth[] = [
   ...confirmed.map(([brand, hall, booth]) => ({
