@@ -60,11 +60,11 @@ export default function Hiem2026Planner() {
         <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#76b900 1px, transparent 1px), linear-gradient(90deg, #76b900 1px, transparent 1px)', backgroundSize: '64px 64px' }} />
         <div className="relative mx-auto max-w-[1440px] px-4 py-8 sm:px-10 sm:py-14 lg:px-12">
           <div className="mb-4 flex items-center gap-3 text-[10px] font-bold tracking-[0.14em] text-[#76b900] sm:mb-6 sm:text-[11px] sm:tracking-[0.18em]">
-            <span className="h-2 w-2 bg-[#76b900]" /> DIAVIS · DOCUMENTS / 2026 EXHIBITION
+            <span className="h-2 w-2 bg-[#76b900]" /> DIAVIS · DOCUMENTS / 2026 SHANGHAI EXHIBITION
           </div>
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
-              <h1 className="text-3xl font-bold leading-[1.05] tracking-[-0.055em] sm:text-5xl">2026 HIEM INTERTEXTILE</h1>
+              <h1 className="text-3xl font-bold leading-[1.05] tracking-[-0.055em] sm:text-5xl">2026 상하이 INTERTEXTILE</h1>
               <p className="mt-2 text-sm text-white/70 sm:mt-3 sm:text-[15px]">부스 탐색 · 미팅 기록 · 후속 할 일</p>
             </div>
             <p className="hidden max-w-[290px] text-sm leading-6 text-white/65 sm:block">브랜드 카드를 누르면 담당자, 제품, 미팅 내용과 다음 할 일을 바로 기록할 수 있습니다.</p>
