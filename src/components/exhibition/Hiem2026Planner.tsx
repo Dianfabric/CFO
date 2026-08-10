@@ -41,7 +41,10 @@ export default function Hiem2026Planner() {
     }
   }, [])
 
-  const allBooths = useMemo(() => [...hiem2026Booths, ...customBooths], [customBooths])
+  const allBooths = useMemo(() => {
+    const officialBrands = new Set(hiem2026Booths.map((booth) => booth.brand.trim().toLowerCase()))
+    return [...hiem2026Booths, ...customBooths.filter((booth) => !officialBrands.has(booth.brand.trim().toLowerCase()))]
+  }, [customBooths])
   const selected = allBooths.find((booth) => booth.id === selectedId) ?? null
   const visibleBooths = useMemo(() => {
     const needle = query.trim().toLowerCase()

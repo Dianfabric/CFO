@@ -32,6 +32,7 @@ const confirmed: Array<[string, string, string]> = [
   ['NABOO', '5.1', 'F10'],
   ['KELLY FU', '5.1', 'H33'],
   ['DEKAI', '6.2', 'D60'],
+  ['QBH', '5.1', 'F20'],
 ]
 
 const pending = ['NOVATEX', 'EASTERN', 'ALWAYS', 'JES']
