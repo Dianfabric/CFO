@@ -108,13 +108,22 @@ interface Props {
 export default function SaekdongPulse({ purchases, expenses, itemCosts = [] }: Props) {
   const [sales, setSales] = useState<SalesLite | null>(null)
   const [offline, setOffline] = useState<OfflineLite | null>(null)
+  const [storeByMonth, setStoreByMonth] = useState<Map<string, number>>(new Map()) // 매장 판매 월별 공급가
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([fetchSharedSales<SalesLite>(), fetchSharedOffline<OfflineLite>()])
-      .then(([s, o]) => {
+    Promise.all([
+      fetchSharedSales<SalesLite>(),
+      fetchSharedOffline<OfflineLite>(),
+      // 매장 직접 판매 — 월별 흐름에도 합산 (대표 지시 2026-08-10)
+      fetch('/api/saekdong/store-sales?months=24').then((r) => r.json()).catch(() => null),
+    ])
+      .then(([s, o, ss]) => {
         setSales(s)
         setOffline(o)
+        if (ss?.monthly) {
+          setStoreByMonth(new Map(ss.monthly.map((x: { month: string; total: number }) => [x.month, Math.round(x.total / 1.1)])))
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -124,10 +133,10 @@ export default function SaekdongPulse({ purchases, expenses, itemCosts = [] }: P
     const months = (sales?.monthly ?? []).map((x) => x.month)
     if (months.length === 0) return null
 
-    // 월별 매출 (공급가) = 온라인/1.1 + 오프라인
+    // 월별 매출 (공급가) = 온라인/1.1 + 오프라인 + 매장 직접 판매
     const offMap = new Map((offline?.monthly ?? []).map((x) => [x.month, x.revenue]))
     const revenue = months.map((mo, i) =>
-      Math.round((sales!.monthly[i]?.revenue ?? 0) / 1.1) + (offMap.get(mo) ?? 0),
+      Math.round((sales!.monthly[i]?.revenue ?? 0) / 1.1) + (offMap.get(mo) ?? 0) + (storeByMonth.get(mo) ?? 0),
     )
 
     // 월별 비용
@@ -168,7 +177,7 @@ export default function SaekdongPulse({ purchases, expenses, itemCosts = [] }: P
         if (e.is_monthly) return monthlyActive(e, mo) ? s + e.amount : s
         return (e.expense_date ?? '').startsWith(mo) ? s + e.amount : s
       }, 0)
-      const std = Math.round((sales!.monthly[i]?.revenue ?? 0) / 1.1 * stdRate)
+      const std = Math.round(((sales!.monthly[i]?.revenue ?? 0) / 1.1 + (storeByMonth.get(mo) ?? 0)) * stdRate)
       return purch + cogsExp + std
     })
 
@@ -204,7 +213,7 @@ export default function SaekdongPulse({ purchases, expenses, itemCosts = [] }: P
       lastIdx, lastLabel, lastRev, growth, lastMargin, marginDelta,
       lastFixed, lastVar: varByMonth[lastIdx], bep,
     }
-  }, [sales, offline, purchases, expenses, itemCosts])
+  }, [sales, offline, purchases, expenses, itemCosts, storeByMonth])
 
   const revCount = useCountUp(m?.lastRev ?? 0)
   const marginCount = useCountUp(m?.lastMargin ?? 0)

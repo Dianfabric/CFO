@@ -49,6 +49,7 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
   const [period, setPeriod] = useState<Period>('month')
   const [sales, setSales] = useState<SalesData | null>(null)
   const [offline, setOffline] = useState<OfflineData | null>(null)
+  const [storeSales, setStoreSales] = useState<{ sale_date: string; amount: number }[]>([]) // 매장 직접 판매
   const [loading, setLoading] = useState(true)
 
   // 과거 기간 선택 (26년 내) — 월 1~12 / 분기 1~4 / 주 offset(0=이번 주)
@@ -69,12 +70,15 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     setLoading(true)
     try {
       // 매출 섹션과 같은 요청을 공유 (아임웹 호출 제한 보호 — 페이지당 1회)
-      const [s, o] = await Promise.all([
+      const [s, o, ss] = await Promise.all([
         fetchSharedSales<SalesData>(),
         fetchSharedOffline<OfflineData>(),
+        // 매장 직접 판매 — 경영지표 총매출·원가 정산 합산 (대표 지시 2026-08-10)
+        fetch('/api/saekdong/store-sales?months=24').then((r) => r.json()).catch(() => null),
       ])
       setSales(s)
       setOffline(o)
+      if (ss?.rows) setStoreSales(ss.rows)
     } catch {
       // 지표는 부가 표시 — 실패 시 0 처리
     } finally {
@@ -88,7 +92,12 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     // 매출 (공급가): 온라인 ÷1.1 + 오프라인 — 선택 기간(과거 포함)
     const onlineRaw = sales && !sales.error ? seriesRevenue(sales, range) : 0
     const offlineRaw = offline && !offline.error ? seriesRevenue(offline, range) : 0
-    const revenue = Math.round(onlineRaw / 1.1) + offlineRaw
+    // 매장 직접 판매 — 결제액(부가세 포함) → 공급가 환산 (경영 계기판과 동일 규칙)
+    const storeSupply = Math.round(
+      storeSales.filter((s) => s.sale_date >= range.start && s.sale_date <= range.end)
+        .reduce((a, s) => a + s.amount, 0) / 1.1,
+    )
+    const revenue = Math.round(onlineRaw / 1.1) + offlineRaw + storeSupply
 
     // 매출원가: 기간 매입 + 성격=매출원가 비용
     const inPeriod = (dt: string | null | undefined) => !!dt && dt >= range.start && dt <= range.end
@@ -120,7 +129,8 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     const yearOnlineSupply =
       sales && !sales.error ? Math.round((sales.thisYear ?? 0) / 1.1) : 0
     const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
-    const stdCogs = Math.round((onlineRaw / 1.1) * stdRate)
+    // 기준단가 추정 원가 — 매장 판매에도 같은 원가율 적용 (경영 계기판과 동일 규칙)
+    const stdCogs = Math.round((onlineRaw / 1.1 + storeSupply) * stdRate)
 
     const purchSum = purchases.filter((p) => inPeriod(p.purchase_date)).reduce((s, p) => s + p.amount, 0)
     const expCogs = expSum((e) => e.nature === '매출원가')
@@ -164,7 +174,7 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
     const bep = fixed > 0 && contribution > 0 ? Math.round((fixed * revenue) / contribution) : null
 
     return { revenue, cogs, variable, fixed, nonOp, gross, contribution, operating, pretax, rate, bep, bepRate, breakdowns }
-  }, [range, sales, offline, purchases, expenses, itemCosts])
+  }, [range, sales, offline, purchases, expenses, itemCosts, storeSales])
 
   return (
     <div className="space-y-3">
