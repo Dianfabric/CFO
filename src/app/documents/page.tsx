@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { FileText, Plus, TrendingUp, CalendarOff, Wallet, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon, FolderOpen, UserPlus } from 'lucide-react'
+import { FileText, Plus, TrendingUp, CalendarOff, Wallet, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon, FolderOpen, UserPlus, MapPinned } from 'lucide-react'
 import DocumentPreviewDialog, { DocFull } from '@/components/documents/DocumentPreviewDialog'
 import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/SavedDocumentRender'
 import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
@@ -232,6 +232,16 @@ export default function DocumentsPage() {
                 </div>
                 <div className="font-semibold text-sm">단가 검색</div>
                 <div className="text-xs text-slate-500 mt-1">원단 단가 조회</div>
+              </div>
+            </Link>
+            <Link href="/documents/2026-exhibition" className="group">
+              <div className="border-2 p-4 bg-black text-white hover:bg-[#1a1a1a] transition" style={{ borderColor: 'var(--nv-primary)', borderRadius: '2px' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <MapPinned className="w-5 h-5" style={{ color: 'var(--nv-primary)' }} />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--nv-primary)' }}>2026</span>
+                </div>
+                <div className="font-semibold text-sm">2026 전시회</div>
+                <div className="text-xs text-white/65 mt-1">HIEM INTERTEXTILE 부스·미팅 기록</div>
               </div>
             </Link>
             <Link href="/documents/storage" className="group">
