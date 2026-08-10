@@ -58,33 +58,35 @@ export default function Hiem2026Planner() {
     <div className="-mx-4 -my-8 sm:-mx-6 sm:-my-10 lg:-mx-8 lg:-my-12">
       <section className="relative overflow-hidden bg-black text-white">
         <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#76b900 1px, transparent 1px), linear-gradient(90deg, #76b900 1px, transparent 1px)', backgroundSize: '64px 64px' }} />
-        <div className="relative mx-auto max-w-[1440px] px-6 py-14 sm:px-10 lg:px-12">
-          <div className="mb-6 flex items-center gap-3 text-[11px] font-bold tracking-[0.18em] text-[#76b900]">
+        <div className="relative mx-auto max-w-[1440px] px-4 py-8 sm:px-10 sm:py-14 lg:px-12">
+          <div className="mb-4 flex items-center gap-3 text-[10px] font-bold tracking-[0.14em] text-[#76b900] sm:mb-6 sm:text-[11px] sm:tracking-[0.18em]">
             <span className="h-2 w-2 bg-[#76b900]" /> DIAVIS · DOCUMENTS / 2026 EXHIBITION
           </div>
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
-              <h1 className="text-4xl font-bold tracking-[-0.055em] sm:text-5xl">2026 HIEM INTERTEXTILE</h1>
-              <p className="mt-3 text-[15px] text-white/70">부스 탐색 · 미팅 기록 · 후속 할 일</p>
+              <h1 className="text-3xl font-bold leading-[1.05] tracking-[-0.055em] sm:text-5xl">2026 HIEM INTERTEXTILE</h1>
+              <p className="mt-2 text-sm text-white/70 sm:mt-3 sm:text-[15px]">부스 탐색 · 미팅 기록 · 후속 할 일</p>
             </div>
-            <p className="max-w-[290px] text-sm leading-6 text-white/65">브랜드 카드를 누르면 담당자, 제품, 미팅 내용과 다음 할 일을 바로 기록할 수 있습니다.</p>
+            <p className="hidden max-w-[290px] text-sm leading-6 text-white/65 sm:block">브랜드 카드를 누르면 담당자, 제품, 미팅 내용과 다음 할 일을 바로 기록할 수 있습니다.</p>
           </div>
         </div>
       </section>
 
       <main className="mx-auto max-w-[1440px] px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
-        <section className="grid border border-[#ccc] sm:grid-cols-3">
+        <section className="grid grid-cols-3 border border-[#ccc]">
           <Summary value="21" label="확인된 부스" />
           <Summary value={String(Object.values(notes).filter((note) => Object.values(note).some(Boolean)).length)} label="메모 작성 업체" />
           <Summary value="5" label="부스 확인 중" />
         </section>
 
-        <div className="mt-6 flex flex-wrap items-center gap-2">
-          <label className="relative mr-1 min-w-[220px] flex-1 sm:max-w-[320px]">
+        <div className="mt-5 grid gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:items-center">
+          <label className="relative w-full sm:mr-1 sm:min-w-[220px] sm:flex-1 sm:max-w-[320px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#757575]" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="브랜드 또는 부스번호 검색" className="h-10 w-full border border-[#ccc] bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#76b900] focus:ring-1 focus:ring-[#76b900]" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="브랜드 또는 부스번호 검색" className="h-11 w-full border border-[#ccc] bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#76b900] focus:ring-1 focus:ring-[#76b900] sm:h-10" />
           </label>
-          {halls.map((name) => <button key={name} onClick={() => setHall(name)} className={`h-10 border px-3 text-sm font-semibold transition ${hall === name ? 'border-[#76b900] bg-[#76b900] text-black' : 'border-[#ccc] bg-white text-black hover:border-black'}`}>{name}</button>)}
+          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:contents">
+            {halls.map((name) => <button key={name} onClick={() => setHall(name)} className={`h-10 shrink-0 border px-3 text-sm font-semibold transition ${hall === name ? 'border-[#76b900] bg-[#76b900] text-black' : 'border-[#ccc] bg-white text-black hover:border-black'}`}>{name}</button>)}
+          </div>
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -111,11 +113,11 @@ export default function Hiem2026Planner() {
 }
 
 function Summary({ value, label }: { value: string; label: string }) {
-  return <div className="border-b border-[#ccc] bg-white px-5 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"><strong className="block text-3xl font-bold tracking-[-0.05em] text-[#5a8d00]">{value}</strong><span className="mt-1 block text-xs text-[#757575]">{label}</span></div>
+  return <div className="border-r border-[#ccc] bg-white px-3 py-3 last:border-r-0 sm:px-5 sm:py-4"><strong className="block text-2xl font-bold tracking-[-0.05em] text-[#5a8d00] sm:text-3xl">{value}</strong><span className="mt-1 block text-[11px] leading-4 text-[#757575] sm:text-xs">{label}</span></div>
 }
 
 function BoothGroup({ name, booths, selectedId, notes, onSelect }: { name: string; booths: HiemBooth[]; selectedId: string | null; notes: Record<string, BoothNote>; onSelect: (id: string) => void }) {
-  return <section><div className="mb-3 flex items-center justify-between border-b border-black pb-2"><h2 className="text-lg font-bold tracking-[-0.035em]">Hall {name}</h2><span className="text-xs text-[#757575]">{booths.length}개 업체</span></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{booths.map((booth) => { const hasNote = Boolean(notes[booth.id] && Object.values(notes[booth.id]).some(Boolean)); const status = notes[booth.id]?.status; return <button key={booth.id} onClick={() => onSelect(booth.id)} className={`min-h-[106px] border p-4 text-left transition ${selectedId === booth.id ? 'border-[#76b900] bg-[#f7f7f7] ring-1 ring-[#76b900]' : 'border-[#ccc] bg-white hover:border-black'}`}><div className="flex items-center justify-between gap-2 text-[11px] font-bold tracking-[0.08em] text-[#5a8d00]"><span>{booth.hall} · {booth.booth}</span>{hasNote && <span className="h-2 w-2 bg-[#76b900]" aria-label="메모 있음" />}</div><div className="mt-3 flex items-end justify-between gap-3"><span className="text-[17px] font-bold tracking-[-0.03em]">{booth.brand}</span>{status && status !== '방문 예정' && <span className="ml-auto border border-[#76b900] bg-[#f2ffe0] px-1.5 py-0.5 text-[10px] font-bold text-[#4e7900]">{status}</span>}<ChevronRight className="h-4 w-4 shrink-0 text-[#757575]" /></div></button> })}</div></section>
+  return <section><div className="mb-3 flex items-center justify-between border-b border-black pb-2"><h2 className="text-lg font-bold tracking-[-0.035em]">Hall {name}</h2><span className="text-xs text-[#757575]">{booths.length}개 업체</span></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">{booths.map((booth) => { const hasNote = Boolean(notes[booth.id] && Object.values(notes[booth.id]).some(Boolean)); const status = notes[booth.id]?.status; return <button key={booth.id} onClick={() => onSelect(booth.id)} className={`min-h-[106px] border p-4 text-left transition ${selectedId === booth.id ? 'border-[#76b900] bg-[#f7f7f7] ring-1 ring-[#76b900]' : 'border-[#ccc] bg-white hover:border-black'}`}><div className="flex items-center justify-between gap-2 text-[11px] font-bold tracking-[0.08em] text-[#5a8d00]"><span>{booth.hall} · {booth.booth}</span>{hasNote && <span className="h-2 w-2 bg-[#76b900]" aria-label="메모 있음" />}</div><div className="mt-3 flex items-end justify-between gap-3"><span className="text-[17px] font-bold tracking-[-0.03em]">{booth.brand}</span>{status && status !== '방문 예정' && <span className="ml-auto border border-[#76b900] bg-[#f2ffe0] px-1.5 py-0.5 text-[10px] font-bold text-[#4e7900]">{status}</span>}<ChevronRight className="h-4 w-4 shrink-0 text-[#757575]" /></div></button> })}</div></section>
 }
 
 function DetailPanel({ booth, note, saved, onSave, onClose }: { booth: HiemBooth | null; note?: BoothNote; saved: boolean; onSave: (note: BoothNote) => void; onClose?: () => void }) {
