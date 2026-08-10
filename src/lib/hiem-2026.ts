@@ -37,7 +37,7 @@ const confirmed: Array<[string, string, string]> = [
   ['JES', '6.2', 'F67'],
 ]
 
-const pending = ['NOVATEX', 'ALWAYS']
+const pending = ['ALWAYS']
 
 export const hiem2026Booths: HiemBooth[] = [
   ...confirmed.map(([brand, hall, booth]) => ({
@@ -56,7 +56,7 @@ export const hiem2026Booths: HiemBooth[] = [
   })),
 ]
 
-export const hiem2026Unavailable = ['Kashen', 'dido', 'GTA', 'Davis (9월)', 'EK']
+export const hiem2026Unavailable = ['Kashen', 'dido', 'GTA', 'Davis (9월)', 'EK', 'NOVATEX']
 
 export function boothSummary(booths: HiemBooth[]) {
   return {

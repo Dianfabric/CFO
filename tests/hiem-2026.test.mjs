@@ -12,10 +12,10 @@ execFileSync('npx', [
 ], { cwd: '/Users/dian/CFO', stdio: 'inherit' })
 assert.equal(existsSync(`${outDir}/hiem-2026.js`), true)
 
-const { hiem2026Booths, boothSummary } = await import(`file://${outDir}/hiem-2026.js`)
+const { hiem2026Booths, hiem2026Unavailable, boothSummary } = await import(`file://${outDir}/hiem-2026.js`)
 
 assert.equal(hiem2026Booths.filter((booth) => booth.status === 'confirmed').length, 26)
-assert.equal(hiem2026Booths.filter((booth) => booth.status === 'pending').length, 2)
+assert.equal(hiem2026Booths.filter((booth) => booth.status === 'pending').length, 1)
 assert.equal(hiem2026Booths.filter((booth) => booth.brand === 'E539').length, 0)
 assert.equal(hiem2026Booths.find((booth) => booth.brand === 'Ricky')?.booth, 'D39')
 assert.equal(hiem2026Booths.find((booth) => booth.brand === 'KELLY FU')?.hall, '5.1')
@@ -24,5 +24,6 @@ assert.equal(hiem2026Booths.find((booth) => booth.brand === 'DEKAI')?.booth, 'D6
 assert.equal(hiem2026Booths.find((booth) => booth.brand === 'QBH')?.booth, 'F20')
 assert.equal(hiem2026Booths.find((booth) => booth.brand === 'EASTERN')?.booth, 'C31')
 assert.equal(hiem2026Booths.find((booth) => booth.brand === 'JES')?.booth, 'F67')
-assert.deepEqual(boothSummary(hiem2026Booths), { confirmed: 26, pending: 2 })
+assert.equal(hiem2026Unavailable.includes('NOVATEX'), true)
+assert.deepEqual(boothSummary(hiem2026Booths), { confirmed: 26, pending: 1 })
 console.log('HIEM 2026 booth source tests passed')
