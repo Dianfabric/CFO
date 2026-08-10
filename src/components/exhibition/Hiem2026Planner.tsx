@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Check, ChevronRight, ClipboardPenLine, Search, X } from 'lucide-react'
+import { Check, ChevronRight, ClipboardPenLine, IdCard, ImagePlus, Plus, Search, X } from 'lucide-react'
 import { hiem2026Booths, hiem2026Unavailable, type HiemBooth } from '@/lib/hiem-2026'
 
 type BoothNote = {
@@ -12,7 +12,15 @@ type BoothNote = {
   status?: string
 }
 
-const STORAGE_KEY = 'dian:hiem-intertextile-2026:notes'
+type CustomBooth = HiemBooth & {
+  photo?: string
+  businessCard?: string
+  createdAt: string
+}
+
+const NOTES_STORAGE_KEY = 'dian:shanghai-intertextile-2026:notes'
+const LEGACY_NOTES_STORAGE_KEY = 'dian:hiem-intertextile-2026:notes'
+const CUSTOM_BOOTH_STORAGE_KEY = 'dian:shanghai-intertextile-2026:custom-booths'
 const halls = ['전체', '5.1', '5.2', '6.1', '6.2', '확인 중']
 
 export default function Hiem2026Planner() {
@@ -20,25 +28,29 @@ export default function Hiem2026Planner() {
   const [hall, setHall] = useState('전체')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [notes, setNotes] = useState<Record<string, BoothNote>>({})
+  const [customBooths, setCustomBooths] = useState<CustomBooth[]>([])
+  const [createOpen, setCreateOpen] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     try {
-      setNotes(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'))
+      setNotes(JSON.parse(localStorage.getItem(NOTES_STORAGE_KEY) ?? localStorage.getItem(LEGACY_NOTES_STORAGE_KEY) ?? '{}'))
+      setCustomBooths(JSON.parse(localStorage.getItem(CUSTOM_BOOTH_STORAGE_KEY) ?? '[]'))
     } catch {
       setNotes({})
     }
   }, [])
 
-  const selected = hiem2026Booths.find((booth) => booth.id === selectedId) ?? null
+  const allBooths = useMemo(() => [...hiem2026Booths, ...customBooths], [customBooths])
+  const selected = allBooths.find((booth) => booth.id === selectedId) ?? null
   const visibleBooths = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return hiem2026Booths.filter((booth) => {
+    return allBooths.filter((booth) => {
       const matchesHall = hall === '전체' || booth.hall === hall
       const matchesQuery = !needle || `${booth.brand} ${booth.hall} ${booth.booth}`.toLowerCase().includes(needle)
       return matchesHall && matchesQuery
     })
-  }, [hall, query])
+  }, [hall, query, allBooths])
 
   const groups = useMemo(
     () => halls.slice(1).map((name) => ({ name, booths: visibleBooths.filter((booth) => booth.hall === name) })).filter((group) => group.booths.length),
@@ -49,9 +61,17 @@ export default function Hiem2026Planner() {
     if (!selected) return
     const next = { ...notes, [selected.id]: note }
     setNotes(next)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(next))
     setSaved(true)
     window.setTimeout(() => setSaved(false), 1800)
+  }
+
+  const addCustomBooth = (booth: CustomBooth) => {
+    const next = [...customBooths, booth]
+    setCustomBooths(next)
+    localStorage.setItem(CUSTOM_BOOTH_STORAGE_KEY, JSON.stringify(next))
+    setCreateOpen(false)
+    setSelectedId(booth.id)
   }
 
   return (
@@ -74,7 +94,7 @@ export default function Hiem2026Planner() {
 
       <main className="mx-auto max-w-[1440px] px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
         <section className="grid grid-cols-3 border border-[#ccc]">
-          <Summary value={String(hiem2026Booths.filter((booth) => booth.status === 'confirmed').length)} label="확인된 부스" />
+          <Summary value={String(allBooths.filter((booth) => booth.status === 'confirmed').length)} label="확인된 부스" />
           <Summary value={String(Object.values(notes).filter((note) => Object.values(note).some(Boolean)).length)} label="메모 작성 업체" />
           <Summary value="5" label="부스 확인 중" />
         </section>
@@ -88,6 +108,10 @@ export default function Hiem2026Planner() {
             {halls.map((name) => <button key={name} onClick={() => setHall(name)} className={`h-10 shrink-0 border px-3 text-sm font-semibold transition ${hall === name ? 'border-[#76b900] bg-[#76b900] text-black' : 'border-[#ccc] bg-white text-black hover:border-black'}`}>{name}</button>)}
           </div>
         </div>
+
+        <button type="button" onClick={() => setCreateOpen(true)} className="mt-3 flex h-11 w-full items-center justify-center gap-2 border border-black bg-black px-4 text-sm font-bold text-white hover:bg-[#76b900] hover:text-black sm:ml-auto sm:mt-4 sm:w-auto">
+          <Plus className="h-4 w-4" /> 새 업체 추가
+        </button>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="space-y-7" aria-label="부스 목록">
@@ -107,9 +131,36 @@ export default function Hiem2026Planner() {
             <DetailPanel booth={selected} note={notes[selected.id]} saved={saved} onSave={saveNote} onClose={() => setSelectedId(null)} />
           </div>
         </div>}
+        {createOpen && <div className="fixed inset-0 z-50 flex items-end bg-black/45 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="새 업체 추가 창">
+          <button className="absolute inset-0 cursor-default" aria-label="새 업체 추가 창 닫기" onClick={() => setCreateOpen(false)} />
+          <div className="relative max-h-[88vh] w-full max-w-[560px] overflow-y-auto bg-white shadow-2xl">
+            <CreateBoothPanel onSave={addCustomBooth} onClose={() => setCreateOpen(false)} />
+          </div>
+        </div>}
       </main>
     </div>
   )
+}
+
+function CreateBoothPanel({ onSave, onClose }: { onSave: (booth: CustomBooth) => void; onClose: () => void }) {
+  const [brand, setBrand] = useState('')
+  const [hall, setHall] = useState('5.1')
+  const [booth, setBooth] = useState('')
+  const [photo, setPhoto] = useState('')
+  const [businessCard, setBusinessCard] = useState('')
+  const readImage = (file?: File) => {
+    if (!file) return Promise.resolve('')
+    return new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result ?? '')); reader.readAsDataURL(file) })
+  }
+  const submit = () => {
+    if (!brand.trim() || !booth.trim()) return
+    onSave({ id: `custom-${Date.now()}`, brand: brand.trim(), hall, booth: booth.trim().toUpperCase(), status: 'confirmed', photo, businessCard, createdAt: new Date().toISOString() })
+  }
+  return <div className="relative border border-[#ccc] bg-white p-5 sm:p-6"><button type="button" onClick={onClose} aria-label="새 업체 추가 창 닫기" className="absolute right-3 top-3 grid h-8 w-8 place-items-center border border-[#ccc]"><X className="h-4 w-4" /></button><p className="text-[11px] font-bold tracking-[0.1em] text-[#5a8d00]">SHANGHAI INTERTEXTILE 2026</p><h2 className="mt-2 text-2xl font-bold tracking-[-0.05em]">새 업체 추가</h2><p className="mt-2 text-xs leading-5 text-[#757575]">사진·명함과 업체 정보는 이 브라우저에만 저장됩니다.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="업체명" value={brand} onChange={setBrand} placeholder="예: KELLY FU" /><label className="block text-sm font-semibold">Hall<select value={hall} onChange={(event) => setHall(event.target.value)} className="mt-1.5 h-10 w-full border border-[#ccc] bg-white px-3 text-sm"><option>5.1</option><option>5.2</option><option>6.1</option><option>6.2</option></select></label><Field label="부스번호" value={booth} onChange={setBooth} placeholder="예: H33" /><UploadField label="사진 업로드" icon={<ImagePlus className="h-4 w-4" />} preview={photo} onChange={async (file) => setPhoto(await readImage(file))} /><UploadField label="명함 업로드" icon={<IdCard className="h-4 w-4" />} preview={businessCard} onChange={async (file) => setBusinessCard(await readImage(file))} /></div><button type="button" disabled={!brand.trim() || !booth.trim()} onClick={submit} className="mt-5 flex h-11 w-full items-center justify-center gap-2 bg-[#76b900] text-sm font-bold text-black disabled:bg-[#ddd]">업체 저장 후 메모 작성</button></div>
+}
+
+function UploadField({ label, icon, preview, onChange }: { label: string; icon: React.ReactNode; preview: string; onChange: (file?: File) => void }) {
+  return <label className="block text-sm font-semibold">{label}<span className="mt-1.5 flex h-10 cursor-pointer items-center gap-2 border border-dashed border-[#999] px-3 text-xs font-normal text-[#555]">{icon}{preview ? '첨부 완료 · 다시 선택' : '이미지 선택'}<input type="file" accept="image/*" className="sr-only" onChange={(event) => onChange(event.target.files?.[0])} /></span>{preview && <img src={preview} alt={`${label} 미리보기`} className="mt-2 h-20 w-full object-cover" />}</label>
 }
 
 function Summary({ value, label }: { value: string; label: string }) {
