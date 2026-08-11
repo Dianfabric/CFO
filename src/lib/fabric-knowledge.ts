@@ -143,6 +143,50 @@ function cleanNumber(value: unknown): number | null {
 }
 
 /** CFO 관리 화면에서 직접 추가한 대표 품목 1건을 등록한다. */
+export async function updateFabricPrice(id: string, input: CreateFabricInput): Promise<FabricRow> {
+  const cols = await availableColumns()
+  const productName = cleanText(input.productName, 200)
+  const brand = cleanText(input.brand, 120)
+  if (!productName || !brand) throw new Error('브랜드와 원단명은 필수입니다.')
+
+  const current = await prisma.$queryRawUnsafe<{ raw: unknown }[]>(
+    `SELECT "raw" FROM ${TABLE} WHERE "id"::text = $1 LIMIT 1`, id,
+  )
+  if (!current.length) throw new Error('원단을 찾을 수 없습니다.')
+
+  const existingRaw = current[0].raw && typeof current[0].raw === 'object' && !Array.isArray(current[0].raw)
+    ? current[0].raw as Record<string, unknown> : {}
+  const sellPrice = cleanNumber(input.sellPrice)
+  const dealerPrice = cleanNumber(input.dealerPrice)
+  const values: Record<string, unknown> = {
+    brand,
+    product_name: productName,
+    brand_code: cleanText(input.brandCode, 50),
+    product_name_ko: cleanText(input.productNameKo, 200),
+    search_alias: cleanText(input.searchAlias, 200),
+    material: cleanText(input.material, 300),
+    width_mm: cleanNumber(input.widthMm),
+    weight_gsm: cleanNumber(input.weightGsm),
+    cost_usd: cleanNumber(input.costUsd),
+    cost_usd_override: cleanNumber(input.costUsdOverride),
+    sell_price: sellPrice,
+    dealer_price: dealerPrice,
+    moq_or_roll: cleanText(input.moqOrRoll, 200),
+    operation_note: cleanText(input.operationNote, 2000),
+    raw: { ...existingRaw, '원단명': productName, '원단단가/Y': sellPrice, '대리점 단가': dealerPrice, updated_by: 'cfo_price_manager', updated_at: new Date().toISOString() },
+  }
+  const updateCols = Object.keys(values).filter((column) => cols.has(column))
+  const assignments = updateCols.map((column, index) => `${ident(column)} = $${index + 1}`)
+  if (cols.has('updated_at')) assignments.push(`"updated_at" = NOW()`)
+  const selectCols = COLUMN_WHITELIST.filter((column) => cols.has(column)).map(ident).join(', ')
+  const rows = await prisma.$queryRawUnsafe<FabricRow[]>(
+    `UPDATE ${TABLE} SET ${assignments.join(', ')} WHERE "id"::text = $${updateCols.length + 1} RETURNING ${selectCols || '*'}`,
+    ...updateCols.map((column) => column === 'raw' ? JSON.stringify(values[column]) : values[column]), id,
+  )
+  return rows[0]
+}
+
+/** CFO 관리 화면에서 직접 추가한 대표 품목 1건을 등록한다. */
 export async function createManualFabric(input: CreateFabricInput): Promise<FabricRow> {
   const cols = await availableColumns()
   const brand = cleanText(input.brand, 120)

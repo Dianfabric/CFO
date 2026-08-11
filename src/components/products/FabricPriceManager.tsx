@@ -90,6 +90,9 @@ function dash(v: unknown): string {
   const s = str(v)
   return s || '—'
 }
+function optionalNumber(value: string): number | null {
+  return value.trim() === '' ? null : Number(value)
+}
 
 function imageUrlOf(row: FabricRow): string | null {
   const cand = str(row.representative_image_url)
@@ -155,6 +158,10 @@ export default function FabricPriceManager() {
   const [raw, setRaw] = useState<Record<string, unknown> | null>(null)
   const [rawLoading, setRawLoading] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState<NewFabricForm>(EMPTY_NEW_FABRIC)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [newForm, setNewForm] = useState<NewFabricForm>(EMPTY_NEW_FABRIC)
@@ -253,6 +260,55 @@ export default function FabricPriceManager() {
     } finally {
       setRawLoading(false)
     }
+  }
+
+  const startEditing = () => {
+    if (!selected) return
+    setEditError(null)
+    setEditForm({
+      brand: str(selected.brand), productName: str(selected.product_name), brandCode: str(selected.brand_code),
+      productNameKo: str(selected.product_name_ko), searchAlias: str(selected.search_alias), material: str(selected.material),
+      widthMm: str(selected.width_mm), weightGsm: str(selected.weight_gsm), costUsd: str(selected.cost_usd),
+      costUsdOverride: str(selected.cost_usd_override), sellPrice: str(selected.sell_price), dealerPrice: str(selected.dealer_price),
+      moqOrRoll: str(selected.moq_or_roll), operationNote: str(selected.operation_note),
+    })
+    setEditing(true)
+    void loadPriceTiers()
+  }
+
+  const saveEdit = async () => {
+    if (!selected?.id) return
+    if (!editForm.brand.trim() || !editForm.productName.trim() || !editForm.costUsd.trim()) {
+      setEditError('브랜드, 원단명, 실원가 USD는 필수입니다.')
+      return
+    }
+    setEditSaving(true); setEditError(null)
+    try {
+      const response = await fetch(`/api/fabric-prices/${encodeURIComponent(String(selected.id))}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          ...editForm, widthMm: optionalNumber(editForm.widthMm), weightGsm: optionalNumber(editForm.weightGsm),
+          costUsd: optionalNumber(editForm.costUsd), costUsdOverride: optionalNumber(editForm.costUsdOverride),
+          sellPrice: optionalNumber(editForm.sellPrice), dealerPrice: optionalNumber(editForm.dealerPrice),
+        }),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json?.error || '저장하지 못했습니다.')
+      setSelected(json as FabricRow)
+      setRows((previous) => previous.map((row) => String(row.id) === String(json.id) ? json as FabricRow : row))
+      setEditing(false)
+    } catch (error) { setEditError(error instanceof Error ? error.message : '저장하지 못했습니다.') }
+    finally { setEditSaving(false) }
+  }
+
+  const updateEditForm = (field: keyof NewFabricForm, value: string) => {
+    setEditForm((previous) => {
+      const next = { ...previous, [field]: value }
+      if (field === 'costUsd' || field === 'costUsdOverride') {
+        const tier = priceTierFor(next.costUsdOverride.trim() || next.costUsd.trim())
+        if (tier) { next.sellPrice = String(tier.sellPrice); next.dealerPrice = String(tier.dealerPrice) }
+      }
+      return next
+    })
   }
 
   const priceTierFor = (value: string) => {
@@ -723,14 +779,38 @@ export default function FabricPriceManager() {
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
         <SheetContent side="right" className="w-full gap-0 overflow-y-auto !max-w-[600px]">
           <SheetHeader className="border-b">
-            <SheetTitle>원단 상세</SheetTitle>
-            <SheetDescription>
-              읽기 전용 · Supabase fabric_knowledge_master
-            </SheetDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <SheetTitle>{editing ? '원단 수정' : '원단 상세'}</SheetTitle>
+                <SheetDescription>{editing ? '수정 후 저장하면 즉시 마스터에 반영됩니다.' : 'Supabase fabric_knowledge_master'}</SheetDescription>
+              </div>
+              {!editing && selected && <button type="button" className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground" onClick={(event) => { event.preventDefault(); event.stopPropagation(); startEditing() }}>수정</button>}
+            </div>
           </SheetHeader>
 
           {selected && (
             <div className="space-y-5 p-4">
+              {editing && (
+                <div className="space-y-4 rounded-lg border border-blue-200 bg-blue-50/40 p-3">
+                  <p className="text-sm font-semibold text-slate-900">원단 정보 수정</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {([
+                      ['brand', '브랜드 *'], ['productName', '원단명 *'], ['brandCode', '브랜드 코드'], ['productNameKo', '한글명'],
+                      ['costUsd', '실원가 USD *'], ['costUsdOverride', '단가 Override'], ['sellPrice', '판매단가 /Y'], ['dealerPrice', '대리점단가 /Y'],
+                      ['material', '소재'], ['widthMm', '폭 (mm)'], ['weightGsm', '중량 (gsm)'], ['moqOrRoll', 'MOQ / Roll'],
+                    ] as [keyof NewFabricForm, string][]).map(([key, label]) => (
+                      <div key={key} className={key === 'material' || key === 'moqOrRoll' ? 'col-span-2' : ''}>
+                        <Label htmlFor={`edit-${key}`}>{label}</Label>
+                        <Input id={`edit-${key}`} value={editForm[key]} onChange={(event) => updateEditForm(key, event.target.value)} />
+                      </div>
+                    ))}
+                    <div className="col-span-2"><Label htmlFor="edit-note">운영 메모</Label><Textarea id="edit-note" value={editForm.operationNote} onChange={(event) => updateEditForm('operationNote', event.target.value)} /></div>
+                  </div>
+                  <p className="text-xs text-slate-500">실원가 또는 단가 Override를 바꾸면 단가표 기준 판매·대리점가가 자동 반영됩니다. 필요하면 가격도 직접 수정할 수 있습니다.</p>
+                  {editError && <p className="text-sm text-red-600">{editError}</p>}
+                  <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditing(false)}>취소</Button><Button onClick={saveEdit} disabled={editSaving}>{editSaving ? '저장 중...' : '저장'}</Button></div>
+                </div>
+              )}
               {/* 대표 이미지 */}
               {selImg && (
                 // eslint-disable-next-line @next/next/no-img-element
