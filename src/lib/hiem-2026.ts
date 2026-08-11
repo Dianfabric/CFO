@@ -25,6 +25,7 @@ const confirmed: Array<[string, string, string]> = [
   ['Julai', '5.1', 'F13'],
   ['Tony', '5.1', 'A27'],
   ['CCBF', '6.1', 'F96'],
+  ['DT', '6.1', 'F48'],
   ['Kaidan', '6.1', 'C72'],
   ['Yilai', '6.2', 'F39'],
   ['Hexin', '5.1', 'F32'],
