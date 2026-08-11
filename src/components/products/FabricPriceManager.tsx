@@ -396,18 +396,19 @@ export default function FabricPriceManager() {
       </div>
 
       <Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-[calc(100vw-2rem)] overflow-hidden sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>원단 추가</DialogTitle>
           </DialogHeader>
+          <div className={`grid gap-5 overflow-y-auto pr-1 ${priceTableOpen ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : ''}`}>
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
               <p>
                 <b>실원가 USD만 입력</b>하면 0.5달러 단위로 내림한 구간의 판매·대리점가가 자동으로 채워집니다.
                 필요할 때만 <b>기준 단가(Override)</b>를 넣어 다른 구간을 적용합니다.
               </p>
-              <Button type="button" variant="outline" size="sm" className="shrink-0 bg-white" onClick={() => setPriceTableOpen(true)}>
-                <Table2 className="mr-1 h-4 w-4" /> 단가표
+              <Button type="button" variant="outline" size="sm" className="shrink-0 bg-white" onClick={() => setPriceTableOpen((open) => !open)}>
+                <Table2 className="mr-1 h-4 w-4" /> {priceTableOpen ? '단가표 닫기' : '단가표'}
               </Button>
             </div>
             {newError && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{newError}</p>}
@@ -423,7 +424,7 @@ export default function FabricPriceManager() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div><Label htmlFor="new-cost">실원가 USD *</Label><Input id="new-cost" inputMode="decimal" value={newForm.costUsd} onChange={(e) => updatePriceBasis('costUsd', e.target.value)} placeholder="예: 8.77" /></div>
-              <div><Label htmlFor="new-override">기준 단가 USD (Override, 선택)</Label><Input id="new-override" inputMode="decimal" value={newForm.costUsdOverride} onChange={(e) => updatePriceBasis('costUsdOverride', e.target.value)} placeholder="비우면 실원가 적용" /></div>
+              <div><Label htmlFor="new-override">단가 Override</Label><Input id="new-override" inputMode="decimal" value={newForm.costUsdOverride} onChange={(e) => updatePriceBasis('costUsdOverride', e.target.value)} placeholder="비우면 실원가 적용" /></div>
               <div><Label htmlFor="new-sell">판매단가 /Y (자동)</Label><Input id="new-sell" value={newForm.sellPrice ? fmtKrw(newForm.sellPrice) : ''} readOnly placeholder="실원가 입력 시 자동" className="bg-slate-50" /></div>
               <div><Label htmlFor="new-dealer">대리점단가 /Y (자동)</Label><Input id="new-dealer" value={newForm.dealerPrice ? fmtKrw(newForm.dealerPrice) : ''} readOnly placeholder="실원가 입력 시 자동" className="bg-slate-50" /></div>
             </div>
@@ -446,23 +447,25 @@ export default function FabricPriceManager() {
               <Button onClick={createFabric} disabled={newSaving}>{newSaving ? '등록 중...' : '원단 등록'}</Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={priceTableOpen} onOpenChange={setPriceTableOpen}>
-        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-          <DialogHeader><DialogTitle>기준 단가표</DialogTitle></DialogHeader>
-          <p className="text-sm text-slate-500">실원가 또는 Override를 0.5달러 단위로 내림해 아래 기준 단가를 적용합니다.</p>
-          {priceTiersLoading ? (
-            <p className="py-8 text-center text-sm text-slate-500">단가표를 불러오는 중...</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b text-left text-slate-500"><tr><th className="py-2">기준 단가 USD</th><th className="py-2 text-right">판매단가 /Y</th><th className="py-2 text-right">대리점단가 /Y</th></tr></thead>
-              <tbody>{priceTiers.map((tier) => (
-                <tr key={tier.basisUsd} className="border-b border-slate-100 last:border-0"><td className="py-2 font-medium">${tier.basisUsd.toFixed(2)}</td><td className="py-2 text-right">{fmtKrw(tier.sellPrice)}</td><td className="py-2 text-right">{fmtKrw(tier.dealerPrice)}</td></tr>
-              ))}</tbody>
-            </table>
+          {priceTableOpen && (
+            <aside className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4 lg:sticky lg:top-0 lg:max-h-[68vh] lg:overflow-y-auto">
+              <div className="mb-3 flex items-center justify-between">
+                <div><h3 className="font-semibold text-slate-900">단가표</h3><p className="text-xs text-slate-500">원가·Override 참고용</p></div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setPriceTableOpen(false)}>닫기</Button>
+              </div>
+              {priceTiersLoading ? (
+                <p className="py-8 text-center text-sm text-slate-500">불러오는 중...</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="border-b text-left text-slate-500"><tr><th className="py-2">USD</th><th className="py-2 text-right">판매 /Y</th><th className="py-2 text-right">대리점 /Y</th></tr></thead>
+                  <tbody>{priceTiers.filter((tier) => Math.abs(tier.basisUsd * 2 - Math.round(tier.basisUsd * 2)) < 0.001).map((tier) => (
+                    <tr key={tier.basisUsd} className={`border-b border-slate-200 last:border-0 ${appliedBasis === tier.basisUsd ? 'bg-blue-100 font-semibold text-blue-950' : ''}`}><td className="py-2">${tier.basisUsd.toFixed(2)}</td><td className="py-2 text-right">{fmtKrw(tier.sellPrice)}</td><td className="py-2 text-right">{fmtKrw(tier.dealerPrice)}</td></tr>
+                  ))}</tbody>
+                </table>
+              )}
+            </aside>
           )}
+          </div>
         </DialogContent>
       </Dialog>
 
