@@ -106,6 +106,92 @@ export interface FabricListParams {
   pageSize?: number
 }
 
+export interface CreateFabricInput {
+  brand: string
+  productName: string
+  brandCode?: string
+  productNameKo?: string
+  searchAlias?: string
+  material?: string
+  widthMm?: number | null
+  weightGsm?: number | null
+  costUsd?: number | null
+  costUsdOverride?: number | null
+  sellPrice?: number | null
+  dealerPrice?: number | null
+  moqOrRoll?: string
+  operationNote?: string
+}
+
+function cleanText(value: unknown, maxLength = 500): string | null {
+  if (typeof value !== 'string') return null
+  const text = value.trim()
+  return text ? text.slice(0, maxLength) : null
+}
+
+function cleanNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/** CFO 관리 화면에서 직접 추가한 대표 품목 1건을 등록한다. */
+export async function createManualFabric(input: CreateFabricInput): Promise<FabricRow> {
+  const cols = await availableColumns()
+  const brand = cleanText(input.brand, 120)
+  const productName = cleanText(input.productName, 200)
+  if (!brand || !productName) throw new Error('브랜드와 원단명은 필수입니다.')
+
+  const duplicate = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT "id" FROM ${TABLE}
+     WHERE lower(coalesce("brand", '')) = lower($1)
+       AND lower(coalesce("product_name", '')) = lower($2)
+       AND (NOT $3 OR "is_active" = TRUE)
+     LIMIT 1`,
+    brand,
+    productName,
+    cols.has('is_active'),
+  )
+  if (duplicate.length) throw new Error('같은 브랜드·원단명이 이미 등록되어 있습니다.')
+
+  const values: Record<string, unknown> = {
+    brand,
+    product_name: productName,
+    brand_code: cleanText(input.brandCode, 50),
+    product_name_ko: cleanText(input.productNameKo, 200),
+    search_alias: cleanText(input.searchAlias, 200),
+    material: cleanText(input.material, 300),
+    width_mm: cleanNumber(input.widthMm),
+    weight_gsm: cleanNumber(input.weightGsm),
+    cost_usd: cleanNumber(input.costUsd),
+    cost_usd_override: cleanNumber(input.costUsdOverride),
+    sell_price: cleanNumber(input.sellPrice),
+    dealer_price: cleanNumber(input.dealerPrice),
+    moq_or_roll: cleanText(input.moqOrRoll, 200),
+    operation_note: cleanText(input.operationNote, 2000),
+    match_status: 'manual',
+    is_active: true,
+    source_sheet_id: 'CFO_MANUAL',
+    source_tab: '원단 단가 관리',
+    raw: {
+      source: 'cfo_manual_entry',
+      entered_at: new Date().toISOString(),
+      brand,
+      product_name: productName,
+    },
+  }
+  const insertCols = Object.keys(values).filter((column) => cols.has(column))
+  const bind = insertCols.map((_, i) => `$${i + 1}`)
+  const selectCols = COLUMN_WHITELIST.filter((column) => cols.has(column)).map(ident).join(', ')
+  const rows = await prisma.$queryRawUnsafe<FabricRow[]>(
+    `INSERT INTO ${TABLE} (${insertCols.map(ident).join(', ')})
+     VALUES (${bind.join(', ')})
+     RETURNING ${selectCols || '*'}`,
+    ...insertCols.map((column) => (column === 'raw' ? JSON.stringify(values[column]) : values[column])),
+  )
+  return rows[0]
+}
+
 /** brand='RICKY' AND (신규) 판별식 — 있는 컬럼에 맞춰 최선의 표현 선택 */
 function rickyNewExpr(cols: Set<string>): string | null {
   if (!cols.has('brand')) return null

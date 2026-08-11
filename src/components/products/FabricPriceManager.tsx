@@ -12,7 +12,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
-import { Search, Package, AlertTriangle, Layers } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Search, Package, AlertTriangle, Layers, Plus } from 'lucide-react'
 
 // ── 타입 ──────────────────────────────────────────────────────
 type FabricRow = Record<string, unknown> & {
@@ -39,6 +42,24 @@ interface ListResponse {
 }
 
 const PAGE_SIZE = 100
+
+const EMPTY_NEW_FABRIC = {
+  brand: '',
+  productName: '',
+  brandCode: '',
+  productNameKo: '',
+  searchAlias: '',
+  material: '',
+  widthMm: '',
+  weightGsm: '',
+  costUsd: '',
+  costUsdOverride: '',
+  sellPrice: '',
+  dealerPrice: '',
+  moqOrRoll: '',
+  operationNote: '',
+}
+type NewFabricForm = typeof EMPTY_NEW_FABRIC
 
 // ── 값 포맷 헬퍼 (컬럼 값이 string|number|null 로 섞여 올 수 있어 방어적) ──
 function str(v: unknown): string {
@@ -128,6 +149,11 @@ export default function FabricPriceManager() {
   const [rawLoading, setRawLoading] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
 
+  const [newDialogOpen, setNewDialogOpen] = useState(false)
+  const [newForm, setNewForm] = useState<NewFabricForm>(EMPTY_NEW_FABRIC)
+  const [newSaving, setNewSaving] = useState(false)
+  const [newError, setNewError] = useState<string | null>(null)
+
   const buildParams = useCallback(
     (pageToLoad: number) => {
       const p = new URLSearchParams()
@@ -209,6 +235,48 @@ export default function FabricPriceManager() {
     }
   }
 
+  const updateNewForm = (field: keyof NewFabricForm, value: string) => {
+    setNewForm((previous) => ({ ...previous, [field]: value }))
+  }
+
+  const createFabric = async () => {
+    if (!newForm.brand.trim() || !newForm.productName.trim()) {
+      setNewError('브랜드와 원단명은 필수입니다.')
+      return
+    }
+    setNewSaving(true)
+    setNewError(null)
+    try {
+      const toNumber = (value: string) => (value.trim() === '' ? null : Number(value))
+      const payload = {
+        ...newForm,
+        widthMm: toNumber(newForm.widthMm),
+        weightGsm: toNumber(newForm.weightGsm),
+        costUsd: toNumber(newForm.costUsd),
+        costUsdOverride: toNumber(newForm.costUsdOverride),
+        sellPrice: toNumber(newForm.sellPrice),
+        dealerPrice: toNumber(newForm.dealerPrice),
+      }
+      if (Object.values(payload).some((value) => typeof value === 'number' && !Number.isFinite(value))) {
+        throw new Error('숫자 항목은 0 이상의 숫자로 입력하세요.')
+      }
+      const res = await fetch('/api/fabric-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.error || '원단을 등록하지 못했습니다.')
+      setNewDialogOpen(false)
+      setNewForm(EMPTY_NEW_FABRIC)
+      setQuery(newForm.productName.trim())
+    } catch (e) {
+      setNewError(e instanceof Error ? e.message : '원단을 등록하지 못했습니다.')
+    } finally {
+      setNewSaving(false)
+    }
+  }
+
   // 브랜드별 현황에서 브랜드 선택 → 목록 탭으로 이동 + 필터
   const selectBrand = (b: string) => {
     setBrand(b)
@@ -227,13 +295,64 @@ export default function FabricPriceManager() {
   return (
     <div className="space-y-6">
       {/* 헤더 */}
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">원단 단가 관리</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Supabase <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">public.fabric_knowledge_master</code>{' '}
-          원단 지식·단가 마스터를 <b>읽기 전용</b>으로 조회합니다. (수정·삭제 불가)
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">원단 단가 관리</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Supabase <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]">public.fabric_knowledge_master</code>{' '}
+            원단 지식·단가 마스터를 조회하고 직접 원단을 추가합니다.
+          </p>
+        </div>
+        <Button
+          className="gap-1.5"
+          onClick={() => {
+            setNewError(null)
+            setNewForm(EMPTY_NEW_FABRIC)
+            setNewDialogOpen(true)
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          원단 추가
+        </Button>
       </div>
+
+      <Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>원단 추가</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              <b>실원가 USD는 보존</b>하고, 단가 구간을 바꿀 때만 <b>기준 단가(Override)</b>를 입력합니다.
+              예: 실원가 $8.77 → 기준 단가 $8.50 → 판매가 ₩35,500 / 대리점가 ₩31,000.
+            </div>
+            {newError && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{newError}</p>}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><Label htmlFor="new-brand">브랜드 *</Label><Input id="new-brand" value={newForm.brand} onChange={(e) => updateNewForm('brand', e.target.value)} placeholder="예: RICKY" /></div>
+              <div><Label htmlFor="new-product">원단명 *</Label><Input id="new-product" value={newForm.productName} onChange={(e) => updateNewForm('productName', e.target.value)} placeholder="예: LD2297B" /></div>
+              <div><Label htmlFor="new-brand-code">브랜드 코드</Label><Input id="new-brand-code" value={newForm.brandCode} onChange={(e) => updateNewForm('brandCode', e.target.value)} placeholder="예: R" /></div>
+              <div><Label htmlFor="new-alias">보조 검색명 / Alias</Label><Input id="new-alias" value={newForm.searchAlias} onChange={(e) => updateNewForm('searchAlias', e.target.value)} placeholder="예: Woodstock" /></div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><Label htmlFor="new-cost">실원가 USD</Label><Input id="new-cost" inputMode="decimal" value={newForm.costUsd} onChange={(e) => updateNewForm('costUsd', e.target.value)} placeholder="예: 8.77" /></div>
+              <div><Label htmlFor="new-override">기준 단가 USD (Override)</Label><Input id="new-override" inputMode="decimal" value={newForm.costUsdOverride} onChange={(e) => updateNewForm('costUsdOverride', e.target.value)} placeholder="예: 8.50" /></div>
+              <div><Label htmlFor="new-sell">판매단가 /Y (원)</Label><Input id="new-sell" inputMode="numeric" value={newForm.sellPrice} onChange={(e) => updateNewForm('sellPrice', e.target.value)} placeholder="예: 35500" /></div>
+              <div><Label htmlFor="new-dealer">대리점단가 /Y (원)</Label><Input id="new-dealer" inputMode="numeric" value={newForm.dealerPrice} onChange={(e) => updateNewForm('dealerPrice', e.target.value)} placeholder="예: 31000" /></div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div><Label htmlFor="new-material">소재</Label><Input id="new-material" value={newForm.material} onChange={(e) => updateNewForm('material', e.target.value)} placeholder="예: 100% PL" /></div>
+              <div><Label htmlFor="new-width">폭 (mm)</Label><Input id="new-width" inputMode="numeric" value={newForm.widthMm} onChange={(e) => updateNewForm('widthMm', e.target.value)} /></div>
+              <div><Label htmlFor="new-weight">무게 (gsm)</Label><Input id="new-weight" inputMode="numeric" value={newForm.weightGsm} onChange={(e) => updateNewForm('weightGsm', e.target.value)} /></div>
+            </div>
+            <div><Label htmlFor="new-moq">MOQ / Roll</Label><Input id="new-moq" value={newForm.moqOrRoll} onChange={(e) => updateNewForm('moqOrRoll', e.target.value)} /></div>
+            <div><Label htmlFor="new-note">운영 메모</Label><Textarea id="new-note" value={newForm.operationNote} onChange={(e) => updateNewForm('operationNote', e.target.value)} placeholder="단가 적용 근거·특이사항" /></div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setNewDialogOpen(false)}>취소</Button>
+              <Button onClick={createFabric} disabled={newSaving}>{newSaving ? '등록 중...' : '원단 등록'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -372,7 +491,7 @@ export default function FabricPriceManager() {
                           <th className="min-w-[180px] px-3 pb-2 font-medium">성분</th>
                           <th className="min-w-[90px] px-3 pb-2 text-right font-medium">폭</th>
                           <th className="min-w-[90px] px-3 pb-2 text-right font-medium">무게</th>
-                          <th className="min-w-[110px] px-3 pb-2 text-right font-medium">원가 USD</th>
+                          <th className="min-w-[110px] px-3 pb-2 text-right font-medium">기준단가 USD</th>
                           <th className="min-w-[120px] px-3 pb-2 text-right font-medium">판매단가</th>
                           <th className="min-w-[130px] px-3 pb-2 text-right font-medium">대리점단가</th>
                           <th className="min-w-[160px] px-3 pb-2 font-medium">상태</th>
@@ -409,7 +528,7 @@ export default function FabricPriceManager() {
                               <td className="px-3 text-right tabular-nums text-slate-600">
                                 {num(row.weight_gsm) !== null ? `${num(row.weight_gsm)}gsm` : '—'}
                               </td>
-                              <td className="px-3 text-right tabular-nums">{fmtUsd(row.cost_usd ?? row.cost_usd_override)}</td>
+                              <td className="px-3 text-right tabular-nums">{fmtUsd(row.cost_usd_override ?? row.cost_usd)}</td>
                               <td className="px-3 text-right font-medium tabular-nums">{fmtKrw(row.sell_price)}</td>
                               <td className="px-3 text-right tabular-nums text-slate-600">{fmtKrw(row.dealer_price)}</td>
                               <td className="px-3">
@@ -533,8 +652,8 @@ export default function FabricPriceManager() {
                   {dash(selected.brand)}
                   {str(selected.brand_code) ? ` (${str(selected.brand_code)})` : ''}
                 </Field>
-                <Field label="원가 USD">{fmtUsd(selected.cost_usd)}</Field>
-                <Field label="원가 override">{fmtUsd(selected.cost_usd_override)}</Field>
+                <Field label="실원가 USD (보존)">{fmtUsd(selected.cost_usd)}</Field>
+                <Field label="기준 단가 USD (Override)">{fmtUsd(selected.cost_usd_override)}</Field>
                 <Field label="판매단가">{fmtKrw(selected.sell_price)}</Field>
                 <Field label="대리점단가">{fmtKrw(selected.dealer_price)}</Field>
                 <Field label="소재">{dash(selected.material)}</Field>
