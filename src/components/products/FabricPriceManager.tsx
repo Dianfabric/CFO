@@ -15,7 +15,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Search, Package, AlertTriangle, Layers, Plus } from 'lucide-react'
+import { Search, Package, AlertTriangle, Layers, Plus, Table2 } from 'lucide-react'
 
 // ── 타입 ──────────────────────────────────────────────────────
 type FabricRow = Record<string, unknown> & {
@@ -39,6 +39,13 @@ interface ListResponse {
   matchStatuses: string[]
   rows: FabricRow[]
   pagination: { page: number; pageSize: number; total: number; totalPages: number }
+}
+
+interface PriceTier {
+  basisUsd: number
+  sellPrice: number
+  dealerPrice: number
+  rowCount: number
 }
 
 const PAGE_SIZE = 100
@@ -153,6 +160,10 @@ export default function FabricPriceManager() {
   const [newForm, setNewForm] = useState<NewFabricForm>(EMPTY_NEW_FABRIC)
   const [newSaving, setNewSaving] = useState(false)
   const [newError, setNewError] = useState<string | null>(null)
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>([])
+  const [priceTiersLoading, setPriceTiersLoading] = useState(false)
+  const [priceTableOpen, setPriceTableOpen] = useState(false)
+  const [brandCodeLoading, setBrandCodeLoading] = useState(false)
 
   const buildParams = useCallback(
     (pageToLoad: number) => {
@@ -168,6 +179,15 @@ export default function FabricPriceManager() {
     },
     [query, brand, priceStatus, matchStatus, active],
   )
+
+  useEffect(() => {
+    if (!newDialogOpen) return
+    const basisValue = newForm.costUsdOverride.trim() || newForm.costUsd.trim()
+    const tier = priceTierFor(basisValue)
+    if (tier && (newForm.sellPrice !== String(tier.sellPrice) || newForm.dealerPrice !== String(tier.dealerPrice))) {
+      setNewForm((previous) => ({ ...previous, sellPrice: String(tier.sellPrice), dealerPrice: String(tier.dealerPrice) }))
+    }
+  }, [newDialogOpen, newForm.costUsd, newForm.costUsdOverride, newForm.sellPrice, newForm.dealerPrice, priceTiers])
 
   // 필터 변경 시 1페이지부터 다시 (rows 교체)
   const fetchFirst = useCallback(async () => {
@@ -235,13 +255,71 @@ export default function FabricPriceManager() {
     }
   }
 
+  const priceTierFor = (value: string) => {
+    const amount = Number(value)
+    if (!Number.isFinite(amount) || amount < 0) return null
+    const bracket = Math.floor(amount * 2 + 1e-8) / 2
+    return priceTiers.find((tier) => Math.abs(tier.basisUsd - bracket) < 0.001) ?? null
+  }
+
+  const appliedBasis = (() => {
+    const value = newForm.costUsdOverride.trim() || newForm.costUsd.trim()
+    if (!value) return null
+    const amount = Number(value)
+    return Number.isFinite(amount) && amount >= 0 ? Math.floor(amount * 2 + 1e-8) / 2 : null
+  })()
+
   const updateNewForm = (field: keyof NewFabricForm, value: string) => {
     setNewForm((previous) => ({ ...previous, [field]: value }))
   }
 
+  const updatePriceBasis = (field: 'costUsd' | 'costUsdOverride', value: string) => {
+    setNewForm((previous) => {
+      const next = { ...previous, [field]: value }
+      const basisValue = next.costUsdOverride.trim() || next.costUsd.trim()
+      const tier = priceTierFor(basisValue)
+      return tier
+        ? { ...next, sellPrice: String(tier.sellPrice), dealerPrice: String(tier.dealerPrice) }
+        : next
+    })
+  }
+
+  const loadBrandCode = async () => {
+    const inputBrand = newForm.brand.trim()
+    if (!inputBrand) return
+    setBrandCodeLoading(true)
+    try {
+      const params = new URLSearchParams({ brand: inputBrand, active: 'active', page: '1', pageSize: '1' })
+      const response = await fetch(`/api/fabric-prices?${params}`)
+      const data = (await response.json()) as ListResponse
+      const code = str(data.rows?.[0]?.brand_code)
+      if (response.ok && code) updateNewForm('brandCode', code)
+    } finally {
+      setBrandCodeLoading(false)
+    }
+  }
+
+  const loadPriceTiers = async () => {
+    setPriceTiersLoading(true)
+    try {
+      const response = await fetch('/api/fabric-prices/tiers')
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || '단가표 조회 실패')
+      setPriceTiers(data.tiers as PriceTier[])
+    } catch (e) {
+      setNewError(e instanceof Error ? e.message : '단가표를 불러오지 못했습니다.')
+    } finally {
+      setPriceTiersLoading(false)
+    }
+  }
+
   const createFabric = async () => {
-    if (!newForm.brand.trim() || !newForm.productName.trim()) {
-      setNewError('브랜드와 원단명은 필수입니다.')
+    if (!newForm.brand.trim() || !newForm.productName.trim() || !newForm.costUsd.trim()) {
+      setNewError('브랜드, 원단명, 실원가 USD는 필수입니다.')
+      return
+    }
+    if (!newForm.sellPrice || !newForm.dealerPrice) {
+      setNewError('적용 기준 단가의 단가표를 찾지 못했습니다. 단가표를 확인해 주세요.')
       return
     }
     setNewSaving(true)
@@ -309,6 +387,7 @@ export default function FabricPriceManager() {
             setNewError(null)
             setNewForm(EMPTY_NEW_FABRIC)
             setNewDialogOpen(true)
+            void loadPriceTiers()
           }}
         >
           <Plus className="h-4 w-4" />
@@ -322,23 +401,39 @@ export default function FabricPriceManager() {
             <DialogTitle>원단 추가</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-              <b>실원가 USD는 보존</b>하고, 단가 구간을 바꿀 때만 <b>기준 단가(Override)</b>를 입력합니다.
-              예: 실원가 $8.77 → 기준 단가 $8.50 → 판매가 ₩35,500 / 대리점가 ₩31,000.
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              <p>
+                <b>실원가 USD만 입력</b>하면 0.5달러 단위로 내림한 구간의 판매·대리점가가 자동으로 채워집니다.
+                필요할 때만 <b>기준 단가(Override)</b>를 넣어 다른 구간을 적용합니다.
+              </p>
+              <Button type="button" variant="outline" size="sm" className="shrink-0 bg-white" onClick={() => setPriceTableOpen(true)}>
+                <Table2 className="mr-1 h-4 w-4" /> 단가표
+              </Button>
             </div>
             {newError && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{newError}</p>}
             <div className="grid gap-3 sm:grid-cols-2">
-              <div><Label htmlFor="new-brand">브랜드 *</Label><Input id="new-brand" value={newForm.brand} onChange={(e) => updateNewForm('brand', e.target.value)} placeholder="예: RICKY" /></div>
-              <div><Label htmlFor="new-product">원단명 *</Label><Input id="new-product" value={newForm.productName} onChange={(e) => updateNewForm('productName', e.target.value)} placeholder="예: LD2297B" /></div>
-              <div><Label htmlFor="new-brand-code">브랜드 코드</Label><Input id="new-brand-code" value={newForm.brandCode} onChange={(e) => updateNewForm('brandCode', e.target.value)} placeholder="예: R" /></div>
+              <div>
+                <Label htmlFor="new-brand">브랜드 *</Label>
+                <Input id="new-brand" list="fabric-brands" value={newForm.brand} onChange={(e) => updateNewForm('brand', e.target.value)} onBlur={() => void loadBrandCode()} placeholder="예: EK" />
+                <datalist id="fabric-brands">{brands.map((brandName) => <option key={brandName} value={brandName} />)}</datalist>
+              </div>
+              <div><Label htmlFor="new-product">원단명 *</Label><Input id="new-product" value={newForm.productName} onChange={(e) => updateNewForm('productName', e.target.value)} placeholder="예: LE AURORA" /></div>
+              <div><Label htmlFor="new-brand-code">브랜드 코드 {brandCodeLoading && '불러오는 중...'}</Label><Input id="new-brand-code" value={newForm.brandCode} readOnly placeholder="브랜드 입력 시 자동" className="bg-slate-50" /></div>
               <div><Label htmlFor="new-alias">보조 검색명 / Alias</Label><Input id="new-alias" value={newForm.searchAlias} onChange={(e) => updateNewForm('searchAlias', e.target.value)} placeholder="예: Woodstock" /></div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div><Label htmlFor="new-cost">실원가 USD</Label><Input id="new-cost" inputMode="decimal" value={newForm.costUsd} onChange={(e) => updateNewForm('costUsd', e.target.value)} placeholder="예: 8.77" /></div>
-              <div><Label htmlFor="new-override">기준 단가 USD (Override)</Label><Input id="new-override" inputMode="decimal" value={newForm.costUsdOverride} onChange={(e) => updateNewForm('costUsdOverride', e.target.value)} placeholder="예: 8.50" /></div>
-              <div><Label htmlFor="new-sell">판매단가 /Y (원)</Label><Input id="new-sell" inputMode="numeric" value={newForm.sellPrice} onChange={(e) => updateNewForm('sellPrice', e.target.value)} placeholder="예: 35500" /></div>
-              <div><Label htmlFor="new-dealer">대리점단가 /Y (원)</Label><Input id="new-dealer" inputMode="numeric" value={newForm.dealerPrice} onChange={(e) => updateNewForm('dealerPrice', e.target.value)} placeholder="예: 31000" /></div>
+              <div><Label htmlFor="new-cost">실원가 USD *</Label><Input id="new-cost" inputMode="decimal" value={newForm.costUsd} onChange={(e) => updatePriceBasis('costUsd', e.target.value)} placeholder="예: 8.77" /></div>
+              <div><Label htmlFor="new-override">기준 단가 USD (Override, 선택)</Label><Input id="new-override" inputMode="decimal" value={newForm.costUsdOverride} onChange={(e) => updatePriceBasis('costUsdOverride', e.target.value)} placeholder="비우면 실원가 적용" /></div>
+              <div><Label htmlFor="new-sell">판매단가 /Y (자동)</Label><Input id="new-sell" value={newForm.sellPrice ? fmtKrw(newForm.sellPrice) : ''} readOnly placeholder="실원가 입력 시 자동" className="bg-slate-50" /></div>
+              <div><Label htmlFor="new-dealer">대리점단가 /Y (자동)</Label><Input id="new-dealer" value={newForm.dealerPrice ? fmtKrw(newForm.dealerPrice) : ''} readOnly placeholder="실원가 입력 시 자동" className="bg-slate-50" /></div>
             </div>
+            {appliedBasis !== null && (
+              <p className="text-xs text-slate-500">
+                적용 기준: <b className="text-slate-800">${appliedBasis.toFixed(2)}</b>
+                {newForm.costUsdOverride.trim() ? ' (Override)' : ' (실원가 자동 내림)'}
+                {priceTiersLoading && ' · 단가표 불러오는 중...'}
+              </p>
+            )}
             <div className="grid gap-3 sm:grid-cols-3">
               <div><Label htmlFor="new-material">소재</Label><Input id="new-material" value={newForm.material} onChange={(e) => updateNewForm('material', e.target.value)} placeholder="예: 100% PL" /></div>
               <div><Label htmlFor="new-width">폭 (mm)</Label><Input id="new-width" inputMode="numeric" value={newForm.widthMm} onChange={(e) => updateNewForm('widthMm', e.target.value)} /></div>
@@ -351,6 +446,23 @@ export default function FabricPriceManager() {
               <Button onClick={createFabric} disabled={newSaving}>{newSaving ? '등록 중...' : '원단 등록'}</Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={priceTableOpen} onOpenChange={setPriceTableOpen}>
+        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+          <DialogHeader><DialogTitle>기준 단가표</DialogTitle></DialogHeader>
+          <p className="text-sm text-slate-500">실원가 또는 Override를 0.5달러 단위로 내림해 아래 기준 단가를 적용합니다.</p>
+          {priceTiersLoading ? (
+            <p className="py-8 text-center text-sm text-slate-500">단가표를 불러오는 중...</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="border-b text-left text-slate-500"><tr><th className="py-2">기준 단가 USD</th><th className="py-2 text-right">판매단가 /Y</th><th className="py-2 text-right">대리점단가 /Y</th></tr></thead>
+              <tbody>{priceTiers.map((tier) => (
+                <tr key={tier.basisUsd} className="border-b border-slate-100 last:border-0"><td className="py-2 font-medium">${tier.basisUsd.toFixed(2)}</td><td className="py-2 text-right">{fmtKrw(tier.sellPrice)}</td><td className="py-2 text-right">{fmtKrw(tier.dealerPrice)}</td></tr>
+              ))}</tbody>
+            </table>
+          )}
         </DialogContent>
       </Dialog>
 

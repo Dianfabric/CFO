@@ -94,6 +94,13 @@ export interface FabricListResult {
   pagination: { page: number; pageSize: number; total: number; totalPages: number }
 }
 
+export interface FabricPriceTier {
+  basisUsd: number
+  sellPrice: number
+  dealerPrice: number
+  rowCount: number
+}
+
 export interface FabricListParams {
   query?: string
   brand?: string
@@ -190,6 +197,37 @@ export async function createManualFabric(input: CreateFabricInput): Promise<Fabr
     ...insertCols.map((column) => (column === 'raw' ? JSON.stringify(values[column]) : values[column])),
   )
   return rows[0]
+}
+
+/**
+ * 현재 마스터에서 기준 단가별 가장 많이 쓰인 판매/대리점가 조합을 읽는다.
+ * 새 원단 입력 화면의 자동 단가와 단가표가 같은 기준을 보게 한다.
+ */
+export async function queryFabricPriceTiers(): Promise<FabricPriceTier[]> {
+  const cols = await availableColumns()
+  if (!cols.has('cost_usd_override') || !cols.has('sell_price') || !cols.has('dealer_price')) return []
+  const activeWhere = cols.has('is_active') ? 'AND "is_active" = TRUE' : ''
+  const candidates = await prisma.$queryRawUnsafe<
+    { basisUsd: string | number; sellPrice: string | number; dealerPrice: string | number; rowCount: number }[]
+  >(
+    `SELECT "cost_usd_override" AS "basisUsd", "sell_price" AS "sellPrice", "dealer_price" AS "dealerPrice", count(*)::int AS "rowCount"
+     FROM ${TABLE}
+     WHERE "cost_usd_override" IS NOT NULL
+       AND "sell_price" IS NOT NULL
+       AND "dealer_price" IS NOT NULL
+       ${activeWhere}
+     GROUP BY "cost_usd_override", "sell_price", "dealer_price"
+     ORDER BY "cost_usd_override", "rowCount" DESC`,
+  )
+  const seen = new Set<number>()
+  return candidates.flatMap((row) => {
+    const basisUsd = Number(row.basisUsd)
+    const sellPrice = Number(row.sellPrice)
+    const dealerPrice = Number(row.dealerPrice)
+    if (!Number.isFinite(basisUsd) || !Number.isFinite(sellPrice) || !Number.isFinite(dealerPrice) || seen.has(basisUsd)) return []
+    seen.add(basisUsd)
+    return [{ basisUsd, sellPrice, dealerPrice, rowCount: Number(row.rowCount) || 0 }]
+  })
 }
 
 /** brand='RICKY' AND (신규) 판별식 — 있는 컬럼에 맞춰 최선의 표현 선택 */
