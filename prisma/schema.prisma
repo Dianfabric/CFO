@@ -75,6 +75,33 @@ model Product {
   @@map("products")
 }
 
+// 2026 상하이 INTERTEXTILE 현장 기록. 공유 기록 원본은 Supabase public schema에 둔다.
+model ExhibitionBoothRecord {
+  id                     String   @id @default(uuid()) @db.Uuid
+  eventSlug              String   @map("event_slug")
+  boothId                String   @map("booth_id")
+  brand                  String
+  hall                   String
+  boothCode              String   @map("booth_code")
+  isCustom               Boolean  @default(false) @map("is_custom")
+  contact                String?
+  purchaseRequestSamples String?  @map("purchase_request_samples")
+  meetingMemo            String?  @map("meeting_memo")
+  nextAction             String?  @map("next_action")
+  status                 String   @default("방문 예정")
+  websiteChecked         Boolean  @default(false) @map("website_checked")
+  inventoryChecked       Boolean  @default(false) @map("inventory_checked")
+  photos                 Json     @default("[]")
+  boothPhotoPath         String?  @map("booth_photo_path")
+  businessCardPath       String?  @map("business_card_path")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @default(now()) @map("updated_at")
+
+  @@unique([eventSlug, boothId])
+  @@index([eventSlug, isCustom, hall, boothCode])
+  @@map("exhibition_booth_records")
+}
+
 // ============================================
 // 거래 (Transactions) - 핵심 테이블
 // ============================================

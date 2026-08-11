@@ -35,14 +35,39 @@ export default function Hiem2026Planner() {
   const [customBooths, setCustomBooths] = useState<CustomBooth[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({})
+  const [canImportLegacy, setCanImportLegacy] = useState(false)
+  const [syncMessage, setSyncMessage] = useState('공유 기록 불러오는 중…')
+
+  const applyRecord = (record: any) => {
+    const paths = (record.photos ?? []).map((photo: any) => typeof photo === 'string' ? photo : photo.path).filter(Boolean)
+    const urls = Object.fromEntries((record.photos ?? []).filter((photo: any) => photo?.path && photo?.url).map((photo: any) => [photo.path, photo.url]))
+    setPhotoUrls((current) => ({ ...current, ...urls }))
+    return {
+      contact: record.contact ?? '', products: record.purchaseRequestSamples ?? '', meeting: record.meetingMemo ?? '', action: record.nextAction ?? '',
+      status: record.status ?? '방문 예정', websiteChecked: Boolean(record.websiteChecked), inventoryChecked: Boolean(record.inventoryChecked), photos: paths,
+    } as BoothNote
+  }
 
   useEffect(() => {
-    try {
-      setNotes(JSON.parse(localStorage.getItem(NOTES_STORAGE_KEY) ?? localStorage.getItem(LEGACY_NOTES_STORAGE_KEY) ?? '{}'))
-      setCustomBooths(JSON.parse(localStorage.getItem(CUSTOM_BOOTH_STORAGE_KEY) ?? '[]'))
-    } catch {
-      setNotes({})
+    const load = async () => {
+      try {
+        const response = await fetch('/api/exhibition/booths', { cache: 'no-store' })
+        const { records = [] } = await response.json()
+        if (!response.ok) throw new Error('load failed')
+        const nextNotes: Record<string, BoothNote> = {}
+        const nextCustom: CustomBooth[] = []
+        records.forEach((record: any) => {
+          const note = applyRecord(record)
+          if (record.isCustom) nextCustom.push({ id: record.boothId, brand: record.brand, hall: record.hall, booth: record.boothCode, status: 'confirmed', photo: record.boothPhotoPath, businessCard: record.businessCardPath, createdAt: record.createdAt })
+          else nextNotes[record.boothId] = note
+          if (record.isCustom) nextNotes[record.boothId] = note
+        })
+        setNotes(nextNotes); setCustomBooths(nextCustom); setSyncMessage('Supabase 공유 저장')
+      } catch { setSyncMessage('공유 기록을 불러오지 못했습니다.') }
+      try { setCanImportLegacy(Boolean(localStorage.getItem(NOTES_STORAGE_KEY) || localStorage.getItem(LEGACY_NOTES_STORAGE_KEY) || localStorage.getItem(CUSTOM_BOOTH_STORAGE_KEY))) } catch { /* migration is optional */ }
     }
+    void load()
   }, [])
 
   const allBooths = useMemo(() => {
@@ -68,21 +93,54 @@ export default function Hiem2026Planner() {
     [visibleBooths],
   )
 
-  const saveNote = (note: BoothNote) => {
-    if (!selected) return
-    const next = { ...notes, [selected.id]: note }
-    setNotes(next)
-    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(next))
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 1800)
+  const uploadDataUrl = async (dataUrl: string, boothId: string, kind: string) => {
+    if (!dataUrl.startsWith('data:')) return dataUrl
+    const blob = await (await fetch(dataUrl)).blob()
+    const form = new FormData(); form.append('file', new File([blob], `${kind}.jpg`, { type: blob.type || 'image/jpeg' })); form.append('boothId', boothId); form.append('kind', kind)
+    const response = await fetch('/api/exhibition/upload', { method: 'POST', body: form })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body.error ?? '사진 업로드 실패')
+    return body.path as string
   }
 
-  const addCustomBooth = (booth: CustomBooth) => {
-    const next = [...customBooths, booth]
-    setCustomBooths(next)
-    localStorage.setItem(CUSTOM_BOOTH_STORAGE_KEY, JSON.stringify(next))
-    setCreateOpen(false)
-    setSelectedId(booth.id)
+  const saveNote = async (note: BoothNote) => {
+    if (!selected) return
+    try {
+      const photos = await Promise.all((note.photos ?? (note.photo ? [note.photo] : [])).map((photo) => uploadDataUrl(photo, selected.id, 'sample')))
+      const response = await fetch('/api/exhibition/booths', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boothId: selected.id, brand: selected.brand, hall: selected.hall, boothCode: selected.booth, contact: note.contact, purchaseRequestSamples: note.products, meetingMemo: note.meeting, nextAction: note.action, status: note.status, websiteChecked: note.websiteChecked, inventoryChecked: note.inventoryChecked, photos }) })
+      const body = await response.json(); if (!response.ok) throw new Error(body.error ?? '저장 실패')
+      const normalized = applyRecord(body.record); setNotes((current) => ({ ...current, [selected.id]: normalized })); setSaved(true); setSyncMessage('Supabase 공유 저장')
+      window.setTimeout(() => setSaved(false), 1800)
+    } catch (error) { setSyncMessage(error instanceof Error ? error.message : '공유 저장에 실패했습니다.') }
+  }
+
+  const addCustomBooth = async (booth: CustomBooth) => {
+    try {
+      const boothPhotoPath = booth.photo ? await uploadDataUrl(booth.photo, booth.id, 'booth') : undefined
+      const businessCardPath = booth.businessCard ? await uploadDataUrl(booth.businessCard, booth.id, 'business-card') : undefined
+      const response = await fetch('/api/exhibition/booths', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boothId: booth.id, brand: booth.brand, hall: booth.hall, boothCode: booth.booth, isCustom: true, boothPhotoPath, businessCardPath }) })
+      const body = await response.json(); if (!response.ok) throw new Error(body.error ?? '저장 실패')
+      setCustomBooths((current) => [...current, { ...booth, photo: boothPhotoPath, businessCard: businessCardPath }]); setCreateOpen(false); setSelectedId(booth.id); setSyncMessage('Supabase 공유 저장')
+    } catch (error) { setSyncMessage(error instanceof Error ? error.message : '새 업체 저장에 실패했습니다.') }
+  }
+
+  const importLegacy = async () => {
+    try {
+      const legacyNotes = JSON.parse(localStorage.getItem(NOTES_STORAGE_KEY) ?? localStorage.getItem(LEGACY_NOTES_STORAGE_KEY) ?? '{}') as Record<string, BoothNote>
+      const legacyCustom = JSON.parse(localStorage.getItem(CUSTOM_BOOTH_STORAGE_KEY) ?? '[]') as CustomBooth[]
+      const legacyBooths = [...hiem2026Booths, ...legacyCustom]
+      for (const [boothId, note] of Object.entries(legacyNotes)) {
+        const booth = legacyBooths.find((item) => item.id === boothId); if (!booth) continue
+        const photos = await Promise.all((note.photos ?? (note.photo ? [note.photo] : [])).map((photo) => uploadDataUrl(photo, boothId, 'sample')))
+        await fetch('/api/exhibition/booths', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boothId, brand: booth.brand, hall: booth.hall, boothCode: booth.booth, isCustom: boothId.startsWith('custom-'), contact: note.contact, purchaseRequestSamples: note.products, meetingMemo: note.meeting, nextAction: note.action, status: note.status, websiteChecked: note.websiteChecked, inventoryChecked: note.inventoryChecked, photos }) })
+      }
+      for (const booth of legacyCustom.filter((item) => !legacyNotes[item.id])) {
+        const boothPhotoPath = booth.photo ? await uploadDataUrl(booth.photo, booth.id, 'booth') : undefined
+        const businessCardPath = booth.businessCard ? await uploadDataUrl(booth.businessCard, booth.id, 'business-card') : undefined
+        await fetch('/api/exhibition/booths', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boothId: booth.id, brand: booth.brand, hall: booth.hall, boothCode: booth.booth, isCustom: true, boothPhotoPath, businessCardPath }) })
+      }
+      setCanImportLegacy(false); setSyncMessage('기존 브라우저 기록을 Supabase로 가져왔습니다.'); window.location.reload()
+    } catch { setSyncMessage('기존 브라우저 기록 가져오기에 실패했습니다.') }
   }
 
   return (
@@ -110,6 +168,9 @@ export default function Hiem2026Planner() {
           <Summary value={String(allBooths.filter((booth) => booth.status === 'pending').length)} label="부스 확인 중" />
         </section>
 
+        <p className="mt-2 text-xs font-semibold text-[#5a8d00]">{syncMessage}</p>
+        {canImportLegacy && <button type="button" onClick={() => void importLegacy()} className="mt-2 border border-[#76b900] px-3 py-2 text-xs font-bold text-[#4e7900]">기존 브라우저 기록 가져오기</button>}
+
         <div className="mt-5 grid gap-2 sm:mt-6 sm:flex sm:flex-wrap sm:items-center">
           <label className="relative w-full sm:mr-1 sm:min-w-[220px] sm:flex-1 sm:max-w-[320px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#757575]" />
@@ -134,12 +195,12 @@ export default function Hiem2026Planner() {
               <div className="mt-4 flex flex-wrap gap-2">{hiem2026Unavailable.map((brand) => <span key={brand} className="border border-[#ccc] bg-white px-3 py-1.5 text-sm">{brand}</span>)}</div>
             </section>
           </section>
-          <aside className="hidden xl:sticky xl:top-8 xl:self-start xl:block"><DetailPanel booth={selected} note={selected ? notes[selected.id] : undefined} saved={saved} onSave={saveNote} /></aside>
+          <aside className="hidden xl:sticky xl:top-8 xl:self-start xl:block"><DetailPanel booth={selected} note={selected ? notes[selected.id] : undefined} saved={saved} photoUrls={photoUrls} onSave={saveNote} /></aside>
         </div>
         {selected && <div className="fixed inset-0 z-50 flex items-end bg-black/45 p-3 xl:hidden" role="dialog" aria-modal="true" aria-label="모바일 현장 기록 창">
           <button className="absolute inset-0 cursor-default" aria-label="현장 기록 창 닫기" onClick={() => setSelectedId(null)} />
           <div className="relative max-h-[88vh] w-full overflow-y-auto bg-white shadow-2xl">
-            <DetailPanel booth={selected} note={notes[selected.id]} saved={saved} onSave={saveNote} onClose={() => setSelectedId(null)} />
+            <DetailPanel booth={selected} note={notes[selected.id]} saved={saved} photoUrls={photoUrls} onSave={saveNote} onClose={() => setSelectedId(null)} />
           </div>
         </div>}
         {createOpen && <div className="fixed inset-0 z-50 flex items-end bg-black/45 p-3 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-label="새 업체 추가 창">
@@ -174,14 +235,14 @@ function UploadField({ label, icon, preview, onChange }: { label: string; icon: 
   return <label className="block text-sm font-semibold">{label}<span className="mt-1.5 flex h-10 cursor-pointer items-center gap-2 border border-dashed border-[#999] px-3 text-xs font-normal text-[#555]">{icon}{preview ? '첨부 완료 · 다시 선택' : '이미지 선택'}<input type="file" accept="image/*" className="sr-only" onChange={(event) => onChange(event.target.files?.[0])} /></span>{preview && <img src={preview} alt={`${label} 미리보기`} className="mt-2 h-20 w-full object-cover" />}</label>
 }
 
-function MultiPhotoUploadField({ photos, onChange }: { photos: string[]; onChange: (photos: string[]) => void }) {
+function MultiPhotoUploadField({ photos, photoUrls, onChange }: { photos: string[]; photoUrls: Record<string, string>; onChange: (photos: string[]) => void }) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
   const addPhotos = async (files: FileList | null) => {
     const added = await Promise.all(Array.from(files ?? []).map((file) => new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result ?? '')); reader.readAsDataURL(file) })))
     onChange([...photos, ...added.filter(Boolean)])
   }
   const removePhoto = (index: number) => onChange(photos.filter((_, currentIndex) => currentIndex !== index))
-  return <div className="block text-sm font-semibold"><label>구매요청 샘플 사진 업로드<span className="mt-1.5 flex h-10 cursor-pointer items-center gap-2 border border-dashed border-[#999] px-3 text-xs font-normal text-[#555]"><ImagePlus className="h-4 w-4" />{photos.length ? `${photos.length}장 첨부 · 추가 선택` : '여러 이미지 선택'}<input type="file" accept="image/*" multiple className="sr-only" onChange={(event) => addPhotos(event.target.files)} /></span></label>{photos.length > 0 && <div className="mt-2 grid grid-cols-3 gap-2">{photos.map((photo, index) => <div key={`${photo.slice(0, 32)}-${index}`} className="relative border border-[#ccc]"><button type="button" aria-label={`사진 크게 보기 ${index + 1}`} onClick={() => setSelectedPhoto(photo)} className="block w-full"><img src={photo} alt={`구매요청 샘플 사진 ${index + 1}`} className="h-20 w-full object-cover" /></button><button type="button" aria-label={`사진 삭제 ${index + 1}`} onClick={() => removePhoto(index)} className="absolute right-1 top-1 grid h-6 w-6 place-items-center bg-black text-sm font-bold text-white hover:bg-[#76b900] hover:text-black">×</button></div>)}</div>}{selectedPhoto && <div className="fixed inset-0 z-[70] grid place-items-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="사진 크게 보기"><button type="button" aria-label="사진 크게 보기 닫기" onClick={() => setSelectedPhoto(null)} className="absolute right-4 top-4 grid h-10 w-10 place-items-center border border-white text-xl text-white">×</button><img src={selectedPhoto} alt="구매요청 샘플 사진 크게 보기" className="max-h-[85vh] max-w-full object-contain" /></div>}</div>
+  return <div className="block text-sm font-semibold"><label>구매요청 샘플 사진 업로드<span className="mt-1.5 flex h-10 cursor-pointer items-center gap-2 border border-dashed border-[#999] px-3 text-xs font-normal text-[#555]"><ImagePlus className="h-4 w-4" />{photos.length ? `${photos.length}장 첨부 · 추가 선택` : '여러 이미지 선택'}<input type="file" accept="image/*" multiple className="sr-only" onChange={(event) => addPhotos(event.target.files)} /></span></label>{photos.length > 0 && <div className="mt-2 grid grid-cols-3 gap-2">{photos.map((photo, index) => { const url = photoUrls[photo] ?? photo; return <div key={`${photo.slice(0, 32)}-${index}`} className="relative border border-[#ccc]"><button type="button" aria-label={`사진 크게 보기 ${index + 1}`} onClick={() => setSelectedPhoto(url)} className="block w-full"><img src={url} alt={`구매요청 샘플 사진 ${index + 1}`} className="h-20 w-full object-cover" /></button><button type="button" aria-label={`사진 삭제 ${index + 1}`} onClick={() => removePhoto(index)} className="absolute right-1 top-1 grid h-6 w-6 place-items-center bg-black text-sm font-bold text-white hover:bg-[#76b900] hover:text-black">×</button></div>})}</div>}{selectedPhoto && <div className="fixed inset-0 z-[70] grid place-items-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="사진 크게 보기"><button type="button" aria-label="사진 크게 보기 닫기" onClick={() => setSelectedPhoto(null)} className="absolute right-4 top-4 grid h-10 w-10 place-items-center border border-white text-xl text-white">×</button><img src={selectedPhoto} alt="구매요청 샘플 사진 크게 보기" className="max-h-[85vh] max-w-full object-contain" /></div>}</div>
 }
 
 function Summary({ value, label }: { value: string; label: string }) {
@@ -192,12 +253,12 @@ function BoothGroup({ name, booths, selectedId, notes, onSelect }: { name: strin
   return <section><div className="mb-3 flex items-center justify-between border-b border-black pb-2"><h2 className="text-lg font-bold tracking-[-0.035em]">Hall {name}</h2><span className="text-xs text-[#757575]">{booths.length}개 업체</span></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3">{booths.map((booth) => { const hasNote = Boolean(notes[booth.id] && Object.values(notes[booth.id]).some(Boolean)); const status = notes[booth.id]?.status; const isCustom = booth.id.startsWith('custom-'); return <button key={booth.id} onClick={() => onSelect(booth.id)} className={`min-h-[106px] border p-4 text-left transition ${selectedId === booth.id ? 'border-[#76b900] bg-[#f7f7f7] ring-1 ring-[#76b900]' : 'border-[#ccc] bg-white hover:border-black'}`}><div className="flex items-center justify-between gap-2 text-[11px] font-bold tracking-[0.08em] text-[#5a8d00]"><span>{booth.hall} · {booth.booth}</span>{isCustom && <span className="border border-[#76b900] bg-[#f2ffe0] px-1 py-0.5 text-[9px] text-[#4e7900]">새 업체 카드</span>}{hasNote && <span className="h-2 w-2 bg-[#76b900]" aria-label="메모 있음" />}</div><div className="mt-3 flex items-end justify-between gap-3"><span className="text-[17px] font-bold tracking-[-0.03em]">{booth.brand}</span>{status && status !== '방문 예정' && <span className="ml-auto border border-[#76b900] bg-[#f2ffe0] px-1.5 py-0.5 text-[10px] font-bold text-[#4e7900]">{status}</span>}<ChevronRight className="h-4 w-4 shrink-0 text-[#757575]" /></div></button> })}</div></section>
 }
 
-function DetailPanel({ booth, note, saved, onSave, onClose }: { booth: HiemBooth | null; note?: BoothNote; saved: boolean; onSave: (note: BoothNote) => void; onClose?: () => void }) {
+function DetailPanel({ booth, note, saved, photoUrls, onSave, onClose }: { booth: HiemBooth | null; note?: BoothNote; saved: boolean; photoUrls: Record<string, string>; onSave: (note: BoothNote) => void; onClose?: () => void }) {
   const [draft, setDraft] = useState<BoothNote>({})
   useEffect(() => setDraft(note ?? {}), [booth?.id, note])
   if (!booth) return <div className="border border-[#ccc] bg-white p-6"><ClipboardPenLine className="h-5 w-5 text-[#76b900]" /><h2 className="mt-4 text-xl font-bold tracking-[-0.04em]">현장 기록</h2><p className="mt-2 text-sm leading-6 text-[#757575]">왼쪽에서 브랜드를 선택하면 이곳에서 미팅 기록을 남길 수 있습니다.</p></div>
   const change = (key: keyof BoothNote, value: string) => setDraft((current) => ({ ...current, [key]: value }))
-  return <div className="relative border border-[#ccc] bg-white p-5">{onClose && <button type="button" onClick={onClose} aria-label="현장 기록 창 닫기" className="absolute right-3 top-3 grid h-8 w-8 place-items-center border border-[#ccc] bg-white text-[#555]"><X className="h-4 w-4" /></button>}<p className="text-[11px] font-bold tracking-[0.1em] text-[#5a8d00]">HALL {booth.hall} · BOOTH {booth.booth}</p><h2 className="mt-2 text-2xl font-bold tracking-[-0.05em]">{booth.brand}</h2><p className="mt-2 text-xs leading-5 text-[#757575]">메모는 현재 이 브라우저에 저장됩니다.</p><div className="mt-5 space-y-4"><Field label="담당자 / 연락처" value={draft.contact ?? ''} onChange={(value) => change('contact', value)} placeholder="예: Amy · WeChat 확인" /><Field label="구매요청 샘플" multiline value={draft.products ?? ''} onChange={(value) => change('products', value)} placeholder="원단명, 컬렉션, 샘플북 등" /><MultiPhotoUploadField photos={draft.photos ?? (draft.photo ? [draft.photo] : [])} onChange={(photos) => setDraft((current) => ({ ...current, photos, photo: undefined }))} /><Field label="미팅 메모" multiline value={draft.meeting ?? ''} onChange={(value) => change('meeting', value)} placeholder="가격, MOQ, 납기, 품질 등" /><Field label="다음 할 일" value={draft.action ?? ''} onChange={(value) => change('action', value)} placeholder="예: 샘플·단가표 요청" /><label className="block text-sm font-semibold">상태<select value={draft.status ?? '방문 예정'} onChange={(event) => change('status', event.target.value)} className="mt-1.5 h-10 w-full border border-[#ccc] bg-white px-3 text-sm outline-none focus:border-[#76b900]"><option>방문 예정</option><option>미팅 완료</option><option>후속 확인</option><option>보류</option></select></label><div className="grid grid-cols-2 gap-2"><CheckField label="웹사이트" checked={draft.websiteChecked ?? false} onChange={(websiteChecked) => setDraft((current) => ({ ...current, websiteChecked }))} /><CheckField label="재고관리" checked={draft.inventoryChecked ?? false} onChange={(inventoryChecked) => setDraft((current) => ({ ...current, inventoryChecked }))} /></div></div><button onClick={() => onSave({ ...draft, status: draft.status ?? '방문 예정' })} className="mt-5 flex h-10 w-full items-center justify-center gap-2 bg-[#76b900] text-sm font-bold text-black hover:bg-[#bff230]">{saved ? <Check className="h-4 w-4" /> : null}{saved ? '저장했습니다' : '메모 저장'}</button></div>
+  return <div className="relative border border-[#ccc] bg-white p-5">{onClose && <button type="button" onClick={onClose} aria-label="현장 기록 창 닫기" className="absolute right-3 top-3 grid h-8 w-8 place-items-center border border-[#ccc] bg-white text-[#555]"><X className="h-4 w-4" /></button>}<p className="text-[11px] font-bold tracking-[0.1em] text-[#5a8d00]">HALL {booth.hall} · BOOTH {booth.booth}</p><h2 className="mt-2 text-2xl font-bold tracking-[-0.05em]">{booth.brand}</h2><p className="mt-2 text-xs leading-5 text-[#757575]">메모와 사진은 Supabase 공유 저장소에 저장됩니다.</p><div className="mt-5 space-y-4"><Field label="담당자 / 연락처" value={draft.contact ?? ''} onChange={(value) => change('contact', value)} placeholder="예: Amy · WeChat 확인" /><Field label="구매요청 샘플" multiline value={draft.products ?? ''} onChange={(value) => change('products', value)} placeholder="원단명, 컬렉션, 샘플북 등" /><MultiPhotoUploadField photos={draft.photos ?? (draft.photo ? [draft.photo] : [])} photoUrls={photoUrls} onChange={(photos) => setDraft((current) => ({ ...current, photos, photo: undefined }))} /><Field label="미팅 메모" multiline value={draft.meeting ?? ''} onChange={(value) => change('meeting', value)} placeholder="가격, MOQ, 납기, 품질 등" /><Field label="다음 할 일" value={draft.action ?? ''} onChange={(value) => change('action', value)} placeholder="예: 샘플·단가표 요청" /><label className="block text-sm font-semibold">상태<select value={draft.status ?? '방문 예정'} onChange={(event) => change('status', event.target.value)} className="mt-1.5 h-10 w-full border border-[#ccc] bg-white px-3 text-sm outline-none focus:border-[#76b900]"><option>방문 예정</option><option>미팅 완료</option><option>후속 확인</option><option>보류</option></select></label><div className="grid grid-cols-2 gap-2"><CheckField label="웹사이트" checked={draft.websiteChecked ?? false} onChange={(websiteChecked) => setDraft((current) => ({ ...current, websiteChecked }))} /><CheckField label="재고관리" checked={draft.inventoryChecked ?? false} onChange={(inventoryChecked) => setDraft((current) => ({ ...current, inventoryChecked }))} /></div></div><button onClick={() => onSave({ ...draft, status: draft.status ?? '방문 예정' })} className="mt-5 flex h-10 w-full items-center justify-center gap-2 bg-[#76b900] text-sm font-bold text-black hover:bg-[#bff230]">{saved ? <Check className="h-4 w-4" /> : null}{saved ? '저장했습니다' : '메모 저장'}</button></div>
 }
 
 function CheckField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
