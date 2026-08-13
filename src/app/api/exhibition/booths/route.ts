@@ -17,6 +17,7 @@ type BoothRecordInput = {
   status?: string
   websiteChecked?: boolean
   inventoryChecked?: boolean
+  giftChecked?: boolean
   photos?: string[]
   boothPhotoPath?: string
   businessCardPath?: string
@@ -75,14 +76,14 @@ export async function POST(request: NextRequest) {
         boothCode: input.boothCode.trim().toUpperCase(), isCustom: Boolean(input.isCustom), contact: input.contact || null,
         purchaseRequestSamples: input.purchaseRequestSamples || null, meetingMemo: input.meetingMemo || null,
         nextAction: input.nextAction || null, status: input.status || '방문 예정', websiteChecked: Boolean(input.websiteChecked),
-        inventoryChecked: Boolean(input.inventoryChecked), photos: input.photos ?? [], boothPhotoPath: input.boothPhotoPath || null,
+        inventoryChecked: Boolean(input.inventoryChecked), giftChecked: Boolean(input.giftChecked), photos: input.photos ?? [], boothPhotoPath: input.boothPhotoPath || null,
         businessCardPath: input.businessCardPath || null,
       },
       update: {
         brand: input.brand.trim(), hall: input.hall, boothCode: input.boothCode.trim().toUpperCase(), isCustom: Boolean(input.isCustom),
         contact: input.contact || null, purchaseRequestSamples: input.purchaseRequestSamples || null, meetingMemo: input.meetingMemo || null,
         nextAction: input.nextAction || null, status: input.status || '방문 예정', websiteChecked: Boolean(input.websiteChecked),
-        inventoryChecked: Boolean(input.inventoryChecked), photos: input.photos ?? [], boothPhotoPath: input.boothPhotoPath || null,
+        inventoryChecked: Boolean(input.inventoryChecked), giftChecked: Boolean(input.giftChecked), photos: input.photos ?? [], boothPhotoPath: input.boothPhotoPath || null,
         businessCardPath: input.businessCardPath || null, updatedAt: new Date(),
       },
     })

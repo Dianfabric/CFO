@@ -91,6 +91,7 @@ model ExhibitionBoothRecord {
   status                 String   @default("방문 예정")
   websiteChecked         Boolean  @default(false) @map("website_checked")
   inventoryChecked       Boolean  @default(false) @map("inventory_checked")
+  giftChecked            Boolean  @default(false) @map("gift_checked")
   photos                 Json     @default("[]")
   boothPhotoPath         String?  @map("booth_photo_path")
   businessCardPath       String?  @map("business_card_path")
