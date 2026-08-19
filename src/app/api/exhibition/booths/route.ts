@@ -69,18 +69,19 @@ export async function POST(request: NextRequest) {
     if (!input.boothId || !input.brand?.trim() || !input.hall || !input.boothCode?.trim()) {
       return NextResponse.json({ error: '업체명, Hall, 부스번호가 필요합니다.' }, { status: 400 })
     }
+    const isCustom = input.isCustom ?? input.boothId.startsWith('custom-')
     const record = await prisma.exhibitionBoothRecord.upsert({
       where: { eventSlug_boothId: { eventSlug: EVENT_SLUG, boothId: input.boothId } },
       create: {
         eventSlug: EVENT_SLUG, boothId: input.boothId, brand: input.brand.trim(), hall: input.hall,
-        boothCode: input.boothCode.trim().toUpperCase(), isCustom: Boolean(input.isCustom), contact: input.contact || null,
+        boothCode: input.boothCode.trim().toUpperCase(), isCustom, contact: input.contact || null,
         purchaseRequestSamples: input.purchaseRequestSamples || null, meetingMemo: input.meetingMemo || null,
         nextAction: input.nextAction || null, status: input.status || '방문 예정', websiteChecked: Boolean(input.websiteChecked),
         inventoryChecked: Boolean(input.inventoryChecked), giftChecked: Boolean(input.giftChecked), photos: input.photos ?? [], boothPhotoPath: input.boothPhotoPath || null,
         businessCardPath: input.businessCardPath || null,
       },
       update: {
-        brand: input.brand.trim(), hall: input.hall, boothCode: input.boothCode.trim().toUpperCase(), isCustom: Boolean(input.isCustom),
+        brand: input.brand.trim(), hall: input.hall, boothCode: input.boothCode.trim().toUpperCase(), isCustom,
         contact: input.contact || null, purchaseRequestSamples: input.purchaseRequestSamples || null, meetingMemo: input.meetingMemo || null,
         nextAction: input.nextAction || null, status: input.status || '방문 예정', websiteChecked: Boolean(input.websiteChecked),
         inventoryChecked: Boolean(input.inventoryChecked), giftChecked: Boolean(input.giftChecked), photos: input.photos ?? [], boothPhotoPath: input.boothPhotoPath || null,
