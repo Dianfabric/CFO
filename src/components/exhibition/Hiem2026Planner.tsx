@@ -108,18 +108,38 @@ export default function Hiem2026Planner() {
 
   const saveNote = async (note: BoothNote) => {
     if (!selected || saving) return
+    const booth = selected
+    const postRecord = async (photos: string[]) => {
+      const response = await fetch('/api/exhibition/booths', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boothId: booth.id, brand: booth.brand, hall: booth.hall, boothCode: booth.booth, contact: note.contact, purchaseRequestSamples: note.products, meetingMemo: note.meeting, nextAction: note.action, status: note.status, websiteChecked: note.websiteChecked, inventoryChecked: note.inventoryChecked, giftChecked: note.giftChecked, photos }) })
+      const body = await response.json(); if (!response.ok) throw new Error(body.error ?? '저장 실패')
+      const normalized = applyRecord(body.record); setNotes((current) => ({ ...current, [booth.id]: normalized }))
+      return normalized
+    }
     setSaving(true)
     setSyncMessage('사진과 메모를 저장하는 중…')
+    let uploadedPhotos: string[] = []
     try {
       const photos = await uploadSequentially(
         note.photos ?? (note.photo ? [note.photo] : []),
-        (photo) => uploadDataUrl(photo, selected.id, 'sample'),
+        (photo) => uploadDataUrl(photo, booth.id, 'sample'),
+        (uploaded) => { uploadedPhotos = [...uploaded] },
       )
-      const response = await fetch('/api/exhibition/booths', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boothId: selected.id, brand: selected.brand, hall: selected.hall, boothCode: selected.booth, contact: note.contact, purchaseRequestSamples: note.products, meetingMemo: note.meeting, nextAction: note.action, status: note.status, websiteChecked: note.websiteChecked, inventoryChecked: note.inventoryChecked, giftChecked: note.giftChecked, photos }) })
-      const body = await response.json(); if (!response.ok) throw new Error(body.error ?? '저장 실패')
-      const normalized = applyRecord(body.record); setNotes((current) => ({ ...current, [selected.id]: normalized })); setSaved(true); setSyncMessage('Supabase 공유 저장')
+      await postRecord(photos)
+      setSaved(true); setSyncMessage('Supabase 공유 저장')
       window.setTimeout(() => setSaved(false), 1800)
-    } catch (error) { setSyncMessage(error instanceof Error ? error.message : '공유 저장에 실패했습니다.') }
+    } catch (error) {
+      if (uploadedPhotos.length > 0) {
+        try {
+          await postRecord(uploadedPhotos)
+          setSaved(true); setSyncMessage('일부 사진과 메모를 먼저 저장했습니다. 실패한 사진은 다시 추가해 주세요.')
+          window.setTimeout(() => setSaved(false), 1800)
+        } catch {
+          setSyncMessage(error instanceof Error ? error.message : '공유 저장에 실패했습니다.')
+        }
+      } else {
+        setSyncMessage(error instanceof Error ? error.message : '공유 저장에 실패했습니다.')
+      }
+    }
     finally { setSaving(false) }
   }
 
