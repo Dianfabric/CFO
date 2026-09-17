@@ -45,6 +45,7 @@ import {
   Lightbulb,
   Wrench,
   BookOpen,
+  UtensilsCrossed,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -73,6 +74,8 @@ export const v10MenuItems: MenuItem[] = [
   { href: '/products', label: '원단 단가 관리', icon: Package },
   // 연차 관리 — 별도 앱 (dian-leave)을 /leave 페이지에 임베드
   { href: '/leave', label: '연차 관리', icon: CalendarDays },
+  // 점심 내역 — 별도 앱 (dian-lunch)을 /lunch 페이지에 임베드
+  { href: '/lunch', label: '점심 내역', icon: UtensilsCrossed },
   { href: '/samples', label: '샘플 관리', icon: BookOpen },
   { href: '/costs', label: '비용 관리', icon: Wallet },
   { href: '/analysis', label: '분석/시뮬레이션', icon: BarChart3 },
@@ -157,6 +160,7 @@ export const menuGroups: MenuGroup[] = [
     items: [
       { href: '/products', label: '원단 단가 관리', icon: Package },
       { href: '/leave', label: '연차 관리', icon: CalendarDays },
+      { href: '/lunch', label: '점심 내역', icon: UtensilsCrossed },
       { href: '/samples', label: '샘플 관리', icon: BookOpen },
       { href: '/finance/operations', label: '운영·샘플', icon: PackageIcon },
       { href: '/finance/operations/intake', label: '입고 워크플로우', icon: PackageOpen },
