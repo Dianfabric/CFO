@@ -452,11 +452,11 @@ export default function FabricPriceManager() {
       </div>
 
       <Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-[calc(100vw-2rem)] overflow-hidden sm:max-w-5xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden sm:max-h-[90vh] sm:max-w-5xl">
+          <DialogHeader className="shrink-0 pr-10">
             <DialogTitle>원단 추가</DialogTitle>
           </DialogHeader>
-          <div className={`grid gap-5 overflow-y-auto pr-1 ${priceTableOpen ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : ''}`}>
+          <div className={`grid min-h-0 flex-1 gap-5 overflow-y-auto overscroll-contain pb-2 pr-1 [-webkit-overflow-scrolling:touch] ${priceTableOpen ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : ''}`}>
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
               <p>
