@@ -46,6 +46,7 @@ import {
   Wrench,
   BookOpen,
   UtensilsCrossed,
+  Landmark,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -72,6 +73,8 @@ export const v10MenuItems: MenuItem[] = [
   { href: '/clients', label: '거래처 관리', icon: Users },
   // 미수금 관리 — 거래 관리 페이지 하단으로 통합 (대표 지시 2026-07-13, /receivables 는 URL 접근 유지)
   { href: '/products', label: '원단 단가 관리', icon: Package },
+  // 국내 송금 — 별도 앱 (dian-domestic)을 /domestic 페이지에 임베드
+  { href: '/domestic', label: '국내 송금', icon: Landmark },
   // 연차 관리 — 별도 앱 (dian-leave)을 /leave 페이지에 임베드
   { href: '/leave', label: '연차 관리', icon: CalendarDays },
   // 점심 내역 — 별도 앱 (dian-lunch)을 /lunch 페이지에 임베드
@@ -159,6 +162,7 @@ export const menuGroups: MenuGroup[] = [
     icon: ShoppingBag,
     items: [
       { href: '/products', label: '원단 단가 관리', icon: Package },
+      { href: '/domestic', label: '국내 송금', icon: Landmark },
       { href: '/leave', label: '연차 관리', icon: CalendarDays },
       { href: '/lunch', label: '점심 내역', icon: UtensilsCrossed },
       { href: '/samples', label: '샘플 관리', icon: BookOpen },
