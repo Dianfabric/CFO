@@ -106,7 +106,8 @@ function computeSaekPnl(
     .filter((s) => s.sale_date >= range.start && s.sale_date <= range.end)
     .reduce((a, s) => a + s.amount, 0)
   const storeSupply = Math.round(storeRaw / 1.1)
-  const stdEstimate = Math.round((onlineSupply + storeSupply) * stdRate)
+  // 매장 직접판매는 완제품(복주머니·색동받침) — 매입액 별도 등록이라 자동 원가 추정 제외 (대표 지시 2026-08-10)
+  const stdEstimate = Math.round(onlineSupply * stdRate)
   return {
     onlineSupply,
     storeSupply,

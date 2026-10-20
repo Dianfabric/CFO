@@ -130,7 +130,8 @@ export default function SaekdongKpi({ purchases, expenses, itemCosts = [] }: Pro
       sales && !sales.error ? Math.round((sales.thisYear ?? 0) / 1.1) : 0
     const stdRate = yearOnlineSupply > 0 ? yearStdCogs / yearOnlineSupply : 0
     // 기준단가 추정 원가 — 매장 판매에도 같은 원가율 적용 (경영 계기판과 동일 규칙)
-    const stdCogs = Math.round((onlineRaw / 1.1 + storeSupply) * stdRate)
+    // 매장 직접판매는 완제품(복주머니·색동받침) — 매입액 별도 등록이라 자동 원가 추정 제외 (대표 지시 2026-08-10)
+    const stdCogs = Math.round((onlineRaw / 1.1) * stdRate)
 
     const purchSum = purchases.filter((p) => inPeriod(p.purchase_date)).reduce((s, p) => s + p.amount, 0)
     const expCogs = expSum((e) => e.nature === '매출원가')

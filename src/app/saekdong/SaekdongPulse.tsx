@@ -177,7 +177,8 @@ export default function SaekdongPulse({ purchases, expenses, itemCosts = [] }: P
         if (e.is_monthly) return monthlyActive(e, mo) ? s + e.amount : s
         return (e.expense_date ?? '').startsWith(mo) ? s + e.amount : s
       }, 0)
-      const std = Math.round(((sales!.monthly[i]?.revenue ?? 0) / 1.1 + (storeByMonth.get(mo) ?? 0)) * stdRate)
+      // 매장 직접판매(완제품)는 매입액 별도 등록 — 자동 원가 추정 제외 (대표 지시 2026-08-10)
+      const std = Math.round(((sales!.monthly[i]?.revenue ?? 0) / 1.1) * stdRate)
       return purch + cogsExp + std
     })
 
