@@ -100,7 +100,8 @@ export default function CycleMiniHeader({ cycle: initial }: Props) {
     if (now < s) {
       p = { weekNumber: 0, daysRemaining: Math.ceil((e - s) / 86400000), totalProgress: 0 }
     } else if (now > e) {
-      p = { weekNumber: 12, daysRemaining: 0, totalProgress: 1 }
+      // 종료된 사이클 — daysRemaining 을 -경과일 로 표시 (아래에서 '종료' 라벨)
+      p = { weekNumber: 12, daysRemaining: -Math.floor((now - e) / 86400000), totalProgress: 1 }
     } else {
       const diff = now - s
       const total = e - s
@@ -284,14 +285,19 @@ export default function CycleMiniHeader({ cycle: initial }: Props) {
               {progress ? `${Math.round(progress.totalProgress * 100)}%` : '—'}
             </span>
             {progress && (
-              <span className="text-[10px]" style={{ color: 'var(--nv-stone)' }}>
-                · D-{progress.daysRemaining}
+              <span
+                className="text-[10px] font-bold"
+                style={{ color: progress.daysRemaining < 0 ? 'var(--nv-error, #e52020)' : 'var(--nv-stone)' }}
+              >
+                {progress.daysRemaining < 0
+                  ? `· 종료 (D+${-progress.daysRemaining})`
+                  : `· D-${progress.daysRemaining}`}
               </span>
             )}
           </div>
 
-          {/* WAM dday — NVIDIA neutral (surface-soft + ink + green dot) */}
-          {wamDday !== null && wamDday <= 7 && (
+          {/* WAM dday — 종료된 사이클엔 표시 안 함 */}
+          {wamDday !== null && wamDday <= 7 && (progress?.daysRemaining ?? 0) >= 0 && (
             <div
               className="px-2 py-0.5 text-[10px] inline-flex items-center gap-1 shrink-0"
               style={{

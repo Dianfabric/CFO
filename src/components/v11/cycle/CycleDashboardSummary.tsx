@@ -35,6 +35,7 @@ import {
   type CompanyPinnedKR,
   type BusinessTrack,
   type WamWeeklyScore,
+  type KrUnit,
 } from '@/lib/cycle-okr'
 import { cn } from '@/lib/utils'
 import CycleMiniHeader from './CycleMiniHeader'
@@ -270,6 +271,14 @@ export default function CycleDashboardSummary() {
   const execColor =
     data.week_exec_rate >= 0.8 ? '#76b900' : data.week_exec_rate >= 0.6 ? '#f59e0b' : '#ef4444'
 
+  // 목표가 있는 직원만 카드로, 미설정 직원은 아래 한 줄 스트립으로 (화면 점유 최소화)
+  const withGoal = data.employees_summary.filter(
+    (e) => e.big_goal_title || e.kr_count > 0,
+  )
+  const unset = data.employees_summary.filter(
+    (e) => !e.big_goal_title && e.kr_count === 0,
+  )
+
   return (
     <div className="space-y-4">
       {/* 미니 헤더 — 큰 목표 + 사이클 정보 strip (인라인 편집) */}
@@ -300,18 +309,55 @@ export default function CycleDashboardSummary() {
             · KR 평균 + 이번 주 투두 완료율
           </span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {data.employees_summary.map((e) => (
-            <EmployeeProgressCard
-              key={e.id}
-              emp={e}
-              cycleStart={data.cycle?.start_date ?? ''}
-              cycleEnd={data.cycle?.end_date ?? ''}
-              weekNumber={data.week_number}
-              onToggleTodo={toggleTodoOptimistic}
-            />
-          ))}
-        </div>
+        {withGoal.length === 0 ? (
+          <p className="text-[12px] py-3 text-center" style={{ color: 'var(--nv-stone)' }}>
+            아직 빅 목표를 설정한 직원이 없습니다 — 아래에서 직원을 눌러 추가하세요
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {withGoal.map((e) => (
+              <EmployeeProgressCard
+                key={e.id}
+                emp={e}
+                cycleStart={data.cycle?.start_date ?? ''}
+                cycleEnd={data.cycle?.end_date ?? ''}
+                weekNumber={data.week_number}
+                onToggleTodo={toggleTodoOptimistic}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* 목표 미설정 직원 — 이름 칩 한 줄 (클릭 → 직원별 OKR에서 추가) */}
+        {unset.length > 0 && (
+          <div
+            className="mt-3 pt-3 flex items-center gap-1.5 flex-wrap"
+            style={{ borderTop: '1px dashed var(--nv-hairline)' }}
+          >
+            <span className="text-[11px]" style={{ color: 'var(--nv-stone)' }}>
+              빅 목표 미설정 {unset.length}명:
+            </span>
+            {unset.map((e) => (
+              <Link
+                key={e.id}
+                href={`/finance/cycle/employees#emp-${e.id}`}
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11.5px] font-bold transition-colors hover:border-[var(--nv-ink)]"
+                style={{
+                  border: '1px solid var(--nv-hairline)',
+                  borderRadius: '2px',
+                  color: 'var(--nv-mute)',
+                }}
+              >
+                <span
+                  className="inline-block w-1.5 h-1.5"
+                  style={{ backgroundColor: e.color }}
+                />
+                {e.name}
+                <span style={{ color: 'var(--nv-primary)' }}>+</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -403,6 +449,7 @@ function EmployeeProgressCard({
   onToggleTodo: (todoId: string, newStatus: 'todo' | 'done') => void
 }) {
   const [wamScores, setWamScores] = useState<WamWeeklyScore[]>([])
+  const [krOpen, setKrOpen] = useState(false) // KR 상세 기본 접힘 — 화면 길이 절약
   const router = useRouter()
 
   const fetchWam = useCallback(async () => {
@@ -690,20 +737,42 @@ function EmployeeProgressCard({
          이 영역의 클릭은 카드 navigation(onClick) 으로 버블되면 안 됨 */}
       {emp.big_goal_krs.length > 0 ? (
         <div
-          className="mt-3 pt-3 space-y-3"
+          className="mt-3 pt-2"
           style={{ borderTop: '1px solid var(--nv-hairline)' }}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           role="presentation"
         >
-          {emp.big_goal_krs.map((kr) => (
-            <BigKrDetailSection
-              key={kr.kr_id}
-              kr={kr}
-              weekNumber={weekNumber}
-              onToggleTodo={toggleTodo}
-            />
-          ))}
+          <button
+            type="button"
+            onClick={() => setKrOpen((v) => !v)}
+            className="w-full min-h-[32px] flex items-center gap-1 text-[11.5px] font-bold transition-colors"
+            style={{ color: 'var(--nv-mute)' }}
+          >
+            {krOpen ? (
+              <ChevronDown className="w-3 h-3 shrink-0" />
+            ) : (
+              <ChevronRight className="w-3 h-3 shrink-0" />
+            )}
+            KR 상세 {emp.big_goal_krs.length}개
+            {!krOpen && (
+              <span className="font-normal truncate" style={{ color: 'var(--nv-stone)' }}>
+                · {emp.big_goal_krs.map((kr) => kr.kr_title).join(' · ')}
+              </span>
+            )}
+          </button>
+          {krOpen && (
+            <div className="mt-1.5 space-y-3">
+              {emp.big_goal_krs.map((kr) => (
+                <BigKrDetailSection
+                  key={kr.kr_id}
+                  kr={kr}
+                  weekNumber={weekNumber}
+                  onToggleTodo={toggleTodo}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div
@@ -796,7 +865,8 @@ function BigKrDetailSection({
             {Math.round(kr.lead_progress * 100)}%
           </span>
           <span className="text-[10.5px]" style={{ color: 'var(--nv-stone)' }}>
-            {Math.round(kr.lead_current)}/{Math.round(kr.lead_target)}
+            {formatKrValue(kr.lead_current, kr.lead_unit as KrUnit)}/
+            {formatKrValue(kr.lead_target, kr.lead_unit as KrUnit)}
           </span>
         </div>
         <div
@@ -825,8 +895,8 @@ function BigKrDetailSection({
                 {Math.round(kr.lag_progress * 100)}%
               </span>
               <span className="text-[10.5px]" style={{ color: 'var(--nv-stone)' }}>
-                {Math.round(Number(kr.lag_current ?? 0))}/
-                {Math.round(Number(kr.lag_target ?? 0))}
+                {formatKrValue(Number(kr.lag_current ?? 0), (kr.lag_unit ?? 'count') as KrUnit)}/
+                {formatKrValue(Number(kr.lag_target ?? 0), (kr.lag_unit ?? 'count') as KrUnit)}
               </span>
             </div>
             <div
@@ -863,8 +933,8 @@ function BigKrDetailSection({
             className="text-[10.5px] tabular-nums"
             style={{ color: 'var(--nv-stone)' }}
           >
-            · 실적 {Math.round(kr.this_week_actual_value)}/
-            {Math.round(kr.this_week_target_value)}
+            · 실적 {formatKrValue(kr.this_week_actual_value, kr.lead_unit as KrUnit)}/
+            {formatKrValue(kr.this_week_target_value, kr.lead_unit as KrUnit)}
             <span
               className="ml-1 font-bold"
               style={{

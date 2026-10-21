@@ -1,33 +1,29 @@
 /**
  * 12주 사이클 대시보드 (Phase 1 ⑤, PRD #1 ①)
  *
- * 매일 아침 회사 전체 진행 상황 조회.
- * - 상단: Week N/12 + 사이클 종료일 + 다음 WAM
- * - 12주 목표 카드들 (선행/후행 분리)
- * - 자동 후행지표 (현재 사이클 동안의 매출/이익/거래처)
+ * 사이클의 리듬대로 구성 (대표 지시 2026-10-21 개편):
+ * - 사이클 종료 시: 전환 위저드 (회고 → 1장 요약 → 새 사이클 시작)
+ * - 진행 중: 큰 목표·주차 스트립 + 직원별 진행 (CycleDashboardSummary)
+ * - KPI 모아보기 차트 → 자동 후행지표 → 리듬별 도구 (매일/매주/사이클)
  */
 import Link from 'next/link'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
 import {
-  Sparkles,
-  Calendar,
-  Clock,
   TrendingUp,
   Wallet,
   Users,
-  AlertCircle,
-  Target,
+  CalendarCheck,
+  Repeat,
+  Flag,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { calculateCycleProgress, daysUntilNextMonday } from '@/lib/v11-cycle'
+import { calculateCycleProgress } from '@/lib/v11-cycle'
 import { formatKRW } from '@/lib/formatters'
 import CycleStartCard from '@/components/v11/cycle/CycleStartCard'
+import CycleTransitionCard from '@/components/v11/cycle/CycleTransitionCard'
 import CycleDashboardSummary from '@/components/v11/cycle/CycleDashboardSummary'
 import CycleKpiBoard from '@/components/v11/cycle/CycleKpiBoard'
 import { cn } from '@/lib/utils'
@@ -130,6 +126,51 @@ async function loadCycleData() {
   }
 }
 
+// 리듬별 도구 — 운영 주기에 따라 3그룹
+const TOOL_GROUPS: Array<{
+  label: string
+  icon: 'daily' | 'weekly' | 'cycle'
+  hint: string
+  tools: Array<{ href: string; title: string; desc: string }>
+}> = [
+  {
+    label: '매일',
+    icon: 'daily',
+    hint: '선행지표를 매일 챙기면 후행지표는 따라옵니다',
+    tools: [
+      { href: '/finance/cycle/employees', title: '직원별 12주 OKR', desc: '목표 → KR → 주간 → 일일 투두 입력' },
+      { href: '/finance/cycle/indicators', title: '선·후행 지표', desc: '활동 → 결과 흐름 + 페이스' },
+    ],
+  },
+  {
+    label: '매주 월요일',
+    icon: 'weekly',
+    hint: 'WAM(주간 회의)에서 점수표 갱신 + 다음 주 우선순위',
+    tools: [
+      { href: '/finance/cycle/wam', title: '주간 WAM (AI 자동)', desc: '매주 월요일 8시 자동 생성 · 회의실 모드' },
+      { href: '/finance/cycle/wam-scorecard', title: 'WAM 자동 점수표', desc: '이번 주 자동 집계' },
+      { href: '/finance/cycle/suggestions', title: '건의사항', desc: '주별 작성 · 미해결/해결됨' },
+    ],
+  },
+  {
+    label: '사이클 단위',
+    icon: 'cycle',
+    hint: '12주에 한 번 — 설정과 마무리',
+    tools: [
+      { href: '/finance/cycle/vision', title: '비전·목표 워크북', desc: '5년 → 3년 → 12주 정합성' },
+      { href: '/finance/cycle/summary', title: '사이클 1장 요약', desc: 'KR 점수표 + AI 분석 + 종료/이월' },
+      { href: '/finance/cycle/retro', title: '12주 회고', desc: '잘된/안된/학습/다음 집중' },
+      { href: '/finance/cycle/history', title: '사이클 이력', desc: '과거 사이클 비교' },
+    ],
+  },
+]
+
+const GROUP_ICON = {
+  daily: CalendarCheck,
+  weekly: Repeat,
+  cycle: Flag,
+} as const
+
 export default async function CyclePage() {
   const { cycle, revenue, margin, activeClients, prevRevenue, error } =
     await loadCycleData()
@@ -147,34 +188,58 @@ export default async function CyclePage() {
   }
 
   const progress = calculateCycleProgress(cycle.start_date, cycle.end_date)
-  const wamDday = daysUntilNextMonday()
   const revenueDelta =
     prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : null
+
+  // 사이클 종료 여부 — KST 기준 (Vercel 서버는 UTC)
+  const todayKst = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Seoul',
+  }).format(new Date())
+  const cycleEnded = cycle.end_date < todayKst
+  const daysSinceEnd = cycleEnded
+    ? Math.round(
+        (new Date(todayKst + 'T00:00:00').getTime() -
+          new Date(cycle.end_date + 'T00:00:00').getTime()) /
+          (1000 * 60 * 60 * 24),
+      )
+    : 0
 
   return (
     <div className="space-y-6">
       {/* 헤더 */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="mb-1 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
-              v1.1 · Phase 1 ⑤
-            </span>
-          </div>
           <h1 className="text-2xl font-bold text-slate-900">12주 대시보드</h1>
           <p className="mt-1 text-sm text-slate-500">
             사이클 #{cycle.cycle_number} · {cycle.start_date} ~ {cycle.end_date}
+            {!cycleEnded && ` · W${progress.weekNumber}/12`}
           </p>
         </div>
       </div>
 
-      {/* KPI 모아보기 차트 (모든 직원 KR 한 화면) */}
-      <CycleKpiBoard />
+      {/* 사이클 종료 → 전환 위저드가 주인공 */}
+      {cycleEnded && (
+        <CycleTransitionCard
+          cycleNumber={cycle.cycle_number}
+          endDate={cycle.end_date}
+          daysSinceEnd={daysSinceEnd}
+          visionStatement={cycle.vision_statement}
+          revenue={revenue}
+          margin={margin}
+        />
+      )}
 
-      {/* 직원별 OKR 합산 (큰 목표 + 사이클 미니 헤더 + 직원별 진행률 카드) */}
+      {cycleEnded && (
+        <p className="text-[12px] text-slate-400">
+          아래는 종료된 사이클 #{cycle.cycle_number}의 기록입니다. 새 사이클을 시작하면 자동으로 갱신됩니다.
+        </p>
+      )}
+
+      {/* 큰 목표 + 주차 스트립 + 직원별 진행 */}
       <CycleDashboardSummary />
 
+      {/* KPI 모아보기 차트 (모든 직원 KR 한 화면) */}
+      <CycleKpiBoard />
 
       {/* 자동 후행지표 (transactions 집계) */}
       <div>
@@ -246,164 +311,75 @@ export default async function CyclePage() {
         </div>
       </div>
 
-      {/* 추가 페이지 */}
+      {/* 리듬별 도구 — 매일 / 매주 / 사이클 단위 */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">⚡ 12주 사이클 도구</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <Link href="/finance/cycle/employees">
-            <Card
-              className="cursor-pointer transition border-2"
-              style={{ borderColor: 'var(--nv-primary)' }}
-            >
-              <CardContent className="space-y-1 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">직원별 12주 OKR</div>
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-[0.1em]"
-                    style={{ color: 'var(--nv-primary)' }}
-                  >
-                    NEW
+        <h2 className="mb-3 text-base font-semibold text-slate-800">
+          12주 사이클 도구{' '}
+          <span className="text-xs font-normal text-slate-400">(운영 리듬 순서)</span>
+        </h2>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          {TOOL_GROUPS.map((g) => {
+            const Icon = GROUP_ICON[g.icon]
+            return (
+              <div
+                key={g.label}
+                className="bg-white"
+                style={{ border: '1px solid var(--nv-hairline, #e2e8f0)', borderRadius: '2px' }}
+              >
+                <div
+                  className="px-3 py-2 flex items-center gap-2"
+                  style={{ borderBottom: '1px solid var(--nv-hairline, #e2e8f0)' }}
+                >
+                  <Icon className="h-3.5 w-3.5 text-slate-500" />
+                  <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-700">
+                    {g.label}
+                  </span>
+                  <span className="hidden sm:inline text-[10.5px] text-slate-400 truncate">
+                    · {g.hint}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-500">
-                  목표 → KR → 주간 → 일일 투두 (토글식)
+                <div>
+                  {g.tools.map((t) => (
+                    <Link
+                      key={t.href}
+                      href={t.href}
+                      className="flex items-baseline gap-2 px-3 py-2.5 min-h-[44px] transition-colors hover:bg-slate-50 active:scale-[0.99]"
+                    >
+                      <span className="text-[12.5px] font-semibold text-slate-800 shrink-0">
+                        {t.title}
+                      </span>
+                      <span className="text-[11px] text-slate-400 truncate">{t.desc}</span>
+                    </Link>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/cycle/summary">
-            <Card
-              className="cursor-pointer transition border-2"
-              style={{ borderColor: 'var(--nv-primary)' }}
-            >
-              <CardContent className="space-y-1 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">사이클 1장 요약</div>
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-[0.1em]"
-                    style={{ color: 'var(--nv-primary)' }}
-                  >
-                    NEW
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  KR 점수표 + AI 분석 + 사이클 종료/이월
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/cycle/wam">
-            <Card
-              className="cursor-pointer transition border-2"
-              style={{ borderColor: 'var(--nv-primary)' }}
-            >
-              <CardContent className="space-y-1 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">주간 WAM (AI 자동)</div>
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-[0.1em]"
-                    style={{ color: 'var(--nv-primary)' }}
-                  >
-                    NEW
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  매주 월요일 8시 자동 생성 · 회의실 모드
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/cycle/suggestions">
-            <Card
-              className="cursor-pointer transition border-2"
-              style={{ borderColor: 'var(--nv-warning)' }}
-            >
-              <CardContent className="space-y-1 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">💬 건의사항 목록</div>
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-[0.1em]"
-                    style={{ color: 'var(--nv-warning)' }}
-                  >
-                    NEW
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  주별 작성 · 미해결/해결됨 · 해결 메모
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/cycle/indicators">
-            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">선·후행 지표</div>
-                <div className="text-[11px] text-slate-500">활동 → 결과 흐름 + 페이스</div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/cycle/vision">
-            <Card className="cursor-pointer transition hover:border-purple-300 hover:bg-purple-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">비전·목표 워크북</div>
-                <div className="text-[11px] text-slate-500">5년 → 3년 → 12주 정합성</div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/cycle/retro">
-            <Card className="cursor-pointer transition hover:border-amber-300 hover:bg-amber-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">12주 회고</div>
-                <div className="text-[11px] text-slate-500">잘된/안된/학습/다음 집중</div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/cycle/wam-scorecard">
-            <Card className="cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">WAM 자동 점수표</div>
-                <div className="text-[11px] text-slate-500">이번 주 자동 집계</div>
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/finance/cycle/history">
-            <Card className="cursor-pointer transition hover:border-slate-300 hover:bg-slate-50/30">
-              <CardContent className="space-y-1 py-3">
-                <div className="text-sm font-semibold">사이클 이력</div>
-                <div className="text-[11px] text-slate-500">과거 사이클 비교</div>
-              </CardContent>
-            </Card>
-          </Link>
+              </div>
+            )
+          })}
         </div>
       </div>
 
-      {/* 안내 */}
-      <Card className="border-slate-200 bg-slate-50">
-        <CardHeader>
-          <CardTitle className="text-sm">📌 위대한 12주 사용법</CardTitle>
-          <CardDescription className="text-xs">
-            매일 보면서 진행 상황 점검 → 매주 월요일 WAM(주간 회의)에서 갱신
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="ml-4 list-disc space-y-1 text-xs text-slate-600">
-            <li>
-              <strong>3~5개</strong>의 목표만 — 단순화가 핵심
-            </li>
-            <li>
-              <strong>80% 기준</strong>: 100% 목표 중 80%를 넘기면 의미 있는 성과
-            </li>
-            <li>
-              <strong>선행지표</strong> (활동·행동량) → <strong>후행지표</strong> (결과)로 흐름.
-              선행지표를 매일 챙기면 후행지표는 자연히 따라옴
-            </li>
-            <li>
-              매주 월요일 WAM에서 <strong>점수표</strong> 갱신 + 다음 주 우선순위 결정
-            </li>
-            <li>12주 종료 후 1주 휴식 → 다음 사이클 비전·목표 설정</li>
-          </ul>
-        </CardContent>
-      </Card>
+      {/* 안내 — 접힘 (필요할 때만 펼침) */}
+      <details className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+        <summary className="cursor-pointer select-none text-sm font-semibold text-slate-700">
+          📌 위대한 12주 사용법
+        </summary>
+        <ul className="ml-4 mt-2 list-disc space-y-1 text-xs text-slate-600">
+          <li>
+            <strong>3~5개</strong>의 목표만 — 단순화가 핵심
+          </li>
+          <li>
+            <strong>80% 기준</strong>: 100% 목표 중 80%를 넘기면 의미 있는 성과
+          </li>
+          <li>
+            <strong>선행지표</strong> (활동·행동량) → <strong>후행지표</strong> (결과)로 흐름.
+            선행지표를 매일 챙기면 후행지표는 자연히 따라옴
+          </li>
+          <li>
+            매주 월요일 WAM에서 <strong>점수표</strong> 갱신 + 다음 주 우선순위 결정
+          </li>
+          <li>12주 종료 후 1주 휴식 → 다음 사이클 비전·목표 설정</li>
+        </ul>
+      </details>
     </div>
   )
 }
