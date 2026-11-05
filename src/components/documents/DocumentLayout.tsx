@@ -30,19 +30,31 @@ interface Props {
   bodyLineHeight?: number // 줄간격 (품목 수에 따라 자동 조정)
   table?: ReactNode // 표 (선택)
   footer: CompanyFooterInfo
+  /** 캡처 대상 id — 여러 쪽 문서가 바깥에서 document-print-area 를 감쌀 때 다른 id 지정 */
+  printId?: string
+  /** 여백을 줄여 표가 긴 문서도 A4 한 쪽에 담는다 */
+  compact?: boolean
 }
 
 /**
  * 미니멀 정장형 A4 공문 레이아웃.
  * 794px 너비 (A4 96dpi)로 고정. html2canvas 변환 시 그대로 PDF/JPG.
  */
-export default function DocumentLayout({ header, body, bodyLineHeight = 1.9, table, footer }: Props) {
+export default function DocumentLayout({
+  header,
+  body,
+  bodyLineHeight = 1.9,
+  table,
+  footer,
+  printId = 'document-print-area',
+  compact = false,
+}: Props) {
   const issueDate = header.issueDate || formatKoreanDate(new Date())
   const { mainBody, scheduleLines } = splitHighlightedSchedule(body)
 
   return (
     <div
-      id="document-print-area"
+      id={printId}
       className="document-paper"
       style={{
         width: 794,
@@ -50,7 +62,7 @@ export default function DocumentLayout({ header, body, bodyLineHeight = 1.9, tab
         background: '#ffffff',
         color: '#1a1a1a',
         fontFamily: '"Malgun Gothic", "맑은 고딕", -apple-system, BlinkMacSystemFont, sans-serif',
-        padding: '104px 64px 20px 64px',
+        padding: compact ? '56px 64px 12px 64px' : '104px 64px 20px 64px',
         boxSizing: 'border-box',
         position: 'relative',
         fontSize: 13,
@@ -107,10 +119,10 @@ export default function DocumentLayout({ header, body, bodyLineHeight = 1.9, tab
         fontSize: 20,
         fontWeight: 700,
         letterSpacing: 6,
-        padding: '18px 0 14px 0',
+        padding: compact ? '12px 0 10px 0' : '18px 0 14px 0',
         borderTop: '1px solid #111',
         borderBottom: '1px solid #111',
-        margin: '4px 0 22px 0',
+        margin: compact ? '2px 0 14px 0' : '4px 0 22px 0',
         color: '#111',
       }}>
         {header.title || '제　목'}
@@ -118,7 +130,7 @@ export default function DocumentLayout({ header, body, bodyLineHeight = 1.9, tab
 
       {/* ===== 본문 (제목과 표 사이) ===== */}
       {mainBody ? (
-        <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: bodyLineHeight, color: '#222', marginBottom: scheduleLines.length ? 22 : table ? 24 : 40 }}>
+        <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: bodyLineHeight, color: '#222', marginBottom: scheduleLines.length ? 22 : table ? (compact ? 14 : 24) : 40 }}>
           {mainBody}
         </div>
       ) : null}
@@ -127,14 +139,14 @@ export default function DocumentLayout({ header, body, bodyLineHeight = 1.9, tab
 
       {/* ===== 표 ===== */}
       {table ? (
-        <div style={{ marginBottom: 32 }}>{table}</div>
+        <div style={{ marginBottom: compact ? 16 : 32 }}>{table}</div>
       ) : null}
 
       {/* ===== 스페이서: 남은 공간을 채워 footer를 항상 하단으로 ===== */}
       <div style={{ flex: 1 }} />
 
       {/* ===== 하단 회사정보 + 직인 ===== */}
-      <div style={{ paddingBottom: 80 }}>
+      <div style={{ paddingBottom: compact ? 28 : 80 }}>
         <div style={{ borderTop: '1px solid #111', paddingTop: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ fontSize: 11, color: '#444', lineHeight: 1.7 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', letterSpacing: 2, marginBottom: 4 }}>

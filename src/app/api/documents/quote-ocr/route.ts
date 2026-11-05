@@ -23,6 +23,7 @@ const SYSTEM = `당신은 디안(DiAN) 원단 회사의 견적서 이미지를 �
   "clientTel": "전화번호 (없으면 빈 문자열)",
   "siteName": "현장명 (없으면 빈 문자열)",
   "vatMode": "excl 또는 incl",
+  "notes": ["표 아래 REMARK 문구를 한 줄씩 (* 기호 제외, 없으면 빈 배열)"],
   "items": [
     { "name": "품목명", "color": "색상 (품목명 뒤 괄호 안 코드, 없으면 빈 문자열)", "spec": "규격", "qty": "수량", "unit": "단위", "price": "단가", "remark": "비고" }
   ]

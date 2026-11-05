@@ -42,6 +42,7 @@ import PaymentRequestTable, {
 import { downloadPDF, downloadJPG, getCanvasBlob, getPDFBlob, copyImageToClipboard } from '@/lib/document-export'
 import { buildMessengerText, copyToClipboard } from '@/lib/document-text'
 import { useGoogleDrive, DRIVE_FILE_AND_READONLY_SCOPE } from '@/hooks/useGoogleDrive'
+import { imageToBase64, parseQuoteJson } from '@/lib/quote-import'
 import {
   getOrCreateFolder,
   uploadToDrive,
@@ -53,43 +54,6 @@ import {
 const ROOT_FOLDER_ID = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ROOT_FOLDER_ID ?? ''
 const DOC_TYPE = 'PAYMENT_REQUEST'
 const DEFAULT_BANK = '기업은행 02-6447-1221 (예금주 : 한태원 디안)'
-
-/** 견적서 이미지 → base64 (너무 크면 캔버스로 축소해 API 한도 내로) */
-async function imageToBase64(file: File): Promise<{ data: string; mediaType: string }> {
-  const readAsDataUrl = (blob: Blob) =>
-    new Promise<string>((resolve, reject) => {
-      const r = new FileReader()
-      r.onload = () => resolve(String(r.result))
-      r.onerror = () => reject(new Error('파일 읽기 실패'))
-      r.readAsDataURL(blob)
-    })
-
-  const MAX_BYTES = 2_500_000
-  const MAX_DIM = 2200
-  let dataUrl: string
-  if (file.size <= MAX_BYTES) {
-    dataUrl = await readAsDataUrl(file)
-    const bitmap = await createImageBitmap(file).catch(() => null)
-    if (!bitmap || Math.max(bitmap.width, bitmap.height) <= MAX_DIM) {
-      const [head, data] = dataUrl.split(',')
-      const mediaType = head.match(/data:([^;]+)/)?.[1] ?? file.type
-      return { data, mediaType }
-    }
-  }
-  // 축소 경로
-  const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height))
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.round(bitmap.width * scale)
-  canvas.height = Math.round(bitmap.height * scale)
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('캔버스 생성 실패')
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  const scaled = canvas.toDataURL('image/jpeg', 0.92)
-  return { data: scaled.split(',')[1], mediaType: 'image/jpeg' }
-}
 
 type CompleteKind = '납품' | '설치'
 
@@ -247,28 +211,15 @@ export default function PaymentRequestForm() {
   // 견적서 JSON 텍스트 → 폼 반영 (파일 업로드·드라이브 선택 공용)
   const importQuoteText = (text: string): boolean => {
     try {
-      const parsed = JSON.parse(text) as Record<string, unknown>
-      const data = (parsed.data ?? parsed) as Record<string, unknown>
-      const qItems = Array.isArray(data.items) ? (data.items as Partial<PaymentItem>[]) : []
-      const mapped: PaymentItem[] = qItems
-        .map((it) => ({
-          name: String(it.name ?? ''),
-          color: String(it.color ?? ''),
-          spec: String(it.spec ?? ''),
-          qty: String(it.qty ?? ''),
-          unit: String(it.unit ?? 'Y'),
-          price: String(it.price ?? ''),
-          remark: String(it.remark ?? ''),
-        }))
-        .filter((it) => it.name.trim() || it.qty.trim() || it.price.trim())
+      const quote = parseQuoteJson(text)
+      const mapped = quote.items
       if (!mapped.length) {
         alert('견적서 품목을 찾지 못했습니다. 견적서 생성기에서 저장한 .json 파일인지 확인해주세요.')
         return false
       }
       setItems(mapped)
-      if (data.vatMode === 'incl' || data.vatMode === 'excl') setVatMode(data.vatMode as VatMode)
-      const clientName = String(data.clientName ?? '').trim()
-      const siteName = String(data.siteName ?? '').trim()
+      if (quote.vatMode) setVatMode(quote.vatMode)
+      const { clientName, siteName, quoteDate } = quote
       setForm((s) => ({
         ...s,
         recipientName: clientName ? `${clientName} 귀하` : s.recipientName,
@@ -277,7 +228,7 @@ export default function PaymentRequestForm() {
       }))
       setImportNote(
         `견적서 불러옴: ${clientName || '(수신처 없음)'}${siteName ? ' / ' + siteName : ''} · 품목 ${mapped.length}건` +
-          (data.quoteDate ? ` · 견적일 ${String(data.quoteDate)}` : ''),
+          (quoteDate ? ` · 견적일 ${quoteDate}` : ''),
       )
       return true
     } catch (e) {

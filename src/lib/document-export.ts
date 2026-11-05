@@ -2,6 +2,9 @@
 
 // html2canvas, jspdf는 브라우저 전용 → SSR 충돌 방지를 위해 함수 내부에서 동적 import
 
+/** A4 1쪽(1123px)이 297.02mm 로 환산되는 반올림 오차 — 이만큼 남은 건 새 쪽으로 넘기지 않음 */
+const PAGE_EPSILON_MM = 0.5
+
 async function loadHtml2canvas() {
   const mod = await import('html2canvas')
   return mod.default as typeof import('html2canvas').default
@@ -42,6 +45,13 @@ export async function renderCanvas(elementId = 'document-print-area'): Promise<H
     visibility: 'hidden',
   })
   document.body.appendChild(iframe)
+
+  /* html2canvas 는 글자 기준선을 캡처 문서가 아닌 메인 문서에서 잰다. Tailwind preflight 의
+     img { display: block } 때문에 측정용 1px 이미지가 다음 줄로 밀려 글자가 5~6px 아래로
+     그려지므로, 캡처하는 동안만 측정용 이미지를 인라인으로 되돌린다. */
+  const baselineFix = document.createElement('style')
+  baselineFix.textContent = 'img[width="1"][height="1"] { display: inline !important; }'
+  document.head.appendChild(baselineFix)
 
   try {
     const idoc = iframe.contentDocument!
@@ -94,6 +104,7 @@ export async function renderCanvas(elementId = 'document-print-area'): Promise<H
       imageTimeout:    15000,
     })
   } finally {
+    baselineFix.remove()
     document.body.removeChild(iframe)
   }
 }
@@ -115,7 +126,7 @@ export async function downloadPDF(filename: string, elementId = 'document-print-
     let heightLeft = imgH
     pdf.addImage(img, 'JPEG', 0, position, imgW, imgH)
     heightLeft -= pageH
-    while (heightLeft > 0) {
+    while (heightLeft > PAGE_EPSILON_MM) {
       position = heightLeft - imgH
       pdf.addPage()
       pdf.addImage(img, 'JPEG', 0, position, imgW, imgH)
@@ -393,7 +404,7 @@ export async function getPDFBlob(elementId = 'document-print-area'): Promise<Blo
     let heightLeft = imgH
     pdf.addImage(img, 'JPEG', 0, position, imgW, imgH)
     heightLeft -= pageH
-    while (heightLeft > 0) {
+    while (heightLeft > PAGE_EPSILON_MM) {
       position = heightLeft - imgH
       pdf.addPage()
       pdf.addImage(img, 'JPEG', 0, position, imgW, imgH)

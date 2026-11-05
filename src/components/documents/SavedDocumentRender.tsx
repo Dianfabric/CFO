@@ -5,6 +5,7 @@ import PriceChangeTable, { PriceRow } from './PriceChangeTable'
 import PriceChangeRangeTable from './PriceChangeRangeTable'
 import PriceInfoTable, { PriceInfoRow, DisplayUnit, OptionMode } from './PriceInfoTable'
 import PaymentRequestTable, { PaymentItem, VatMode } from './PaymentRequestTable'
+import ResultReportDocument, { ReportPhoto } from './ResultReportDocument'
 
 export interface SavedDoc {
   id: string
@@ -110,30 +111,43 @@ export default function SavedDocumentRender({ doc, profile }: Props) {
     ? issueDateRaw.replace(/-/g, '. ') + '.'
     : new Date(doc.createdAt).toLocaleDateString('ko-KR').replace(/\./g, '. ').trim() + '.'
 
-  return (
-    <DocumentLayout
-      header={{
-        documentNumber: doc.documentNumber,
-        recipient: doc.recipientName,
-        ccLine: doc.ccLine || undefined,
-        sender: doc.senderLine,
-        title: doc.title,
-        issueDate: issueDateDisplay,
-      }}
-      body={doc.bodyText}
-      table={tableNode}
-      footer={{
-        name: profile?.name || '회사명을 설정에서 입력하세요',
-        representative: profile?.representative,
-        businessNumber: profile?.businessNumber,
-        address: profile?.address,
-        phone: profile?.phone,
-        fax: profile?.fax,
-        email: profile?.email,
-        website: profile?.website,
-        logoPath: profile?.logoPath,
-        sealPath: profile?.sealPath,
-      }}
-    />
-  )
+  const header = {
+    documentNumber: doc.documentNumber,
+    recipient: doc.recipientName,
+    ccLine: doc.ccLine || undefined,
+    sender: doc.senderLine,
+    title: doc.title,
+    issueDate: issueDateDisplay,
+  }
+  const footer = {
+    name: profile?.name || '회사명을 설정에서 입력하세요',
+    representative: profile?.representative,
+    businessNumber: profile?.businessNumber,
+    address: profile?.address,
+    phone: profile?.phone,
+    fax: profile?.fax,
+    email: profile?.email,
+    website: profile?.website,
+    logoPath: profile?.logoPath,
+    sealPath: profile?.sealPath,
+  }
+
+  if (doc.type === 'RESULT_REPORT') {
+    const items = Array.isArray(tableData) ? (tableData as PaymentItem[]) : []
+    return (
+      <ResultReportDocument
+        header={header}
+        body={doc.bodyText}
+        bodyLineHeight={1.7}
+        items={items}
+        vatMode={metaData.vatMode === 'incl' ? 'incl' : 'excl'}
+        resultLabel={(metaData.resultLabel as string) || '납품'}
+        notes={(metaData.notes as string) || undefined}
+        photos={Array.isArray(metaData.photos) ? (metaData.photos as ReportPhoto[]) : []}
+        footer={footer}
+      />
+    )
+  }
+
+  return <DocumentLayout header={header} body={doc.bodyText} table={tableNode} footer={footer} />
 }

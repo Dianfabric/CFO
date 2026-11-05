@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Copy, Check, FileText, TrendingUp, TrendingDown, CalendarOff, Wallet, ListChecks, Image as ImageIcon, FilePlus2 } from 'lucide-react'
+import { Copy, Check, FileText, TrendingUp, TrendingDown, CalendarOff, Wallet, ClipboardCheck, ListChecks, Image as ImageIcon, FilePlus2 } from 'lucide-react'
 import { PriceRow } from './PriceChangeTable'
 import { PriceInfoRow, DisplayUnit } from './PriceInfoTable'
 import SavedDocumentRender, { CompanyProfileLite } from './SavedDocumentRender'
@@ -35,6 +35,7 @@ const TYPE_META: Record<string, { label: string; icon: typeof FileText; color: s
   PRICE_CHANGE: { label: '단가 변경', icon: TrendingUp, color: 'text-rose-600' },
   HOLIDAY: { label: '휴무 안내', icon: CalendarOff, color: 'text-amber-600' },
   PAYMENT_REQUEST: { label: '대금 청구', icon: Wallet, color: 'text-blue-600' },
+  RESULT_REPORT: { label: '결과보고', icon: ClipboardCheck, color: 'text-teal-600' },
   PRICE_INFO: { label: '단가 안내', icon: ListChecks, color: 'text-emerald-600' },
 }
 
@@ -148,6 +149,8 @@ export default function DocumentPreviewDialog({ open, onOpenChange, doc }: Props
       router.push(`/documents/new/notice?from=${doc.id}`)
     } else if (doc.type === 'PAYMENT_REQUEST') {
       router.push(`/documents/new/payment-request?from=${doc.id}`)
+    } else if (doc.type === 'RESULT_REPORT') {
+      router.push(`/documents/new/result-report?from=${doc.id}`)
     } else {
       alert('이 유형은 수정 생성을 지원하지 않습니다.')
       return

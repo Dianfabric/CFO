@@ -307,7 +307,7 @@ model CompanyProfile {
 model OfficialDocument {
   id                String   @id @default(cuid())
   documentNumber    String   @unique @map("document_number")
-  type              String   // PRICE_CHANGE, HOLIDAY, PAYMENT_REQUEST, PRICE_INFO
+  type              String   // PRICE_CHANGE, HOLIDAY, PAYMENT_REQUEST, RESULT_REPORT, PRICE_INFO
   title             String
   recipientClientId String?  @map("recipient_client_id")
   recipientName     String   @map("recipient_name")

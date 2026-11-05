@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Search, FileText, TrendingUp, TrendingDown, CalendarOff,
-  Wallet, ListChecks, ChevronDown, ChevronRight,
+  Wallet, ClipboardCheck, ListChecks, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
 interface DocFull {
@@ -33,6 +33,7 @@ const TYPE_META: Record<string, { label: string; icon: typeof FileText; color: s
   PRICE_CHANGE: { label: '단가 변경', icon: TrendingUp, color: 'text-rose-600' },
   HOLIDAY: { label: '휴무 안내', icon: CalendarOff, color: 'text-amber-600' },
   PAYMENT_REQUEST: { label: '대금 청구', icon: Wallet, color: 'text-blue-600' },
+  RESULT_REPORT: { label: '결과보고', icon: ClipboardCheck, color: 'text-teal-600' },
   PRICE_INFO: { label: '단가 안내', icon: ListChecks, color: 'text-emerald-600' },
 }
 

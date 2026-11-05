@@ -64,6 +64,8 @@ export function numKor(n: number): string {
 interface Props {
   items: PaymentItem[]
   vatMode: VatMode
+  /** 지정하면 결과보고서용 표 — 상단 줄이 진행 결과, 마지막 칸이 품목별 결과로 바뀐다 */
+  report?: { result: string }
 }
 
 const th: React.CSSProperties = {
@@ -77,7 +79,7 @@ const th: React.CSSProperties = {
   letterSpacing: 1,
 }
 
-const td: React.CSSProperties = {
+const tdBase: React.CSSProperties = {
   padding: '6px 8px',
   fontSize: 12,
   color: '#222',
@@ -85,15 +87,16 @@ const td: React.CSSProperties = {
   textAlign: 'center',
 }
 
-const tdNum: React.CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
-
-export default function PaymentRequestTable({ items, vatMode }: Props) {
+export default function PaymentRequestTable({ items, vatMode, report }: Props) {
+  // 결과보고서는 사진 안내까지 1쪽에 담아야 해서 행 높이를 줄인다
+  const td = report ? { ...tdBase, paddingTop: 4, paddingBottom: 4 } : tdBase
+  const tdNum: React.CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
   const rows = items.filter((it) => it.name.trim() || itemAmount(it) > 0)
   const { supply, vat, grand } = paymentTotals(rows, vatMode)
 
   return (
     <div>
-      {/* 청구금액 강조 줄 */}
+      {/* 청구금액(결과보고서는 진행 결과) 강조 줄 */}
       <div
         style={{
           display: 'flex',
@@ -106,11 +109,15 @@ export default function PaymentRequestTable({ items, vatMode }: Props) {
         }}
       >
         <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 3, color: '#1a1a2e' }}>
-          청 구 금 액
+          {report ? '진 행 결 과' : '청 구 금 액'}
         </span>
-        <span style={{ fontSize: 12, color: '#555' }}>
-          一金 {numKor(grand).replace('원정', '')}원整 (₩{grand.toLocaleString('ko-KR')}, VAT 포함)
-        </span>
+        {report ? (
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>{report.result}</span>
+        ) : (
+          <span style={{ fontSize: 12, color: '#555' }}>
+            一金 {numKor(grand).replace('원정', '')}원整 (₩{grand.toLocaleString('ko-KR')}, VAT 포함)
+          </span>
+        )}
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -123,7 +130,7 @@ export default function PaymentRequestTable({ items, vatMode }: Props) {
             <th style={{ ...th, width: 42 }}>단위</th>
             <th style={{ ...th, width: 84 }}>단가</th>
             <th style={{ ...th, width: 92 }}>금액</th>
-            <th style={{ ...th, width: 92 }}>비고</th>
+            <th style={{ ...th, width: report ? 64 : 92 }}>{report ? '결과' : '비고'}</th>
           </tr>
         </thead>
         <tbody>
@@ -139,7 +146,9 @@ export default function PaymentRequestTable({ items, vatMode }: Props) {
               <td style={td}>{it.unit}</td>
               <td style={tdNum}>{(Number(String(it.price).replace(/,/g, '')) || 0).toLocaleString('ko-KR')}</td>
               <td style={tdNum}>{itemAmount(it).toLocaleString('ko-KR')}</td>
-              <td style={{ ...td, fontSize: 11, color: '#555' }}>{it.remark}</td>
+              <td style={{ ...td, fontSize: 11, color: '#555' }}>
+                {report ? it.remark || (itemAmount(it) > 0 ? '완료' : '') : it.remark}
+              </td>
             </tr>
           ))}
           <tr>
@@ -158,7 +167,7 @@ export default function PaymentRequestTable({ items, vatMode }: Props) {
           </tr>
           <tr>
             <td colSpan={6} style={{ ...td, textAlign: 'right', paddingRight: 14, letterSpacing: 3, background: '#f4f5f7', fontWeight: 700 }}>
-              청 구 금 액 ( V A T 포 함 )
+              {report ? '합 계 금 액' : '청 구 금 액'} ( V A T 포 함 )
             </td>
             <td style={{ ...tdNum, fontWeight: 700, borderColor: '#111' }}>{grand.toLocaleString('ko-KR')}</td>
             <td style={td}></td>
