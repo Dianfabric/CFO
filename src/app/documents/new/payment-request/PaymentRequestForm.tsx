@@ -54,6 +54,43 @@ const ROOT_FOLDER_ID = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ROOT_FOLDER_ID ?? ''
 const DOC_TYPE = 'PAYMENT_REQUEST'
 const DEFAULT_BANK = '기업은행 02-6447-1221 (예금주 : 한태원 디안)'
 
+/** 견적서 이미지 → base64 (너무 크면 캔버스로 축소해 API 한도 내로) */
+async function imageToBase64(file: File): Promise<{ data: string; mediaType: string }> {
+  const readAsDataUrl = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => resolve(String(r.result))
+      r.onerror = () => reject(new Error('파일 읽기 실패'))
+      r.readAsDataURL(blob)
+    })
+
+  const MAX_BYTES = 2_500_000
+  const MAX_DIM = 2200
+  let dataUrl: string
+  if (file.size <= MAX_BYTES) {
+    dataUrl = await readAsDataUrl(file)
+    const bitmap = await createImageBitmap(file).catch(() => null)
+    if (!bitmap || Math.max(bitmap.width, bitmap.height) <= MAX_DIM) {
+      const [head, data] = dataUrl.split(',')
+      const mediaType = head.match(/data:([^;]+)/)?.[1] ?? file.type
+      return { data, mediaType }
+    }
+  }
+  // 축소 경로
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('캔버스 생성 실패')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  const scaled = canvas.toDataURL('image/jpeg', 0.92)
+  return { data: scaled.split(',')[1], mediaType: 'image/jpeg' }
+}
+
 type CompleteKind = '납품' | '설치'
 
 interface FormState {
@@ -151,6 +188,7 @@ export default function PaymentRequestForm() {
   const [driveFiles, setDriveFiles] = useState<DriveSearchFile[]>([])
   const [driveSearch, setDriveSearch] = useState('')
   const [drivePicking, setDrivePicking] = useState('')
+  const [ocrLoading, setOcrLoading] = useState(false) // 견적서 이미지 AI 판독 중
 
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(setClients).catch(() => {})
@@ -250,7 +288,36 @@ export default function PaymentRequestForm() {
   }
 
   const handleImportQuote = async (file: File) => {
-    importQuoteText(await file.text())
+    const isImage =
+      /image\/(jpeg|png|webp)/.test(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name)
+    if (!isImage) {
+      importQuoteText(await file.text())
+      return
+    }
+    // 견적서 이미지(JPG 등) → AI 판독
+    setOcrLoading(true)
+    setImportNote('')
+    try {
+      const { data, mediaType } = await imageToBase64(file)
+      const res = await fetch('/api/documents/quote-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: data, media_type: mediaType }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        alert(json.error || '견적서 이미지 읽기 실패')
+        return
+      }
+      if (importQuoteText(JSON.stringify(json))) {
+        setImportNote((n) => n + ' · 📷 이미지 AI 판독 — 수량·단가 숫자를 꼭 확인해주세요')
+      }
+    } catch (e) {
+      console.error('이미지 판독 실패:', e)
+      alert('이미지 판독 실패: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setOcrLoading(false)
+    }
   }
 
   // 드라이브에서 저장된 견적서(.json) 검색
@@ -524,7 +591,7 @@ export default function PaymentRequestForm() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".json,application/json"
+                accept=".json,.jpg,.jpeg,.png,.webp,application/json,image/jpeg,image/png,image/webp"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0]
@@ -537,11 +604,12 @@ export default function PaymentRequestForm() {
                   {driveLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5 rotate-180" />}
                   저장된 견적서에서 찾기
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()} className="gap-1">
-                  <FileUp className="w-3.5 h-3.5" /> 파일(.json)로 불러오기
+                <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={ocrLoading} className="gap-1">
+                  {ocrLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileUp className="w-3.5 h-3.5" />}
+                  {ocrLoading ? 'AI가 이미지 읽는 중...' : '파일(.json/.jpg)로 불러오기'}
                 </Button>
                 <span className="text-[11px] text-slate-500">
-                  견적서 생성기에서 드라이브에 저장한 견적서 — 품목·수신처·현장명이 자동으로 채워집니다.
+                  드라이브에 저장한 견적서(.json) 또는 견적서 이미지(JPG) — 품목·수신처·현장명이 자동으로 채워집니다.
                 </span>
               </div>
 
