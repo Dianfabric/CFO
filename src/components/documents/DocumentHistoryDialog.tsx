@@ -32,7 +32,7 @@ interface DocFull {
 const TYPE_META: Record<string, { label: string; icon: typeof FileText; color: string }> = {
   PRICE_CHANGE: { label: '단가 변경', icon: TrendingUp, color: 'text-rose-600' },
   HOLIDAY: { label: '휴무 안내', icon: CalendarOff, color: 'text-amber-600' },
-  PAYMENT_REQUEST: { label: '결제 요청', icon: Wallet, color: 'text-blue-600' },
+  PAYMENT_REQUEST: { label: '대금 청구', icon: Wallet, color: 'text-blue-600' },
   PRICE_INFO: { label: '단가 안내', icon: ListChecks, color: 'text-emerald-600' },
 }
 

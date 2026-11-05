@@ -34,7 +34,7 @@ interface DocRow {
 const TYPE_META: Record<string, { label: string; icon: any; color: string }> = {
   PRICE_CHANGE: { label: '단가 변경', icon: TrendingUp, color: 'text-rose-600' },
   HOLIDAY: { label: '휴무 안내', icon: CalendarOff, color: 'text-amber-600' },
-  PAYMENT_REQUEST: { label: '결제 요청', icon: Wallet, color: 'text-blue-600' },
+  PAYMENT_REQUEST: { label: '대금 청구', icon: Wallet, color: 'text-blue-600' },
   PRICE_INFO: { label: '단가 안내', icon: ListChecks, color: 'text-emerald-600' },
 }
 
@@ -210,11 +210,13 @@ export default function DocumentsPage() {
                 <div className="text-xs text-slate-500 mt-1">휴가·배송·운영 안내</div>
               </div>
             </Link>
-            <div className="border rounded-lg p-4 bg-slate-50 opacity-60 cursor-not-allowed">
-              <Wallet className="w-5 h-5 text-blue-600 mb-2" />
-              <div className="font-semibold text-sm">결제 요청</div>
-              <div className="text-xs text-slate-500 mt-1">곧 추가 예정</div>
-            </div>
+            <Link href="/documents/new/payment-request">
+              <div className="border rounded-lg p-4 bg-white hover:border-blue-400 hover:shadow-sm transition">
+                <Wallet className="w-5 h-5 text-blue-600 mb-2" />
+                <div className="font-semibold text-sm">대금 청구서</div>
+                <div className="text-xs text-slate-500 mt-1">견적서 불러와 납품·설치 대금 청구</div>
+              </div>
+            </Link>
             {/* 견적서 작성 — 사이트 안 iframe 페이지로 (PWA 새 탭 없이 작동) */}
             <Link href="/documents/quote" className="block cursor-pointer">
               <div className="border rounded-lg p-4 bg-white hover:border-indigo-400 hover:shadow-sm transition">

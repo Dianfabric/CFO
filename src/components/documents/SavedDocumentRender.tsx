@@ -4,6 +4,7 @@ import DocumentLayout from './DocumentLayout'
 import PriceChangeTable, { PriceRow } from './PriceChangeTable'
 import PriceChangeRangeTable from './PriceChangeRangeTable'
 import PriceInfoTable, { PriceInfoRow, DisplayUnit, OptionMode } from './PriceInfoTable'
+import PaymentRequestTable, { PaymentItem, VatMode } from './PaymentRequestTable'
 
 export interface SavedDoc {
   id: string
@@ -82,6 +83,9 @@ export default function SavedDocumentRender({ doc, profile }: Props) {
         )}
       </>
     )
+  } else if (doc.type === 'PAYMENT_REQUEST' && Array.isArray(tableData)) {
+    const vatMode: VatMode = metaData.vatMode === 'incl' ? 'incl' : 'excl'
+    tableNode = <PaymentRequestTable items={tableData as PaymentItem[]} vatMode={vatMode} />
   } else if (doc.type === 'PRICE_INFO' && Array.isArray(tableData)) {
     tableNode = (
       <PriceInfoTable
