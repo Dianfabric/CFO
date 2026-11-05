@@ -23,7 +23,9 @@ import {
   FileUp,
   History,
   Image as ImageIcon,
+  Loader2,
   Plus,
+  Search,
   RotateCcw,
   Save,
   Wallet,
@@ -39,8 +41,14 @@ import PaymentRequestTable, {
 } from '@/components/documents/PaymentRequestTable'
 import { downloadPDF, downloadJPG, getCanvasBlob, getPDFBlob, copyImageToClipboard } from '@/lib/document-export'
 import { buildMessengerText, copyToClipboard } from '@/lib/document-text'
-import { useGoogleDrive } from '@/hooks/useGoogleDrive'
-import { getOrCreateFolder, uploadToDrive } from '@/lib/google-drive'
+import { useGoogleDrive, DRIVE_FILE_AND_READONLY_SCOPE } from '@/hooks/useGoogleDrive'
+import {
+  getOrCreateFolder,
+  uploadToDrive,
+  searchDriveFilesByName,
+  downloadDriveFileText,
+  type DriveSearchFile,
+} from '@/lib/google-drive'
 
 const ROOT_FOLDER_ID = process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ROOT_FOLDER_ID ?? ''
 const DOC_TYPE = 'PAYMENT_REQUEST'
@@ -134,7 +142,15 @@ export default function PaymentRequestForm() {
   const [copyImgState, setCopyImgState] = useState<'idle' | 'copying' | 'done'>('idle')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const { getToken } = useGoogleDrive()
+  // 드라이브 저장(drive.file) + 저장된 견적서 검색(drive.readonly)을 한 토큰으로
+  const { getToken } = useGoogleDrive(DRIVE_FILE_AND_READONLY_SCOPE)
+
+  // 드라이브 견적서 찾기
+  const [driveOpen, setDriveOpen] = useState(false)
+  const [driveLoading, setDriveLoading] = useState(false)
+  const [driveFiles, setDriveFiles] = useState<DriveSearchFile[]>([])
+  const [driveSearch, setDriveSearch] = useState('')
+  const [drivePicking, setDrivePicking] = useState('')
 
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(setClients).catch(() => {})
@@ -190,10 +206,9 @@ export default function PaymentRequestForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.siteName, form.completeKind, form.completeDate, form.dueDate, form.bankLine, bodyEdited])
 
-  // 견적서 JSON 불러오기
-  const handleImportQuote = async (file: File) => {
+  // 견적서 JSON 텍스트 → 폼 반영 (파일 업로드·드라이브 선택 공용)
+  const importQuoteText = (text: string): boolean => {
     try {
-      const text = await file.text()
       const parsed = JSON.parse(text) as Record<string, unknown>
       const data = (parsed.data ?? parsed) as Record<string, unknown>
       const qItems = Array.isArray(data.items) ? (data.items as Partial<PaymentItem>[]) : []
@@ -210,7 +225,7 @@ export default function PaymentRequestForm() {
         .filter((it) => it.name.trim() || it.qty.trim() || it.price.trim())
       if (!mapped.length) {
         alert('견적서 품목을 찾지 못했습니다. 견적서 생성기에서 저장한 .json 파일인지 확인해주세요.')
-        return
+        return false
       }
       setItems(mapped)
       if (data.vatMode === 'incl' || data.vatMode === 'excl') setVatMode(data.vatMode as VatMode)
@@ -226,9 +241,48 @@ export default function PaymentRequestForm() {
         `견적서 불러옴: ${clientName || '(수신처 없음)'}${siteName ? ' / ' + siteName : ''} · 품목 ${mapped.length}건` +
           (data.quoteDate ? ` · 견적일 ${String(data.quoteDate)}` : ''),
       )
+      return true
     } catch (e) {
       console.error('견적서 불러오기 실패:', e)
       alert('파일을 읽지 못했습니다. 견적서 생성기에서 드라이브에 저장된 .json 파일을 사용해주세요.')
+      return false
+    }
+  }
+
+  const handleImportQuote = async (file: File) => {
+    importQuoteText(await file.text())
+  }
+
+  // 드라이브에서 저장된 견적서(.json) 검색
+  const handleDriveSearch = async (term?: string) => {
+    setDriveLoading(true)
+    setDriveOpen(true)
+    try {
+      const token = await getToken()
+      const parts = ['DiAN_견적서', '.json']
+      const t = (term ?? driveSearch).trim()
+      if (t) parts.push(t)
+      const files = await searchDriveFilesByName(parts, token)
+      setDriveFiles(files)
+    } catch (e) {
+      console.error('드라이브 검색 실패:', e)
+      alert('드라이브 검색 실패: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setDriveLoading(false)
+    }
+  }
+
+  const handleDrivePick = async (f: DriveSearchFile) => {
+    setDrivePicking(f.id)
+    try {
+      const token = await getToken()
+      const text = await downloadDriveFileText(f.id, token)
+      if (importQuoteText(text)) setDriveOpen(false)
+    } catch (e) {
+      console.error('드라이브 파일 읽기 실패:', e)
+      alert('파일을 읽지 못했습니다: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setDrivePicking('')
     }
   }
 
@@ -479,13 +533,68 @@ export default function PaymentRequestForm() {
                 }}
               />
               <div className="flex items-center gap-2 flex-wrap">
-                <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()} className="gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50">
-                  <FileUp className="w-3.5 h-3.5" /> 견적서 파일(.json) 불러오기
+                <Button type="button" size="sm" variant="outline" onClick={() => handleDriveSearch()} disabled={driveLoading} className="gap-1 border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+                  {driveLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5 rotate-180" />}
+                  저장된 견적서에서 찾기
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()} className="gap-1">
+                  <FileUp className="w-3.5 h-3.5" /> 파일(.json)로 불러오기
                 </Button>
                 <span className="text-[11px] text-slate-500">
-                  견적서 생성기 → 드라이브 연동 저장 시 만들어지는 .json — 품목·수신처·현장명이 자동으로 채워집니다.
+                  견적서 생성기에서 드라이브에 저장한 견적서 — 품목·수신처·현장명이 자동으로 채워집니다.
                 </span>
               </div>
+
+              {/* 드라이브 검색 패널 */}
+              {driveOpen && (
+                <div className="mt-2 rounded-md border border-indigo-200 bg-white p-2">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Input
+                      className="h-8 text-xs flex-1"
+                      value={driveSearch}
+                      placeholder="거래처명·현장명으로 좁히기 (예: 코웨이)"
+                      onChange={(e) => setDriveSearch(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleDriveSearch() }}
+                    />
+                    <Button type="button" size="sm" variant="outline" onClick={() => handleDriveSearch()} disabled={driveLoading} className="gap-1 h-8">
+                      <Search className="w-3.5 h-3.5" /> 검색
+                    </Button>
+                    <button type="button" onClick={() => setDriveOpen(false)} className="text-slate-300 hover:text-slate-500 p-1" title="닫기">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-0.5">
+                    {driveLoading ? (
+                      <p className="py-4 text-center text-xs text-slate-400"><Loader2 className="w-4 h-4 animate-spin inline mr-1" />드라이브에서 찾는 중...</p>
+                    ) : driveFiles.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-slate-400">
+                        저장된 견적서를 찾지 못했습니다 — 견적서 생성기에서 ☁️ 드라이브 연동으로 저장했는지 확인해주세요.
+                      </p>
+                    ) : (
+                      driveFiles.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => handleDrivePick(f)}
+                          disabled={!!drivePicking}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs rounded hover:bg-indigo-50 disabled:opacity-60"
+                        >
+                          {drivePicking === f.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-indigo-500" />
+                            : <Wallet className="w-3.5 h-3.5 shrink-0 text-indigo-300" />}
+                          <span className="flex-1 truncate font-medium text-slate-700">
+                            {f.name.replace(/^DiAN_견적서_/, '').replace(/\.json$/i, '')}
+                          </span>
+                          <span className="shrink-0 text-[10px] text-slate-400 tabular-nums">
+                            {new Date(f.modifiedTime).toLocaleDateString('ko-KR')}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
               {importNote && (
                 <p className="mt-2 text-xs text-indigo-700 flex items-center gap-1"><Check className="w-3 h-3" />{importNote}</p>
               )}

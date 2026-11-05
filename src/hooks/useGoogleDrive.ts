@@ -24,6 +24,9 @@ const DEFAULT_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 /** Drive.file + Sheets — 자료 보관함·서류·잠재거래처 시트 동기화에 모두 사용 가능 */
 export const DRIVE_AND_SHEETS_SCOPE =
   'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets'
+/** Drive.file(쓰기) + readonly(검색) — 견적서 생성기 등 다른 앱이 저장한 파일을 찾아 읽을 때 */
+export const DRIVE_FILE_AND_READONLY_SCOPE =
+  'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'
 const TOKEN_TTL_MS = 55 * 60 * 1000 // 55분 (구글 토큰 만료 1시간보다 여유 있게)
 
 /**

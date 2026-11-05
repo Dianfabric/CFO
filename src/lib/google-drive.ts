@@ -131,6 +131,51 @@ export async function uploadToDriveWithDetails(
   }
 }
 
+// ============================================================
+// 견적서 등 다른 앱이 만든 파일 검색/읽기 — drive.readonly 스코프 필요
+// (drive.file 토큰으로는 이 앱이 만든 파일만 보여 검색 결과가 비어 보임)
+// ============================================================
+
+export interface DriveSearchFile {
+  id: string
+  name: string
+  modifiedTime: string
+}
+
+/** 이름에 주어진 조각들이 모두 포함된 파일 검색 (최신 수정순) */
+export async function searchDriveFilesByName(
+  nameContains: string[],
+  token: string,
+  pageSize = 50,
+): Promise<DriveSearchFile[]> {
+  const terms = nameContains
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => `name contains '${t.replace(/'/g, "\\'")}'`)
+  const q = [
+    ...terms,
+    "mimeType != 'application/vnd.google-apps.folder'",
+    'trashed=false',
+  ].join(' and ')
+  const res = await fetch(
+    `${DRIVE_API}/files?q=${encodeURIComponent(q)}&orderBy=modifiedTime desc&pageSize=${pageSize}` +
+      '&fields=files(id,name,modifiedTime)&includeItemsFromAllDrives=true&supportsAllDrives=true',
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  if (!res.ok) throw new Error(`Drive search failed: ${res.status}`)
+  const data = await res.json()
+  return (data.files ?? []) as DriveSearchFile[]
+}
+
+/** 파일 내용을 텍스트로 다운로드 */
+export async function downloadDriveFileText(fileId: string, token: string): Promise<string> {
+  const res = await fetch(`${DRIVE_API}/files/${fileId}?alt=media&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error(`Drive download failed: ${res.status}`)
+  return res.text()
+}
+
 /** Drive 파일 삭제 (또는 휴지통으로) */
 export async function deleteFromDrive(
   fileId: string,
