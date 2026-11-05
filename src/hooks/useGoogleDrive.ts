@@ -19,7 +19,11 @@ declare global {
   }
 }
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ''
+// OAuth client ID는 공개 값(브라우저 JS에 노출되는 설계) — Vercel 환경변수 미등록 시에도
+// 동작하도록 기본값 내장 (견적서 생성기 dianfabric.github.io와 같은 클라이언트)
+const FALLBACK_CLIENT_ID =
+  '20735420913-sk48c5qk3oj415sbugqnauigcdqht6m7.apps.googleusercontent.com'
+const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || FALLBACK_CLIENT_ID
 const DEFAULT_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 /** Drive.file + Sheets — 자료 보관함·서류·잠재거래처 시트 동기화에 모두 사용 가능 */
 export const DRIVE_AND_SHEETS_SCOPE =
