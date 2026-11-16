@@ -5,6 +5,7 @@ import PriceChangeTable, { PriceRow } from './PriceChangeTable'
 import PriceChangeRangeTable from './PriceChangeRangeTable'
 import PriceInfoTable, { PriceInfoRow, DisplayUnit, OptionMode } from './PriceInfoTable'
 import PaymentRequestTable, { PaymentItem, VatMode } from './PaymentRequestTable'
+import DeliveryConfirmTable from './DeliveryConfirmTable'
 import ResultReportDocument, { ReportPhoto } from './ResultReportDocument'
 
 export interface SavedDoc {
@@ -87,6 +88,16 @@ export default function SavedDocumentRender({ doc, profile }: Props) {
   } else if (doc.type === 'PAYMENT_REQUEST' && Array.isArray(tableData)) {
     const vatMode: VatMode = metaData.vatMode === 'incl' ? 'incl' : 'excl'
     tableNode = <PaymentRequestTable items={tableData as PaymentItem[]} vatMode={vatMode} />
+  } else if (doc.type === 'DELIVERY_CONFIRM' && Array.isArray(tableData)) {
+    const vatMode: VatMode = metaData.vatMode === 'incl' ? 'incl' : 'excl'
+    tableNode = (
+      <DeliveryConfirmTable
+        items={tableData as PaymentItem[]}
+        vatMode={vatMode}
+        showAmounts={!!metaData.showAmounts}
+        completeKind={(metaData.completeKind as string) || '납품'}
+      />
+    )
   } else if (doc.type === 'PRICE_INFO' && Array.isArray(tableData)) {
     tableNode = (
       <PriceInfoTable

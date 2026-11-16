@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { FileText, Plus, TrendingUp, CalendarOff, Wallet, ClipboardCheck, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon, FolderOpen, UserPlus, MapPinned } from 'lucide-react'
+import { FileText, Plus, TrendingUp, CalendarOff, Wallet, ClipboardCheck, PackageCheck, ListChecks, Search, Receipt, ExternalLink, Tag, Copy, Check, Eye, Image as ImageIcon, FolderOpen, UserPlus, MapPinned } from 'lucide-react'
 import DocumentPreviewDialog, { DocFull } from '@/components/documents/DocumentPreviewDialog'
 import SavedDocumentRender, { CompanyProfileLite } from '@/components/documents/SavedDocumentRender'
 import { downloadJPG, copyImageToClipboard } from '@/lib/document-export'
@@ -36,6 +36,7 @@ const TYPE_META: Record<string, { label: string; icon: any; color: string }> = {
   HOLIDAY: { label: '휴무 안내', icon: CalendarOff, color: 'text-amber-600' },
   PAYMENT_REQUEST: { label: '대금 청구', icon: Wallet, color: 'text-blue-600' },
   RESULT_REPORT: { label: '결과보고', icon: ClipboardCheck, color: 'text-teal-600' },
+  DELIVERY_CONFIRM: { label: '납품 확인', icon: PackageCheck, color: 'text-cyan-600' },
   PRICE_INFO: { label: '단가 안내', icon: ListChecks, color: 'text-emerald-600' },
 }
 
@@ -216,6 +217,13 @@ export default function DocumentsPage() {
                 <Wallet className="w-5 h-5 text-blue-600 mb-2" />
                 <div className="font-semibold text-sm">대금 청구서</div>
                 <div className="text-xs text-slate-500 mt-1">견적서 불러와 납품·설치 대금 청구</div>
+              </div>
+            </Link>
+            <Link href="/documents/new/delivery-confirm">
+              <div className="border rounded-lg p-4 bg-white hover:border-cyan-400 hover:shadow-sm transition">
+                <PackageCheck className="w-5 h-5 text-cyan-600 mb-2" />
+                <div className="font-semibold text-sm">납품 확인서</div>
+                <div className="text-xs text-slate-500 mt-1">견적서 불러와 인수 확인 받기</div>
               </div>
             </Link>
             <Link href="/documents/new/result-report">
