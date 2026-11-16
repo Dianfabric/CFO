@@ -20,6 +20,7 @@ import {
   CloudUpload,
   Copy,
   FileDown,
+  FileSpreadsheet,
   FileUp,
   History,
   Image as ImageIcon,
@@ -41,6 +42,7 @@ import PaymentRequestTable, {
 } from '@/components/documents/PaymentRequestTable'
 import { downloadPDF, downloadJPG, getCanvasBlob, getPDFBlob, copyImageToClipboard } from '@/lib/document-export'
 import { buildMessengerText, copyToClipboard } from '@/lib/document-text'
+import { downloadItemsExcel } from '@/lib/quote-excel'
 import { useGoogleDrive, DRIVE_FILE_AND_READONLY_SCOPE } from '@/hooks/useGoogleDrive'
 import { imageToBase64, parseQuoteJson } from '@/lib/quote-import'
 import {
@@ -354,6 +356,31 @@ export default function PaymentRequestForm() {
     setDownloading('')
   }
 
+  const handleDownloadExcel = async () => {
+    try {
+      await downloadItemsExcel({
+        filename: filenameBase,
+        sheetName: '대금청구서',
+        headerRows: [
+          ['문서번호', docNumber],
+          ['발행일자', formatIssueDate(form.issueDate) ?? new Date().toLocaleDateString('ko-KR')],
+          ['수신', form.recipientName],
+          ['현장명', form.siteName],
+          ['완료 구분', `${form.completeKind} 완료${form.completeDate ? ` (${koreanDate(form.completeDate)})` : ''}`],
+          ['지급 기한', form.dueDate ? koreanDate(form.dueDate) : ''],
+          ['입금 계좌', form.bankLine],
+        ],
+        items,
+        showAmounts: true,
+        vatMode,
+        totalsLabel: '청구금액 (VAT 포함)',
+      })
+    } catch (e) {
+      console.error('[엑셀 생성 실패]', e)
+      alert('엑셀 생성 실패\n' + (e instanceof Error ? e.message : String(e)))
+    }
+  }
+
   const handleCopyImage = async () => {
     setCopyImgState('copying')
     const result = await copyImageToClipboard('document-print-area')
@@ -512,6 +539,9 @@ export default function PaymentRequestForm() {
           </Button>
           <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={!!downloading} className="gap-1">
             <FileDown className="w-3.5 h-3.5" />{downloading === 'pdf' ? '생성 중...' : 'PDF'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadExcel} className="gap-1" title="청구 내역을 엑셀(.xlsx)로 다운로드">
+            <FileSpreadsheet className="w-3.5 h-3.5" />엑셀
           </Button>
           <Button variant="outline" size="sm" onClick={handleCopyImage} disabled={copyImgState !== 'idle'} className="gap-1">
             {copyImgState === 'done' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
