@@ -12,6 +12,7 @@
  *  - 읽기 전용. INSERT/UPDATE/DELETE 없음.
  */
 import { prisma } from '@/lib/prisma'
+import { parseFabricTerms, buildMultiSearchSQL } from '@/lib/fabric-price-tools'
 
 const TABLE = 'public.fabric_knowledge_master'
 
@@ -86,6 +87,7 @@ export interface FabricSummary {
 }
 
 export interface FabricListResult {
+  missingTerms: string[]
   summary: FabricSummary
   brands: string[]
   brandCounts: { brand: string; count: number }[]
@@ -102,6 +104,7 @@ export interface FabricPriceTier {
 }
 
 export interface FabricListParams {
+  multiQuery?: string
   query?: string
   brand?: string
   /** '' | 'missing_cost' | 'missing_sell' | 'complete' */
@@ -388,7 +391,12 @@ export async function queryFabricList(params: FabricListParams): Promise<FabricL
   const values: unknown[] = [...baseParams]
   let hasQuery = false
 
-  if (params.query && params.query.trim()) {
+  const terms = parseFabricTerms(params.multiQuery ?? '')
+  if (terms.length > 200 || (params.multiQuery?.length ?? 0) > 10000) throw new Error('다중검색은 200개 / 10,000자 이내로 입력해 주세요.')
+  const multi = buildMultiSearchSQL(cols, terms, values)
+  if (multi.predicates.length) conds.push(`(${multi.predicates.join(' OR ')})`)
+
+  if (!terms.length && params.query && params.query.trim()) {
     const q = params.query.trim()
     const searchCols = searchColumns(cols)
     if (searchCols.length) {
@@ -421,8 +429,24 @@ export async function queryFabricList(params: FabricListParams): Promise<FabricL
 
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : ''
 
+  // Aggregate over the full filtered set, not just the visible page.
+  let missingTerms: string[] = []
+  if (terms.length) {
+    const counts = await prisma.$queryRawUnsafe<Record<string, number>[]>(
+      `SELECT ${multi.predicates.map((p, i) => `count(*) FILTER (WHERE ${p})::int AS "term_${i}"`).join(', ')} FROM ${TABLE} ${where}`,
+      ...values,
+    )
+    missingTerms = terms.filter((_, i) => !counts[0]?.[`term_${i}`])
+  }
+  // Count parameters must not include ORDER-only bindings.
+  const countRows = await prisma.$queryRawUnsafe<{ total: number }[]>(
+    `SELECT count(*)::int AS total FROM ${TABLE} ${where}`, ...values,
+  )
+  const total = countRows[0]?.total ?? 0
+
   // ---- ORDER BY ----
   const orderParts: string[] = []
+  if (multi.order) orderParts.push(multi.order)
   if (hasQuery && cols.has('product_name')) {
     // 정확 일치 우선 — 검색어와 동일한 product_name 을 맨 위로
     const qIdx = values.push(params.query!.trim())
@@ -430,14 +454,9 @@ export async function queryFabricList(params: FabricListParams): Promise<FabricL
   }
   if (cols.has('brand_code')) orderParts.push(`"brand_code" NULLS LAST`)
   if (cols.has('product_name')) orderParts.push(`"product_name"`)
+  if (cols.has('id')) orderParts.push(`"id"`)
   const orderBy = orderParts.length ? `ORDER BY ${orderParts.join(', ')}` : ''
 
-  // ---- count (페이지네이션) ----
-  const countRows = await prisma.$queryRawUnsafe<{ total: number }[]>(
-    `SELECT count(*)::int AS total FROM ${TABLE} ${where}`,
-    ...values,
-  )
-  const total = countRows[0]?.total ?? 0
 
   // ---- rows ----
   const selectCols = COLUMN_WHITELIST.filter((c) => cols.has(c)).map(ident).join(', ')
@@ -449,6 +468,7 @@ export async function queryFabricList(params: FabricListParams): Promise<FabricL
   )
 
   return {
+    missingTerms,
     summary,
     brands,
     brandCounts,

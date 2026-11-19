@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { parseFabricTerms, formatPriceCopy, toggleFabricSelection, mergeFabricRows, collectFabricPages } from '@/lib/fabric-price-tools'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ interface Summary {
 }
 
 interface ListResponse {
+  missingTerms: string[]
   summary: Summary
   brands: string[]
   brandCounts: { brand: string; count: number }[]
@@ -149,6 +151,17 @@ export default function FabricPriceManager() {
 
   const [tab, setTab] = useState<'list' | 'brands'>('list')
   const [query, setQuery] = useState('')
+  const [multiMode, setMultiMode] = useState(false)
+  const [multiQuery, setMultiQuery] = useState('')
+  const [checked, setChecked] = useState<Map<string, FabricRow>>(new Map())
+  const [dealerCopy, setDealerCopy] = useState(false)
+  const [preview, setPreview] = useState<{ rows: FabricRow[]; key: string; selection: Map<string, FabricRow>; dealer: boolean } | null>(null)
+  const [copyBusy, setCopyBusy] = useState(false)
+  const [copyMessage, setCopyMessage] = useState('')
+  const listController = useRef<AbortController | null>(null)
+  const copyController = useRef<AbortController | null>(null)
+  const moreLock = useRef(false)
+  const [loadedKey, setLoadedKey] = useState('')
   const [brand, setBrand] = useState('')
   const [priceStatus, setPriceStatus] = useState('')
   const [matchStatus, setMatchStatus] = useState('')
@@ -175,7 +188,8 @@ export default function FabricPriceManager() {
   const buildParams = useCallback(
     (pageToLoad: number) => {
       const p = new URLSearchParams()
-      if (query.trim()) p.set('query', query.trim())
+      if (multiMode) p.set('multiQuery', multiQuery)
+      else if (query.trim()) p.set('query', query.trim())
       if (brand) p.set('brand', brand)
       if (priceStatus) p.set('priceStatus', priceStatus)
       if (matchStatus) p.set('matchStatus', matchStatus)
@@ -184,8 +198,57 @@ export default function FabricPriceManager() {
       p.set('pageSize', String(PAGE_SIZE))
       return p
     },
-    [query, brand, priceStatus, matchStatus, active],
+    [query, multiMode, multiQuery, brand, priceStatus, matchStatus, active],
   )
+
+  const filterKey = buildParams(1).toString()
+  const latest = useRef({ filterKey, checked, dealerCopy })
+  latest.current = { filterKey, checked, dealerCopy }
+  const inputError = multiMode && (parseFabricTerms(multiQuery).length > 200 || multiQuery.length > 10000)
+    ? '다중검색은 200개 / 10,000자 이내로 입력해 주세요.' : ''
+  const currentPreview = preview && preview.key === filterKey && preview.selection === checked && preview.dealer === dealerCopy ? preview : null
+
+  useEffect(() => {
+    copyController.current?.abort()
+    copyController.current = null
+    setCopyBusy(false)
+    setPreview(null)
+    setCopyMessage('')
+  }, [filterKey, checked, dealerCopy])
+
+  const prepareCopy = async (all: boolean) => {
+    if (copyController.current) return
+    const controller = new AbortController()
+    copyController.current = controller
+    const snapshot = latest.current
+    setCopyBusy(true)
+    setCopyMessage('')
+    try {
+      const items = all ? await collectFabricPages(async pageToLoad => {
+        const response = await fetch(`/api/fabric-prices?${buildParams(pageToLoad)}`, { signal: controller.signal })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || '전체 조회 실패')
+        return data as ListResponse
+      }, controller.signal) : [...checked.values()]
+      if (controller.signal.aborted || latest.current.filterKey !== snapshot.filterKey || latest.current.checked !== snapshot.checked || latest.current.dealerCopy !== snapshot.dealerCopy) return
+      if (!items.length) { setCopyMessage('복사할 원단이 없습니다.'); return }
+      setPreview({ rows: items, key: snapshot.filterKey, selection: snapshot.checked, dealer: snapshot.dealerCopy })
+    } catch (e) {
+      if (!controller.signal.aborted) setCopyMessage(e instanceof Error ? e.message : '전체 조회 실패')
+    } finally {
+      if (copyController.current === controller) { copyController.current = null; setCopyBusy(false) }
+    }
+  }
+
+  const confirmCopy = async () => {
+    if (!currentPreview) return
+    try {
+      await navigator.clipboard.writeText(formatPriceCopy(currentPreview.rows, dealerCopy))
+      setCopyMessage(`${currentPreview.rows.length}건 복사했습니다.`)
+    } catch {
+      setCopyMessage('클립보드 복사에 실패했습니다. 아래 미리보기 내용을 선택해서 직접 복사해 주세요.')
+    }
+  }
 
   useEffect(() => {
     if (!newDialogOpen) return
@@ -198,49 +261,70 @@ export default function FabricPriceManager() {
 
   // 필터 변경 시 1페이지부터 다시 (rows 교체)
   const fetchFirst = useCallback(async () => {
+    listController.current?.abort()
+    const controller = new AbortController()
+    listController.current = controller
+    const key = buildParams(1).toString()
+    const isCurrent = () => !controller.signal.aborted && latest.current.filterKey === key
+    moreLock.current = false
+    setLoadingMore(false)
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/fabric-prices?${buildParams(1).toString()}`)
+      if (inputError) throw new Error(inputError)
+      const res = await fetch(`/api/fabric-prices?${key}`, { signal: controller.signal })
       const json = await res.json()
+      if (!isCurrent()) return
       if (!res.ok) throw new Error(json?.error || '조회 실패')
       const { rows: r, ...rest } = json as ListResponse
       setMeta(rest)
-      setRows(r)
+      setRows(mergeFabricRows([], r))
       setPage(1)
+      setLoadedKey(key)
     } catch (e) {
+      if (!isCurrent()) return
       setError(e instanceof Error ? e.message : '조회 실패')
       setMeta(null)
       setRows([])
     } finally {
-      setLoading(false)
+      if (isCurrent()) setLoading(false)
     }
-  }, [buildParams])
+  }, [buildParams, inputError])
 
   // 더보기 — 다음 100건 append
   const loadMore = useCallback(async () => {
+    const key = buildParams(1).toString()
+    const controller = listController.current
+    if (moreLock.current || loading || loadedKey !== key || !controller || controller.signal.aborted) return
+    moreLock.current = true
+    const isCurrent = () => !controller.signal.aborted && latest.current.filterKey === key
     const next = page + 1
     setLoadingMore(true)
     try {
-      const res = await fetch(`/api/fabric-prices?${buildParams(next).toString()}`)
+      const res = await fetch(`/api/fabric-prices?${buildParams(next).toString()}`, { signal: controller.signal })
       const json = await res.json()
+      if (!isCurrent()) return
       if (!res.ok) throw new Error(json?.error || '조회 실패')
       const { rows: r, ...rest } = json as ListResponse
       setMeta(rest)
-      setRows((prev) => [...prev, ...r])
+      setRows((prev) => mergeFabricRows(prev, r))
       setPage(next)
     } catch (e) {
-      setError(e instanceof Error ? e.message : '조회 실패')
+      if (isCurrent()) setError(e instanceof Error ? e.message : '조회 실패')
     } finally {
-      setLoadingMore(false)
+      if (isCurrent()) { moreLock.current = false; setLoadingMore(false) }
     }
-  }, [buildParams, page])
+  }, [buildParams, page, loading, loadedKey])
 
   // 검색어 디바운스 + 필터 즉시 → fetchFirst
   useEffect(() => {
+    listController.current?.abort()
+    setLoading(true)
     const t = setTimeout(fetchFirst, 300)
-    return () => clearTimeout(t)
+    return () => { clearTimeout(t); listController.current?.abort() }
   }, [fetchFirst])
+
+  useEffect(() => () => { copyController.current?.abort() }, [])
 
   // 행 클릭 → 드로어 열고 raw 지연 로드
   const openRow = async (row: FabricRow) => {
@@ -561,8 +645,13 @@ export default function FabricPriceManager() {
       {tab === 'list' && (
         <div className="space-y-6">
           {/* 필터 */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={multiMode} onChange={e => setMultiMode(e.target.checked)} />여러 원단 검색</label>
+            {multiMode && <><Textarea aria-label="여러 원단 검색어" value={multiQuery} onChange={e => setMultiQuery(e.target.value)} placeholder={'LE AURORA, LUMI\nWoodstock'} /><p className="text-xs text-slate-500">쉼표·줄바꿈으로 구분하거나 엑셀에서 붙여넣으세요. 이름 안의 공백은 유지됩니다. (최대 200개)</p></>}
+            {inputError && <p role="alert" className="text-sm text-red-600">{inputError}</p>}
+          </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="relative flex-1 sm:min-w-[220px] sm:max-w-xs">
+            {!multiMode && <div className="relative flex-1 sm:min-w-[220px] sm:max-w-xs">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
                 className="pl-9"
@@ -570,7 +659,7 @@ export default function FabricPriceManager() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
-            </div>
+            </div>}
             <select
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
               value={brand}
@@ -633,6 +722,29 @@ export default function FabricPriceManager() {
           )}
 
           {/* 테이블 (전체 폭) */}
+          <div className="space-y-3">
+            {multiMode && !loading && loadedKey === filterKey && <div className="text-sm text-slate-600">
+              <p>입력 순서로 표시합니다. 같은 이름도 브랜드가 다르면 별도 품목입니다. 브랜드를 확인하고 선택하세요.</p>
+              {!!meta?.missingTerms?.length && <p className="text-amber-700">미검색 (현재 필터 기준): {meta.missingTerms.join(', ')}</p>}
+            </div>}
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span>선택 {checked.size}건</span>
+              <Button variant="outline" size="sm" disabled={!checked.size} onClick={() => setChecked(new Map())}>선택해제</Button>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={dealerCopy} onChange={e => setDealerCopy(e.target.checked)} />대리점가로 복사</label>
+              <Button variant="outline" size="sm" disabled={!checked.size || copyBusy} onClick={() => void prepareCopy(false)}>선택 단가 복사</Button>
+              <Button variant="outline" size="sm" disabled={loading || loadedKey !== filterKey || !!inputError || !!error || copyBusy} onClick={() => void prepareCopy(true)}>전체 단가 복사</Button>
+              {copyBusy && <span>전체 페이지 불러오는 중...</span>}
+            </div>
+            <p className="text-xs text-slate-500">전체 복사는 현재 검색·필터 결과 전체(미표시 페이지 포함)입니다. 선택은 검색을 바꿔도 유지됩니다.</p>
+            {copyMessage && <p role="status" className="text-sm text-blue-700">{copyMessage}</p>}
+            {currentPreview && <div className="space-y-2 rounded-md border bg-slate-50 p-3">
+              <p className="font-medium">복사 미리보기 · {dealerCopy ? '대리점가' : '판매가'} · {currentPreview.rows.length}건</p>
+              <details><summary className="cursor-pointer text-sm">브랜드 확인 (복사 내용에는 포함되지 않습니다)</summary><ul className="max-h-40 overflow-auto text-sm">{currentPreview.rows.map(row => <li key={String(row.id)}>{row.product_name} · {row.brand || '브랜드 미등록'}</li>)}</ul></details>
+              <Textarea aria-label="단가 복사 미리보기" readOnly value={formatPriceCopy(currentPreview.rows, dealerCopy)} className="min-h-32 bg-white" />
+              <Button size="sm" onClick={() => void confirmCopy()}>미리보기 내용 복사</Button>
+              <Button variant="ghost" size="sm" onClick={() => setPreview(null)}>닫기</Button>
+            </div>}
+          </div>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
@@ -657,6 +769,7 @@ export default function FabricPriceManager() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-left text-slate-500">
+                          <th className="px-3 pb-2 font-medium">선택</th>
                           <th className="min-w-[110px] px-3 pb-2 font-medium">브랜드</th>
                           <th className="min-w-[140px] px-3 pb-2 font-medium">원단명</th>
                           <th className="min-w-[180px] px-3 pb-2 font-medium">성분</th>
@@ -678,6 +791,9 @@ export default function FabricPriceManager() {
                               className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
                               onClick={() => openRow(row)}
                             >
+                              <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                                <input type="checkbox" aria-label={`${row.product_name} / ${row.brand || '브랜드 미등록'} 선택`} checked={checked.has(String(row.id))} disabled={row.id === null || row.id === undefined} onChange={() => setChecked(previous => toggleFabricSelection(previous, row))} />
+                              </td>
                               <td className="px-3 py-2.5">
                                 {str(row.brand) ? <Badge variant="secondary">{str(row.brand)}</Badge> : '—'}
                               </td>

@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const result = await queryFabricList({
       query: searchParams.get('query') ?? undefined,
+      multiQuery: searchParams.get('multiQuery') ?? undefined,
       brand: searchParams.get('brand') ?? undefined,
       priceStatus: searchParams.get('priceStatus') ?? undefined,
       matchStatus: searchParams.get('matchStatus') ?? undefined,
