@@ -12,7 +12,7 @@
  *  - 읽기 전용. INSERT/UPDATE/DELETE 없음.
  */
 import { prisma } from '@/lib/prisma'
-import { parseFabricTerms, buildMultiSearchSQL } from '@/lib/fabric-price-tools'
+import { parseFabricTerms, buildMultiSearchSQL, fabricColorBase, resolveFabricTerm } from '@/lib/fabric-price-tools'
 
 const TABLE = 'public.fabric_knowledge_master'
 
@@ -393,10 +393,34 @@ export async function queryFabricList(params: FabricListParams): Promise<FabricL
 
   const terms = parseFabricTerms(params.multiQuery ?? '')
   if (terms.length > 200 || (params.multiQuery?.length ?? 0) > 10000) throw new Error('다중검색은 200개 / 10,000자 이내로 입력해 주세요.')
-  const multi = buildMultiSearchSQL(cols, terms, values)
+  const inputTerms = terms.length ? terms : params.query?.trim() ? [params.query.trim()] : []
+  const colorSearch = inputTerms.some(term => fabricColorBase(term) !== null)
+  let source = TABLE
+  if (colorSearch) {
+    const names = ['product_name', 'search_alias', 'product_name_ko'].filter(c => cols.has(c))
+    // Resolve literal names before stripping a color. Use the active scope, not
+    // price/brand filters: hiding MODEL-05 must never turn it into MODEL.
+    const exactRows = names.length ? await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+      `SELECT ${names.map(ident).join(', ')} FROM ${TABLE} WHERE ${[...baseConds, `(${names.map(c => `lower(${ident(c)}) = ANY($1::text[])`).join(' OR ')})`].join(' AND ')}`,
+      inputTerms.map(t => t.toLowerCase()),
+    ) : []
+    const exactNames = new Set(exactRows.flatMap(row => names.map(c => String(row[c] ?? '').toLowerCase())))
+    const entries = inputTerms.map((term, index) => {
+      const resolved = resolveFabricTerm(term, exactNames)
+      const rawIdx = values.push(term)
+      const copyIdx = values.push(resolved.copy)
+      const searchIdx = values.push(resolved.exact ? resolved.search : `%${resolved.search.replace(/[\\%_]/g, '\\$&')}%`)
+      const predicate = names.map(c => resolved.exact
+        ? `lower(${ident(c)}) = lower($${searchIdx}::text)`
+        : `${ident(c)} ILIKE $${searchIdx}`).join(' OR ') || 'FALSE'
+      return `SELECT $${rawIdx}::text AS input_term, $${copyIdx}::text AS copy_name, ${index} AS input_index WHERE (${predicate})`
+    })
+    source = `${TABLE} CROSS JOIN LATERAL (${entries.join(' UNION ALL ')}) AS search_input`
+  }
+  const multi = buildMultiSearchSQL(cols, colorSearch ? [] : terms, values)
   if (multi.predicates.length) conds.push(`(${multi.predicates.join(' OR ')})`)
 
-  if (!terms.length && params.query && params.query.trim()) {
+  if (!colorSearch && !terms.length && params.query && params.query.trim()) {
     const q = params.query.trim()
     const searchCols = searchColumns(cols)
     if (searchCols.length) {
@@ -431,21 +455,23 @@ export async function queryFabricList(params: FabricListParams): Promise<FabricL
 
   // Aggregate over the full filtered set, not just the visible page.
   let missingTerms: string[] = []
-  if (terms.length) {
+  if (terms.length || colorSearch) {
+    const predicates = colorSearch ? inputTerms.map((_, i) => `input_index = ${i}`) : multi.predicates
     const counts = await prisma.$queryRawUnsafe<Record<string, number>[]>(
-      `SELECT ${multi.predicates.map((p, i) => `count(*) FILTER (WHERE ${p})::int AS "term_${i}"`).join(', ')} FROM ${TABLE} ${where}`,
+      `SELECT ${predicates.map((p, i) => `count(*) FILTER (WHERE ${p})::int AS "term_${i}"`).join(', ')} FROM ${source} ${where}`,
       ...values,
     )
-    missingTerms = terms.filter((_, i) => !counts[0]?.[`term_${i}`])
+    missingTerms = inputTerms.filter((_, i) => !counts[0]?.[`term_${i}`])
   }
   // Count parameters must not include ORDER-only bindings.
   const countRows = await prisma.$queryRawUnsafe<{ total: number }[]>(
-    `SELECT count(*)::int AS total FROM ${TABLE} ${where}`, ...values,
+    `SELECT count(*)::int AS total FROM ${source} ${where}`, ...values,
   )
   const total = countRows[0]?.total ?? 0
 
   // ---- ORDER BY ----
   const orderParts: string[] = []
+  if (colorSearch) orderParts.push('input_index')
   if (multi.order) orderParts.push(multi.order)
   if (hasQuery && cols.has('product_name')) {
     // 정확 일치 우선 — 검색어와 동일한 product_name 을 맨 위로
@@ -463,7 +489,7 @@ export async function queryFabricList(params: FabricListParams): Promise<FabricL
   const limitIdx = values.push(pageSize)
   const offsetIdx = values.push(offset)
   const rows = await prisma.$queryRawUnsafe<FabricRow[]>(
-    `SELECT ${selectCols || '*'} FROM ${TABLE} ${where} ${orderBy} LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    `SELECT ${selectCols || '*'}${colorSearch ? ', input_term, copy_name' : ''} FROM ${source} ${where} ${orderBy} LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
     ...values,
   )
 

@@ -2,6 +2,25 @@ const {test}=require('node:test'); const assert=require('node:assert/strict');
 const ts=require('typescript');
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpile(require('fs').readFileSync(f,'utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}),f);
 const tools=()=>require('../src/lib/fabric-price-tools.ts');
+test('color entries preserve copy spelling and distinct selection/page identity',()=>{
+ const a={id:9,product_name:'KOSHER',input_term:'kosher-05',copy_name:'kosher-05',sell_price:35000,dealer_price:30000};
+ const b={...a,input_term:'Kosher#07',copy_name:'Kosher#07'};
+ assert.equal(tools().formatPriceCopy([a],false),'kosher-05 — 35,000원/Y');
+ assert.equal(tools().mergeFabricRows([a],[b,a]).length,2);
+ let selected=tools().toggleFabricSelection(new Map(),a);selected=tools().toggleFabricSelection(selected,b);assert.equal(selected.size,2);
+});
+test('dual prices fixed sell then dealer, independent null/zero, raw name',()=>{
+ assert.equal(tools().formatPriceCopy([{product_name:'wrong',copy_name:'KOSHER#05',sell_price:35000,dealer_price:30000}],true,true),'KOSHER#05 35,000/Y 30,000/Y');
+ assert.equal(tools().formatPriceCopy([{product_name:'A',sell_price:null,dealer_price:0},{product_name:'B',sell_price:0,dealer_price:null}],false,true),'A 단가 미등록 0/Y\nB 0/Y 단가 미등록');
+});
+test('color parsing only trailing numeric delimiter; literal names exact take priority',()=>{
+ const {fabricColorBase,resolveFabricTerm}=tools();
+ assert.equal(fabricColorBase('kosher-05'),'kosher');assert.equal(fabricColorBase('Kosher#007'),'Kosher');
+ assert.equal(fabricColorBase('SUN-DEW-04'),'SUN-DEW');
+ for(const s of ['SUN-DEW','ABC-','ABC#','ABC-05 extra','ABC-Blue']) assert.equal(fabricColorBase(s),null);
+ assert.deepEqual(resolveFabricTerm('MODEL-05',new Set(['model-05'])),{search:'MODEL-05',copy:'MODEL-05',exact:true});
+ assert.deepEqual(resolveFabricTerm('kosher-05',new Set()),{search:'kosher',copy:'kosher-05',exact:false});
+});
 const rows=[{id:1,product_name:'LUMI',brand:'SECRET BRAND',sell_price:22000,dealer_price:null,cost_usd:777},{id:2,product_name:'LUMI',brand:'OTHER',sell_price:null,dealer_price:0},{id:3,product_name:'LE AURORA',sell_price:0,dealer_price:'15000'}];
 test('copy allowlist excludes brand/cost, null never falls back and zero valid for both modes',()=>{
  assert.equal(tools().formatPriceCopy(rows,false),'LUMI — 22,000원/Y\nLUMI — 단가 미등록\nLE AURORA — 0원/Y');

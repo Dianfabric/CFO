@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { parseFabricTerms, formatPriceCopy, toggleFabricSelection, mergeFabricRows, collectFabricPages } from '@/lib/fabric-price-tools'
+import { parseFabricTerms, formatPriceCopy, toggleFabricSelection, mergeFabricRows, collectFabricPages, fabricRowKey } from '@/lib/fabric-price-tools'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -155,7 +155,7 @@ export default function FabricPriceManager() {
   const [multiQuery, setMultiQuery] = useState('')
   const [checked, setChecked] = useState<Map<string, FabricRow>>(new Map())
   const [dealerCopy, setDealerCopy] = useState(false)
-  const [preview, setPreview] = useState<{ rows: FabricRow[]; key: string; selection: Map<string, FabricRow>; dealer: boolean } | null>(null)
+  const [preview, setPreview] = useState<{ rows: FabricRow[]; key: string; selection: Map<string, FabricRow>; dealer: boolean; dual: boolean } | null>(null)
   const [copyBusy, setCopyBusy] = useState(false)
   const [copyMessage, setCopyMessage] = useState('')
   const listController = useRef<AbortController | null>(null)
@@ -216,7 +216,7 @@ export default function FabricPriceManager() {
     setCopyMessage('')
   }, [filterKey, checked, dealerCopy])
 
-  const prepareCopy = async (all: boolean) => {
+  const prepareCopy = async (all: boolean, dual = false) => {
     if (copyController.current) return
     const controller = new AbortController()
     copyController.current = controller
@@ -232,7 +232,7 @@ export default function FabricPriceManager() {
       }, controller.signal) : [...checked.values()]
       if (controller.signal.aborted || latest.current.filterKey !== snapshot.filterKey || latest.current.checked !== snapshot.checked || latest.current.dealerCopy !== snapshot.dealerCopy) return
       if (!items.length) { setCopyMessage('복사할 원단이 없습니다.'); return }
-      setPreview({ rows: items, key: snapshot.filterKey, selection: snapshot.checked, dealer: snapshot.dealerCopy })
+      setPreview({ rows: items, key: snapshot.filterKey, selection: snapshot.checked, dealer: snapshot.dealerCopy, dual })
     } catch (e) {
       if (!controller.signal.aborted) setCopyMessage(e instanceof Error ? e.message : '전체 조회 실패')
     } finally {
@@ -243,7 +243,7 @@ export default function FabricPriceManager() {
   const confirmCopy = async () => {
     if (!currentPreview) return
     try {
-      await navigator.clipboard.writeText(formatPriceCopy(currentPreview.rows, dealerCopy))
+      await navigator.clipboard.writeText(formatPriceCopy(currentPreview.rows, dealerCopy, currentPreview.dual))
       setCopyMessage(`${currentPreview.rows.length}건 복사했습니다.`)
     } catch {
       setCopyMessage('클립보드 복사에 실패했습니다. 아래 미리보기 내용을 선택해서 직접 복사해 주세요.')
@@ -733,14 +733,16 @@ export default function FabricPriceManager() {
               <label className="flex items-center gap-2"><input type="checkbox" checked={dealerCopy} onChange={e => setDealerCopy(e.target.checked)} />대리점가로 복사</label>
               <Button variant="outline" size="sm" disabled={!checked.size || copyBusy} onClick={() => void prepareCopy(false)}>선택 단가 복사</Button>
               <Button variant="outline" size="sm" disabled={loading || loadedKey !== filterKey || !!inputError || !!error || copyBusy} onClick={() => void prepareCopy(true)}>전체 단가 복사</Button>
+              <Button variant="outline" size="sm" disabled={!checked.size || copyBusy} onClick={() => void prepareCopy(false, true)}>선택 두 가격 복사</Button>
+              <Button variant="outline" size="sm" disabled={loading || loadedKey !== filterKey || !!inputError || !!error || copyBusy} onClick={() => void prepareCopy(true, true)}>전체 두 가격 복사</Button>
               {copyBusy && <span>전체 페이지 불러오는 중...</span>}
             </div>
             <p className="text-xs text-slate-500">전체 복사는 현재 검색·필터 결과 전체(미표시 페이지 포함)입니다. 선택은 검색을 바꿔도 유지됩니다.</p>
             {copyMessage && <p role="status" className="text-sm text-blue-700">{copyMessage}</p>}
             {currentPreview && <div className="space-y-2 rounded-md border bg-slate-50 p-3">
-              <p className="font-medium">복사 미리보기 · {dealerCopy ? '대리점가' : '판매가'} · {currentPreview.rows.length}건</p>
-              <details><summary className="cursor-pointer text-sm">브랜드 확인 (복사 내용에는 포함되지 않습니다)</summary><ul className="max-h-40 overflow-auto text-sm">{currentPreview.rows.map(row => <li key={String(row.id)}>{row.product_name} · {row.brand || '브랜드 미등록'}</li>)}</ul></details>
-              <Textarea aria-label="단가 복사 미리보기" readOnly value={formatPriceCopy(currentPreview.rows, dealerCopy)} className="min-h-32 bg-white" />
+              <p className="font-medium">복사 미리보기 · {currentPreview.dual ? '판매가 → 대리점가' : dealerCopy ? '대리점가' : '판매가'} · {currentPreview.rows.length}건</p>
+              <details><summary className="cursor-pointer text-sm">브랜드 확인 (복사 내용에는 포함되지 않습니다)</summary><ul className="max-h-40 overflow-auto text-sm">{currentPreview.rows.map(row => <li key={fabricRowKey(row)}>{str(row.copy_name ?? row.product_name)} · {row.brand || '브랜드 미등록'}</li>)}</ul></details>
+              <Textarea aria-label="단가 복사 미리보기" readOnly value={formatPriceCopy(currentPreview.rows, dealerCopy, currentPreview.dual)} className="min-h-32 bg-white" />
               <Button size="sm" onClick={() => void confirmCopy()}>미리보기 내용 복사</Button>
               <Button variant="ghost" size="sm" onClick={() => setPreview(null)}>닫기</Button>
             </div>}
@@ -782,23 +784,24 @@ export default function FabricPriceManager() {
                         </tr>
                       </thead>
                       <tbody>
-                        {rows.map((row, i) => {
+                        {rows.map((row) => {
                           const missingCost = num(row.cost_usd) === null && num(row.cost_usd_override) === null
                           const missingSell = num(row.sell_price) === null
                           return (
                             <tr
-                              key={str(row.id) || i}
+                              key={fabricRowKey(row)}
                               className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
                               onClick={() => openRow(row)}
                             >
                               <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
-                                <input type="checkbox" aria-label={`${row.product_name} / ${row.brand || '브랜드 미등록'} 선택`} checked={checked.has(String(row.id))} disabled={row.id === null || row.id === undefined} onChange={() => setChecked(previous => toggleFabricSelection(previous, row))} />
+                                <input type="checkbox" aria-label={`${str(row.copy_name ?? row.product_name)} / ${row.brand || '브랜드 미등록'} 선택`} checked={checked.has(fabricRowKey(row))} disabled={row.id === null || row.id === undefined} onChange={() => setChecked(previous => toggleFabricSelection(previous, row))} />
                               </td>
                               <td className="px-3 py-2.5">
                                 {str(row.brand) ? <Badge variant="secondary">{str(row.brand)}</Badge> : '—'}
                               </td>
                               <td className="px-3 font-medium text-slate-900">
                                 {dash(row.product_name)}
+                                {str(row.copy_name) && <span className="ml-2 text-xs font-normal text-slate-500">{str(row.copy_name)}</span>}
                                 {str(row.search_alias) && (
                                   <span className="ml-2 text-xs font-normal text-slate-400">{str(row.search_alias)}</span>
                                 )}

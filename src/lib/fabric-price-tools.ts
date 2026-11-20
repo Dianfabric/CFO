@@ -1,19 +1,27 @@
 // Shared pure helpers; no database or cost fields are needed for copy output.
 export type CopyFabricRow = Record<string, unknown> & { id?: string | number | null; product_name?: string | null; brand?: string | null }
 
-export function formatPriceCopy(rows: CopyFabricRow[], dealer: boolean): string {
+function copyPrice(value: unknown, dual: boolean): string {
+  const price = value === null || value === undefined || String(value).trim() === '' ? null : Number(value)
+  return price === null || !Number.isFinite(price) ? '단가 미등록' : `${Math.round(price).toLocaleString('ko-KR')}${dual ? '' : '원'}/Y`
+}
+
+export function formatPriceCopy(rows: CopyFabricRow[], dealer: boolean, dual = false): string {
   return rows.map(row => {
-    const value = dealer ? row.dealer_price : row.sell_price
-    const price = value === null || value === undefined || String(value).trim() === '' ? null : Number(value)
-    const label = price === null || !Number.isFinite(price) ? '단가 미등록' : `${Math.round(price).toLocaleString('ko-KR')}원/Y`
-    return `${String(row.product_name ?? '').replace(/[\r\n\t]+/g, ' ')} — ${label}`
+    const name = String(row.copy_name ?? row.product_name ?? '').replace(/[\r\n\t]+/g, ' ')
+    return dual ? `${name} ${copyPrice(row.sell_price, true)} ${copyPrice(row.dealer_price, true)}`
+      : `${name} — ${copyPrice(dealer ? row.dealer_price : row.sell_price, false)}`
   }).join('\n')
+}
+
+export function fabricRowKey(row: CopyFabricRow): string {
+  return row.input_term == null ? String(row.id) : JSON.stringify([row.input_term, String(row.id)])
 }
 
 export function toggleFabricSelection(selected: Map<string, CopyFabricRow>, row: CopyFabricRow): Map<string, CopyFabricRow> {
   const next = new Map(selected)
   if (row.id === null || row.id === undefined) return next
-  const id = String(row.id)
+  const id = fabricRowKey(row)
   if (next.has(id)) next.delete(id)
   else next.set(id, row)
   return next
@@ -32,7 +40,7 @@ export function mergeFabricRows(previous: CopyFabricRow[], incoming: CopyFabricR
   const byId = new Map<string, CopyFabricRow>()
   for (const row of [...previous, ...incoming]) {
     if (row.id === null || row.id === undefined) throw new Error('원단 ID 누락: 다시 조회해 주세요.')
-    byId.set(String(row.id), row)
+    byId.set(fabricRowKey(row), row)
   }
   return [...byId.values()]
 }
@@ -54,6 +62,18 @@ export async function collectFabricPages(
   }
   if (result.length !== total) throw new Error('조회 결과 변경 또는 누락: 다시 시도해 주세요.')
   return result
+}
+
+// Only a final numeric color token is inferred. Hyphenated words are never split.
+export function fabricColorBase(term: string): string | null {
+  const match = term.match(/^(.+)[#-](\d+)$/)
+  return match?.[1].trim() || null
+}
+
+export function resolveFabricTerm(term: string, exactNames: Set<string>) {
+  const base = fabricColorBase(term)
+  const exact = exactNames.has(term.toLowerCase())
+  return { search: exact ? term : base ?? term, copy: base ? term : null, exact }
 }
 
 export function parseFabricTerms(input: string): string[] {
